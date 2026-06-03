@@ -20,16 +20,11 @@
             const [selectedCreature, setSelectedCreature] = useState(null);
             const [creatures, setCreatures] = useState(() => {
                 const saved = localStorage.getItem('beetle_data');
-                if (saved) return JSON.parse(saved);
-                return Array.from({ length: 50 }, (_, i) => ({
+                return saved ? JSON.parse(saved) : Array.from({ length: 50 }, (_, i) => ({
                     id: (i + 1).toString(), name: `個体 ${i + 1}号`, alias: '極太血統',
                     origin: '福岡県久留米市', generation: 'F5', maleParent: 'M-1', femaleParent: 'F-1',
                     stage: '幼虫', saleStatus: '非売', size: '80', hatchDate: '2026-05-01', 
-                    history: [
-                        {item: '孵化', size: '10'},
-                        {item: '初令加重', size: '20'},
-                        {item: '2令加重', size: '40'}
-                    ]
+                    history: [{item: '孵化', size: '10'}, {item: '初令', size: '20'}, {item: '2令', size: '40'}]
                 }));
             });
             const [sort, setSort] = useState({ key: 'id', direction: 'asc' });
@@ -98,20 +93,30 @@
             useEffect(() => {
                 const ctx = canvasRef.current.getContext('2d');
                 ctx.clearRect(0, 0, 400, 200);
+                
                 const drawLine = (data, color, width) => {
-                    if (data.length === 0) return;
-                    ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = width;
+                    if (!data || data.length === 0) return;
+                    ctx.beginPath();
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = width;
                     data.forEach((h, i) => {
                         const x = (i / Math.max(1, data.length - 1)) * 360 + 20;
                         const size = parseFloat(h.size) || 0;
-                        const y = 180 - (size / 100) * 160;
+                        const y = 180 - Math.min(1, size / 100) * 160;
                         i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
                     });
                     ctx.stroke();
                 };
+
                 drawLine(form.history, '#10b981', 3);
-                if (ghostId) drawLine((creatures.find(c => c.id === ghostId)||{history:[]}).history, '#4b5563', 1);
-            }, [form, ghostId]);
+                
+                if (ghostId) {
+                    const ghost = creatures.find(c => c.id === ghostId);
+                    if (ghost && ghost.history) {
+                        drawLine(ghost.history, '#9ca3af', 2);
+                    }
+                }
+            }, [form, ghostId, creatures]);
 
             return (
                 <div className="p-6 max-w-lg mx-auto text-white">
@@ -122,7 +127,10 @@
                             {fields.map(f => <React.Fragment key={f.key}><p className="text-white">{f.label}:</p><input className="bg-neutral-800 p-1 w-full text-white" value={form[f.key]} onChange={e => onUpdate({...form, [f.key]: e.target.value})} /></React.Fragment>)}
                         </div>
                         <canvas ref={canvasRef} width="400" height="200" className="bg-neutral-800 rounded w-full" />
-                        <select className="w-full bg-neutral-800 p-2 text-white" onChange={(e) => setGhostId(e.target.value)}><option value="">比較対象(ゴースト)を選択</option>{creatures.filter(c => c.id !== form.id).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+                        <select className="w-full bg-neutral-800 p-2 text-white" onChange={(e) => setGhostId(e.target.value)}>
+                            <option value="">比較対象(ゴースト)を選択</option>
+                            {creatures.filter(c => c.id !== form.id).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
                         <div className="border-t border-neutral-700 pt-4">
                             <h3 className="font-bold mb-2">飼育記録</h3>
                             <table className="w-full text-xs text-left"><thead><tr className="text-white border-b border-neutral-700"><th>項目</th><th>サイズ</th></tr></thead>
