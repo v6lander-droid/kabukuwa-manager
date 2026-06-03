@@ -96,7 +96,13 @@
                 let h = [...form.history];
                 if (record.index !== null) h[record.index] = {item:record.item, size:record.size, date:h[record.index].date};
                 else h.push({item:record.item, size:record.size, date:new Date().toISOString().split('T')[0]});
-                setForm({...form, history: h});
+                
+                // ステージ自動判定
+                let newStage = '幼虫';
+                if (record.item.includes('羽化')) newStage = '成虫';
+                else if (record.item.includes('蛹化')) newStage = '蛹';
+                
+                setForm({...form, history: h, stage: newStage});
                 setShowModal(null);
             };
 
