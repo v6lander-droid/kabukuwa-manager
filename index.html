@@ -8,6 +8,10 @@
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        /* 明示的に横書きを強制するスタイル */
+        table { writing-mode: horizontal-tb !important; }
+    </style>
 </head>
 <body class="bg-neutral-950 text-white font-sans">
     <div id="root"></div>
@@ -56,7 +60,7 @@
                         <button onClick={() => { const n = {id:Date.now().toString(), name:'新規個体', history:[], stage:'幼虫', saleStatus:'非売', size:'0', alias:'', origin:'', generation:'', hatchDate:'', maleParent:'', femaleParent:''}; setCreatures([n,...creatures]); setSelectedCreature(n); }} className="bg-emerald-600 px-3 py-1 rounded text-white">➕ 追加</button>
                     </nav>
                     <div className="overflow-x-auto bg-neutral-900 rounded-lg">
-                        <table className="w-full text-sm border-collapse">
+                        <table className="w-full text-sm border-collapse whitespace-nowrap">
                             <thead><tr className="bg-neutral-800 text-left text-white border-b border-neutral-700">
                                 {headers.map(h => <th key={h.k} className="p-3 cursor-pointer hover:bg-neutral-700" onClick={() => setSort({key:h.k, direction: sort.key===h.k && sort.direction==='asc'?'desc':'asc'})}>{h.l}</th>)}
                                 <th className="p-3">操作</th>
