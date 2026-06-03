@@ -18,7 +18,8 @@
         const generateDemoData = () => Array.from({ length: 50 }, (_, i) => ({
             id: (i + 1).toString(), name: `個体 ${i + 1}号`, alias: '極太血統',
             origin: '福岡県久留米市', generation: 'F5', maleParent: 'M-1', femaleParent: 'F-1',
-            stage: '幼虫', saleStatus: '非売', size: '80.0mm', hatchDate: '2026-05-01', history: []
+            stage: '幼虫', saleStatus: '非売', size: '80.0mm', hatchDate: '2026-05-01',
+            history: [{item: '菌糸ビン交換', date: '2026-06-01', size: '15g'}]
         }));
 
         function App() {
@@ -90,13 +91,21 @@
 
         function DetailView({ creature, isNew, onBack, onSave }) {
             const [form, setForm] = useState(creature);
+            const [input, setInput] = useState({ item: '', size: '', index: null });
             const fields = [{key:'name', label:'個体名'}, {key:'alias', label:'名称'}, {key:'origin', label:'産地'}, {key:'generation', label:'累代'}, {key:'size', label:'サイズ'}, {key:'hatchDate', label:'羽化日'}, {key:'maleParent', label:'オス親'}, {key:'femaleParent', label:'メス親'}, {key:'stage', label:'ステージ'}];
+            
             return (
                 <div className="p-6 max-w-lg mx-auto">
                     <button onClick={onBack} className="mb-4 text-emerald-400 font-bold">← 一覧に戻る</button>
                     <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 space-y-4">
                         <h2 className="text-xl font-bold border-b pb-2">{isNew ? '新規個体登録' : '詳細情報'}</h2>
                         <div className="grid grid-cols-2 gap-2 text-sm">{fields.map(f => <React.Fragment key={f.key}><p className="text-neutral-400">{f.label}:</p><input className="bg-neutral-800 p-1 w-full" value={form[f.key]} onChange={e=>setForm({...form, [f.key]:e.target.value})} /></React.Fragment>)}</div>
+                        
+                        <div className="border-t border-neutral-700 pt-4">
+                            <h3 className="font-bold mb-3">飼育履歴</h3>
+                            <table className="w-full text-xs mb-4"><thead><tr className="text-neutral-400 border-b border-neutral-700 text-left"><th>項目</th><th>日付</th><th>サイズ</th><th>操作</th></tr></thead><tbody>{form.history.map((h,i) => <tr key={i} className="border-b border-neutral-800"><td>{h.item}</td><td>{h.date}</td><td>{h.size}</td><td><button onClick={() => setInput({item:h.item, size:h.size, index:i})} className="bg-emerald-600 px-1 rounded">訂正</button></td></tr>)}</tbody></table>
+                            <div className="bg-neutral-800 p-3 rounded space-y-2"><input placeholder="項目" className="w-full bg-neutral-700 p-1" value={input.item} onChange={e=>setInput({...input, item:e.target.value})} /><input placeholder="サイズ" className="w-full bg-neutral-700 p-1" value={input.size} onChange={e=>setInput({...input, size:e.target.value})} /><button onClick={() => {if(input.item && input.size){ let h = [...form.history]; input.index !== null ? h[input.index] = {item:input.item, size:input.size, date:h[input.index].date} : h.push({item:input.item, size:input.size, date:new Date().toISOString().split('T')[0]}); setForm({...form, history: h}); setInput({item:'', size:'', index:null});}}} className="w-full bg-emerald-600 py-1 rounded font-bold">{input.index !== null ? '訂正を確定' : '履歴を追加'}</button></div>
+                        </div>
                         <button onClick={() => onSave(form, isNew)} className="w-full bg-emerald-600 py-2 rounded font-bold">保存</button>
                     </div>
                 </div>
