@@ -52,7 +52,6 @@
 
             if (selectedCreature) return <DetailView creature={selectedCreature.data} isNew={selectedCreature.isNew} onBack={() => setSelectedCreature(null)} onSave={saveCreature} />;
 
-            // 項目順: 販売, 個体名, 名称, 累代, ステージ, サイズ, 羽化日
             const headers = [
                 {k:'saleStatus',l:'販売'}, {k:'name',l:'個体名'}, {k:'alias',l:'名称'}, 
                 {k:'generation',l:'累代'}, {k:'stage',l:'ステージ'}, {k:'size',l:'サイズ'}, {k:'hatchDate',l:'羽化日'}
