@@ -18,9 +18,10 @@
         function App() {
             const [selectedCreature, setSelectedCreature] = useState(null);
             const [creatures, setCreatures] = useState([
-                { id: '1', name: '個体 1号', alias: '極太血統A', origin: '福岡県久留米市', generation: 'F5', maleParent: '-', femaleParent: '-', stage: '幼虫', isForSale: false, exchangeHistory: ['10g', '15g'] },
-                { id: '2', name: '個体 2号', alias: '標準タイプ', origin: '福岡県久留米市', generation: 'F5', maleParent: '-', femaleParent: '-', stage: '蛹', isForSale: true, exchangeHistory: ['8g'] },
-                { id: '3', name: '個体 3号', alias: '期待の星', origin: '福岡県久留米市', generation: 'F6', maleParent: '1', femaleParent: '2', stage: '成虫', isForSale: false, exchangeHistory: ['30g'] }
+                { id: '1', name: '個体 1号', alias: '極太血統A', origin: '福岡県久留米市', generation: 'F5', maleParent: '-', femaleParent: '-', stage: '幼虫', isForSale: false, 
+                  history: [{item: '菌糸ビン交換', date: '2026-06-01', size: '15g'}, {item: '初令投入', date: '2026-04-01', size: '1g'}] },
+                { id: '2', name: '個体 2号', alias: '標準タイプ', origin: '福岡県久留米市', generation: 'F5', maleParent: '-', femaleParent: '-', stage: '蛹', isForSale: true, 
+                  history: [{item: '蛹化確認', date: '2026-05-20', size: '8g'}] }
             ]);
 
             const toggleSale = (id) => setCreatures(creatures.map(c => c.id === id ? {...c, isForSale: !c.isForSale} : c));
@@ -71,8 +72,10 @@
             return (
                 <div className="p-6 max-w-lg mx-auto">
                     <button onClick={onBack} className="mb-6 text-emerald-400 font-bold">← 一覧に戻る</button>
-                    <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 shadow-xl space-y-4">
-                        <h2 className="text-2xl font-bold border-b border-neutral-700 pb-2 mb-4">{creature.name}</h2>
+                    <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 shadow-xl space-y-6">
+                        <h2 className="text-2xl font-bold border-b border-neutral-700 pb-2">{creature.name}</h2>
+                        
+                        {/* 個別情報 */}
                         <div className="grid grid-cols-2 gap-4 text-sm">
                             <p className="text-neutral-400">名称:</p><p className="font-bold">{creature.alias}</p>
                             <p className="text-neutral-400">産地:</p><p className="font-bold">{creature.origin}</p>
@@ -80,6 +83,29 @@
                             <p className="text-neutral-400">ステージ:</p><p className="font-bold">{creature.stage}</p>
                             <p className="text-neutral-400">オス親:</p><p className="font-bold">{creature.maleParent}</p>
                             <p className="text-neutral-400">メス親:</p><p className="font-bold">{creature.femaleParent}</p>
+                        </div>
+
+                        {/* 飼育履歴表 */}
+                        <div className="border-t border-neutral-700 pt-6">
+                            <h3 className="font-bold mb-3 text-emerald-400">飼育履歴</h3>
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="text-neutral-400 border-b border-neutral-700">
+                                        <th className="pb-2 text-left">項目</th>
+                                        <th className="pb-2 text-left">日付</th>
+                                        <th className="pb-2 text-left">サイズ</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {creature.history.map((h, i) => (
+                                        <tr key={i} className="border-b border-neutral-800">
+                                            <td className="py-2">{h.item}</td>
+                                            <td className="py-2">{h.date}</td>
+                                            <td className="py-2">{h.size}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
