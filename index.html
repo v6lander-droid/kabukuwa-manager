@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Beetle Base - 完全統合版</title>
+    <title>Beetle Base - 統合管理</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -50,7 +50,7 @@
                     <main className="p-4 overflow-x-auto">
                         {activeTab === 'list' ? (
                             <table className="w-full text-sm bg-neutral-900 rounded-lg overflow-hidden">
-                                <thead className="bg-neutral-800"><tr><th className="p-3">販売</th><th className="p-3">名称</th><th className="p-3">操作</th></tr></thead>
+                                <thead className="bg-neutral-800"><tr><th className="p-3">販売</th><th className="p-3">個体名</th><th className="p-3">操作</th></tr></thead>
                                 <tbody>
                                     {creatures.map(c => (
                                         <tr key={c.id} className="border-t border-neutral-800" onClick={() => setSelectedCreature(c)}>
@@ -61,7 +61,7 @@
                                     ))}
                                 </tbody>
                             </table>
-                        ) : activeTab === 'pedigree' ? <div className="p-4">血統図表示エリア</div> : <div className="p-4">シミュレーションエリア</div>}
+                        ) : <div className="p-4 text-neutral-500">機能実装中...</div>}
                     </main>
                 </div>
             );
@@ -71,27 +71,37 @@
             const [isEditing, setIsEditing] = useState(false);
             const [form, setForm] = useState(creature);
 
+            const fields = [
+                { key: 'name', label: '個体名' },
+                { key: 'alias', label: '名称' },
+                { key: 'origin', label: '産地' },
+                { key: 'generation', label: '累代' },
+                { key: 'maleParent', label: 'オス親' },
+                { key: 'femaleParent', label: 'メス親' },
+                { key: 'stage', label: 'ステージ' }
+            ];
+
             return (
                 <div className="p-6 max-w-lg mx-auto">
-                    <button onClick={onBack} className="mb-4 text-emerald-400">← 戻る</button>
+                    <button onClick={onBack} className="mb-4 text-emerald-400">← 一覧に戻る</button>
                     <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 space-y-4">
                         <div className="flex justify-between items-center">
-                            <h2 className="text-xl font-bold">{isEditing ? <input className="bg-neutral-800 p-1" value={form.name} onChange={e=>setForm({...form, name:e.target.value})} /> : creature.name}</h2>
+                            <h2 className="text-xl font-bold">詳細情報</h2>
                             <button onClick={isEditing ? () => { onUpdate(form); setIsEditing(false); } : () => setIsEditing(true)} className="bg-emerald-700 px-3 py-1 rounded">{isEditing ? '保存' : '編集'}</button>
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-sm">
-                            <p className="text-neutral-400">名称:</p><p>{creature.alias}</p>
-                            <p className="text-neutral-400">産地:</p><p>{creature.origin}</p>
-                            <p className="text-neutral-400">累代:</p><p>{creature.generation}</p>
-                            <p className="text-neutral-400">オス親:</p><p>{creature.maleParent}</p>
-                            <p className="text-neutral-400">メス親:</p><p>{creature.femaleParent}</p>
-                            <p className="text-neutral-400">ステージ:</p><p>{creature.stage}</p>
+                            {fields.map(f => (
+                                <React.Fragment key={f.key}>
+                                    <p className="text-neutral-400">{f.label}:</p>
+                                    {isEditing ? <input className="bg-neutral-800 p-1 w-full" value={form[f.key]} onChange={e=>setForm({...form, [f.key]:e.target.value})} /> : <p>{creature[f.key]}</p>}
+                                </React.Fragment>
+                            ))}
                         </div>
                         <div className="border-t pt-4">
                             <div className="flex justify-between mb-2"><h3>飼育履歴</h3><button onClick={() => onAddHistory(creature.id)} className="text-xs bg-neutral-700 px-2 py-1">+ 履歴追加</button></div>
                             <table className="w-full text-xs">
-                                <thead><tr><th className="text-left">項目</th><th className="text-left">日付</th><th className="text-left">サイズ</th></tr></thead>
-                                <tbody>{creature.history.map((h,i) => <tr key={i}><td>{h.item}</td><td>{h.date}</td><td>{h.size}</td></tr>)}</tbody>
+                                <thead><tr className="text-neutral-400 border-b border-neutral-700 text-left"><th>項目</th><th>日付</th><th>サイズ</th></tr></thead>
+                                <tbody>{creature.history.map((h,i) => <tr key={i} className="border-b border-neutral-800"><td>{h.item}</td><td>{h.date}</td><td>{h.size}</td></tr>)}</tbody>
                             </table>
                         </div>
                     </div>
