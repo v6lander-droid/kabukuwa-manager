@@ -37,9 +37,12 @@
 
             return (
                 <div className="p-4"><nav className="mb-4 flex justify-between items-center font-bold text-emerald-400"><span>Beetle Base - 全個体一覧</span>
-                <button onClick={() => { const n = {id:Date.now().toString(), name:'新規個体', history:[], stage:'幼虫', saleStatus:'非売', size:'0mm'}; setCreatures([n,...creatures]); setSelectedCreature(n); }} className="bg-emerald-600 px-3 py-1 rounded text-white">➕ 追加</button></nav>
-                <div className="overflow-x-auto bg-neutral-900 rounded-lg"><table className="w-full text-sm"><thead><tr className="bg-neutral-800 text-left"><th>販売</th><th>個体名</th><th>ステージ</th><th>サイズ</th><th>操作</th></tr></thead>
-                <tbody>{creatures.map(c => <tr key={c.id} className="border-t border-neutral-800 cursor-pointer hover:bg-neutral-800" onClick={() => setSelectedCreature(c)}><td className="p-3">{c.saleStatus}</td><td className="p-3 font-bold">{c.name}</td><td className="p-3">{c.stage}</td><td className="p-3">{c.size}</td><td className="p-3"><button onClick={(e) => {e.stopPropagation(); if(confirm('削除?')) setCreatures(creatures.filter(x=>x.id!==c.id))}} className="bg-emerald-600 px-2 py-1 rounded">削除</button></td></tr>)}</tbody></table></div></div>
+                <button onClick={() => { const n = {id:Date.now().toString(), name:'新規個体', history:[], stage:'幼虫', saleStatus:'非売', size:'0mm', alias:'', origin:'', generation:'', hatchDate:'', maleParent:'', femaleParent:''}; setCreatures([n,...creatures]); setSelectedCreature(n); }} className="bg-emerald-600 px-3 py-1 rounded text-white">➕ 追加</button></nav>
+                <div className="overflow-x-auto bg-neutral-900 rounded-lg"><table className="w-full text-sm"><thead><tr className="bg-neutral-800 text-left text-white">
+                <th className="p-3">販売</th><th className="p-3">個体名</th><th className="p-3">名称</th><th className="p-3">産地</th><th className="p-3">累代</th><th className="p-3">サイズ</th><th className="p-3">羽化日</th><th className="p-3">オス親</th><th className="p-3">メス親</th><th className="p-3">ステージ</th></tr></thead>
+                <tbody>{creatures.map(c => <tr key={c.id} className="border-t border-neutral-800 cursor-pointer hover:bg-neutral-800" onClick={() => setSelectedCreature(c)}>
+                <td className="p-3">{c.saleStatus}</td><td className="p-3 font-bold">{c.name}</td><td className="p-3">{c.alias}</td><td className="p-3">{c.origin}</td><td className="p-3">{c.generation}</td><td className="p-3">{c.size}</td><td className="p-3">{c.hatchDate}</td><td className="p-3">{c.maleParent}</td><td className="p-3">{c.femaleParent}</td><td className="p-3">{c.stage}</td>
+                </tr>)}</tbody></table></div></div>
             );
         }
 
