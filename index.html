@@ -20,7 +20,7 @@
             name: `個体 ${i + 1}号`,
             alias: i % 2 === 0 ? '極太血統' : '標準血統',
             origin: '福岡県久留米市',
-            generation: 'F5',
+            generation: 'F' + (i % 5 + 1),
             maleParent: 'M-1',
             femaleParent: 'F-1',
             stage: i % 3 === 0 ? '幼虫' : i % 3 === 1 ? '蛹' : '成虫',
@@ -32,11 +32,23 @@
             const [selectedCreature, setSelectedCreature] = useState(null);
             const [creatures, setCreatures] = useState(generateDemoData());
             const [filter, setFilter] = useState({ stage: '', alias: '' });
+            const [sort, setSort] = useState({ key: 'id', direction: 'asc' });
 
-            const filteredCreatures = useMemo(() => creatures.filter(c => 
-                (filter.stage === '' || c.stage === filter.stage) &&
-                (filter.alias === '' || c.alias.includes(filter.alias))
-            ), [creatures, filter]);
+            const handleSort = (key) => {
+                setSort({ key, direction: sort.key === key && sort.direction === 'asc' ? 'desc' : 'asc' });
+            };
+
+            const processedCreatures = useMemo(() => {
+                let data = creatures.filter(c => 
+                    (filter.stage === '' || c.stage === filter.stage) &&
+                    (filter.alias === '' || c.alias.includes(filter.alias))
+                );
+                return data.sort((a, b) => {
+                    if (a[sort.key] < b[sort.key]) return sort.direction === 'asc' ? -1 : 1;
+                    if (a[sort.key] > b[sort.key]) return sort.direction === 'asc' ? 1 : -1;
+                    return 0;
+                });
+            }, [creatures, filter, sort]);
 
             const toggleSaleStatus = (id, e) => {
                 e.stopPropagation();
@@ -45,6 +57,8 @@
             };
 
             if (selectedCreature) return <DetailView creature={selectedCreature} onBack={() => setSelectedCreature(null)} onUpdate={(u) => { setCreatures(creatures.map(c => c.id === u.id ? u : c)); setSelectedCreature(u); }} />;
+
+            const headers = [{key:'saleStatus', label:'販売'}, {key:'name', label:'個体名'}, {key:'alias', label:'名称'}, {key:'origin', label:'産地'}, {key:'generation', label:'累代'}, {key:'stage', label:'ステージ'}];
 
             return (
                 <div className="min-h-screen p-4">
@@ -59,18 +73,15 @@
                         <table className="w-full text-sm border-collapse whitespace-nowrap">
                             <thead className="bg-neutral-800">
                                 <tr>
-                                    <th className="p-3">販売</th><th className="p-3">個体名</th><th className="p-3">名称</th>
-                                    <th className="p-3">産地</th><th className="p-3">累代</th><th className="p-3">オス親</th>
-                                    <th className="p-3">メス親</th><th className="p-3">ステージ</th>
+                                    {headers.map(h => <th key={h.key} className="p-3 cursor-pointer hover:bg-neutral-700" onClick={() => handleSort(h.key)}>{h.label} {sort.key === h.key ? (sort.direction === 'asc' ? '▲' : '▼') : ''}</th>)}
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredCreatures.map(c => (
+                                {processedCreatures.map(c => (
                                     <tr key={c.id} className="border-t border-neutral-800 hover:bg-neutral-800 cursor-pointer" onClick={() => setSelectedCreature(c)}>
                                         <td className="p-3"><button onClick={(e) => toggleSaleStatus(c.id, e)} className={`px-2 py-1 rounded text-[10px] ${c.saleStatus === '販売' ? 'bg-emerald-600' : c.saleStatus === '予備' ? 'bg-amber-600' : 'bg-neutral-600'}`}>{c.saleStatus}</button></td>
                                         <td className="p-3 font-bold">{c.name}</td><td className="p-3">{c.alias}</td>
-                                        <td className="p-3">{c.origin}</td><td className="p-3">{c.generation}</td>
-                                        <td className="p-3">{c.maleParent}</td><td className="p-3">{c.femaleParent}</td><td className="p-3">{c.stage}</td>
+                                        <td className="p-3">{c.origin}</td><td className="p-3">{c.generation}</td><td className="p-3">{c.stage}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -80,7 +91,7 @@
             );
         }
 
-        // DetailView は前回のものをそのまま保持
+        // DetailView は省略（前回のものを保持）
         function DetailView({ creature, onBack, onUpdate }) {
             const [isEditing, setIsEditing] = useState(false);
             const [form, setForm] = useState(creature);
