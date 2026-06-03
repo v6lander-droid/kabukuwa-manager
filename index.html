@@ -15,11 +15,24 @@
     <script type="text/babel">
         const { useState } = React;
 
+        const generateDemoData = () => {
+            return Array.from({ length: 50 }, (_, i) => ({
+                id: (i + 1).toString(),
+                name: `個体 ${i + 1}号`,
+                alias: i % 2 === 0 ? '極太血統' : '標準血統',
+                origin: '福岡県久留米市',
+                generation: 'F5',
+                maleParent: 'M-1',
+                femaleParent: 'F-1',
+                stage: i % 3 === 0 ? '幼虫' : i % 3 === 1 ? '蛹' : '成虫',
+                isForSale: false,
+                history: [{item: '孵化', date: '2026-04-01', size: '1g'}]
+            }));
+        };
+
         function App() {
             const [selectedCreature, setSelectedCreature] = useState(null);
-            const [creatures, setCreatures] = useState([
-                { id: '1', name: '個体 1号', alias: '極太血統A', origin: '福岡県久留米市', generation: 'F5', maleParent: '-', femaleParent: '-', stage: '幼虫', isForSale: false, history: [{item: '菌糸ビン交換', date: '2026-06-01', size: '15g'}] }
-            ]);
+            const [creatures, setCreatures] = useState(generateDemoData());
 
             const updateCreature = (updated) => {
                 setCreatures(creatures.map(c => c.id === updated.id ? updated : c));
@@ -32,19 +45,24 @@
 
             return (
                 <div className="min-h-screen p-4">
-                    <nav className="mb-4 font-bold text-emerald-400">Beetle Base</nav>
-                    <table className="w-full text-sm bg-neutral-900 rounded-lg overflow-hidden">
-                        <thead className="bg-neutral-800"><tr><th className="p-3">販売</th><th className="p-3">個体名</th><th className="p-3">操作</th></tr></thead>
-                        <tbody>
-                            {creatures.map(c => (
-                                <tr key={c.id} className="border-t border-neutral-800" onClick={() => setSelectedCreature(c)}>
-                                    <td className="p-3"><input type="checkbox" checked={c.isForSale} onChange={(e) => { e.stopPropagation(); setCreatures(creatures.map(x=>x.id===c.id?{...x, isForSale:!x.isForSale}:x))}} /></td>
-                                    <td className="p-3 font-bold">{c.name}</td>
-                                    <td className="p-3"><button onClick={(e) => { e.stopPropagation(); if(confirm('削除?')) setCreatures(creatures.filter(x=>x.id!==c.id)) }} className="bg-emerald-600 px-2 py-1 rounded text-xs">削除</button></td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                    <nav className="mb-4 font-bold text-emerald-400">Beetle Base (全50匹)</nav>
+                    <div className="overflow-x-auto bg-neutral-900 rounded-lg">
+                        <table className="w-full text-sm">
+                            <thead className="bg-neutral-800">
+                                <tr><th className="p-3">販売</th><th className="p-3">個体名</th><th className="p-3">産地</th><th className="p-3">ステージ</th></tr>
+                            </thead>
+                            <tbody>
+                                {creatures.map(c => (
+                                    <tr key={c.id} className="border-t border-neutral-800 cursor-pointer hover:bg-neutral-800" onClick={() => setSelectedCreature(c)}>
+                                        <td className="p-3"><input type="checkbox" checked={c.isForSale} onChange={(e) => { e.stopPropagation(); setCreatures(creatures.map(x=>x.id===c.id?{...x, isForSale:!x.isForSale}:x))}} /></td>
+                                        <td className="p-3 font-bold">{c.name}</td>
+                                        <td className="p-3">{c.origin}</td>
+                                        <td className="p-3">{c.stage}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             );
         }
@@ -95,7 +113,6 @@
                                 <thead><tr className="text-neutral-400 border-b border-neutral-700 text-left"><th>項目</th><th>日付</th><th>サイズ</th><th>操作</th></tr></thead>
                                 <tbody>{creature.history.map((h,i) => <tr key={i} className="border-b border-neutral-800"><td>{h.item}</td><td>{h.date}</td><td>{h.size}</td><td><button onClick={() => setInput({item:h.item, size:h.size, index:i})} className="bg-emerald-600 px-1 rounded">訂正</button></td></tr>)}</tbody>
                             </table>
-                            {/* 常駐入力ウインドウ */}
                             <div className="bg-neutral-800 p-3 rounded space-y-2">
                                 <input placeholder="項目" className="w-full bg-neutral-700 p-1" value={input.item} onChange={e=>setInput({...input, item:e.target.value})} />
                                 <input placeholder="サイズ" className="w-full bg-neutral-700 p-1" value={input.size} onChange={e=>setInput({...input, size:e.target.value})} />
