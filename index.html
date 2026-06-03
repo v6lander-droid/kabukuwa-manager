@@ -3,283 +3,75 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black">
-    <title>Beetle Base - カブクワ血統管理</title>
+    <title>Beetle Base - Dark Mode</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
-<body class="bg-emerald-50">
+<body class="bg-neutral-950 text-white font-sans">
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState } = React;
 
-        // --- データ生成 ---
-        const generateCreatures = () => {
-          const data = [];
-          const stages = ['幼虫', '蛹', '成虫'];
-          for (let i = 1; i <= 50; i++) {
-            data.push({
-              id: i.toString(),
-              name: `個体 ${i}号`,
-              species: 'オオクワガタ',
-              origin: '福岡県久留米市',
-              gender: i % 2 === 0 ? 'male' : 'female',
-              generation: 'F5',
-              birthDate: '2026-05-15',
-              hatchDate: '2026-04-01',
-              exchangeHistory: [{ date: '2026-04-01', size: '10g' }], 
-              status: '幼虫飼育中',
-              stage: stages[i % 3],
-              line: `YGライン No.${(i % 10) + 1}`,
-              parents: i > 2 ? { male: '1', female: '2' } : null,
-              inbreedingRate: i > 2 ? 25.0 : 12.5,
-              geneticType: 'AABB型',
-              morphology: '大型',
-              potential: '期待値高',
-              heritabilityIndex: 0.85,
-              vitalityScore: 92,
-              mendelDominantRatio: 75
-            });
-          }
-          return data;
-        };
-
-        const getLatestSize = (history) => {
-          if (!history || history.length === 0) return '-';
-          return history[history.length - 1].size;
-        };
-
         function App() {
           const [activeTab, setActiveTab] = useState('list');
-          const [selectedCreatureId, setSelectedCreatureId] = useState(null);
-          const [isCreating, setIsCreating] = useState(false);
-          const [highlightId, setHighlightId] = useState(null);
-          const [creatures, setCreatures] = useState(generateCreatures());
-          
-          const [maleId, setMaleId] = useState('');
-          const [femaleId, setFemaleId] = useState('');
-          const [simResult, setSimResult] = useState(null);
-          const [pairings, setPairings] = useState([{ id: 1, male: '2', female: '1', status: 'ペアリング中', date: '2026-06-01' }]);
+          const [creatures, setCreatures] = useState([
+            { id: '1', name: '個体 1号', stage: '幼虫', generation: 'F5', origin: '福岡', isForSale: false, exchangeHistory: [{size: '10g'}, {size: '15g'}] },
+            { id: '2', name: '個体 2号', stage: '蛹', generation: 'F5', origin: '福岡', isForSale: true, exchangeHistory: [{size: '8g'}] }
+          ]);
 
-          const runSimulation = () => {
-            const male = creatures.find(c => c.id === maleId);
-            const female = creatures.find(c => c.id === femaleId);
-            if (!male || !female) return;
-
-            const baseInbreeding = (male.inbreedingRate + female.inbreedingRate) / 2 + 12.5;
-            
-            setSimResult({
-              inbreedingRate: baseInbreeding.toFixed(1),
-              predictedSize: ((30 + 30) / 2 + (Math.random() * 5)).toFixed(1),
-              heritabilityIndex: 0.82,
-              vitalityScore: 88,
-              mendelDominantRatio: 75,
-              survivalProb: 94.5,
-              morphologyType: '超極太血統継承率: 68%',
-              maturationPredict: '早熟型: 40% / 晩成型: 60%'
-            });
+          const toggleSale = (id) => {
+            setCreatures(creatures.map(c => c.id === id ? {...c, isForSale: !c.isForSale} : c));
           };
 
-          const updateCreature = (id, newData) => {
-            setCreatures(creatures.map(c => c.id === id ? { ...c, ...newData } : c));
-          };
-
-          const addNewCreature = () => {
-            const newId = (creatures.length + 1).toString();
-            const newCreature = {
-              id: newId,
-              name: `個体 ${newId}号`,
-              species: 'オオクワガタ',
-              origin: '未設定',
-              gender: 'male',
-              generation: 'F1',
-              birthDate: new Date().toISOString().split('T')[0],
-              hatchDate: new Date().toISOString().split('T')[0],
-              exchangeHistory: [],
-              stage: '幼虫',
-              line: '新規ライン',
-              parents: null,
-              inbreedingRate: 0,
-              geneticType: '未設定',
-              morphology: '未設定',
-              potential: '未設定',
-              heritabilityIndex: 0.5,
-              vitalityScore: 50,
-              mendelDominantRatio: 50
-            };
-            setCreatures([newCreature, ...creatures]);
-            setIsCreating(true);
-            setSelectedCreatureId(newId);
+          const deleteCreature = (id) => {
+            if(confirm('本当に削除しますか？')) setCreatures(creatures.filter(c => c.id !== id));
           };
 
           return (
-            <div className="h-screen bg-emerald-50 text-emerald-950 font-sans flex flex-col">
-              <nav className="shrink-0 z-50 w-full bg-emerald-900 text-emerald-100 flex p-2 md:p-4 gap-2 shadow-lg overflow-x-auto">
-                <div className="hidden md:flex font-bold text-amber-400 items-center gap-2 px-2 border-r border-emerald-700 mr-2 shrink-0">
-                  🪲 Beetle Base
-                </div>
-                <button onClick={() => { setActiveTab('list'); setSelectedCreatureId(null); }} className={`flex items-center gap-2 px-4 py-2 rounded ${activeTab === 'list' ? 'bg-emerald-800 text-white' : 'hover:bg-emerald-800'}`}>
-                  📋 <span className="text-sm">一覧</span>
-                </button>
-                <button onClick={() => { setActiveTab('pedigree'); setSelectedCreatureId(null); }} className={`flex items-center gap-2 px-4 py-2 rounded ${activeTab === 'pedigree' ? 'bg-emerald-800 text-white' : 'hover:bg-emerald-800'}`}>
-                  🌿 <span className="text-sm">血統図</span>
-                </button>
-                <button onClick={() => { setActiveTab('pairing'); setSelectedCreatureId(null); }} className={`flex items-center gap-2 px-4 py-2 rounded ${activeTab === 'pairing' ? 'bg-emerald-800 text-white' : 'hover:bg-emerald-800'}`}>
-                  📅 <span className="text-sm">計画表</span>
-                </button>
-                <button onClick={() => { setActiveTab('simulation'); setSelectedCreatureId(null); }} className={`flex items-center gap-2 px-4 py-2 rounded ${activeTab === 'simulation' ? 'bg-emerald-800 text-white' : 'hover:bg-emerald-800'}`}>
-                  ⚡ <span className="text-sm">シミュ</span>
-                </button>
+            <div className="min-h-screen flex flex-col">
+              <nav className="bg-neutral-900 p-4 border-b border-neutral-800 flex gap-4">
+                <button onClick={() => setActiveTab('list')} className="font-bold">一覧</button>
               </nav>
 
-              <main className="flex-1 overflow-y-auto p-4 md:p-8">
-                <div className="max-w-6xl mx-auto min-h-full">
-                  {selectedCreatureId ? (
-                    <CreatureDetailView id={selectedCreatureId} creatures={creatures} onUpdate={updateCreature} onBack={() => { setSelectedCreatureId(null); setIsCreating(false); }} onJumpToPedigree={(id) => { setActiveTab('pedigree'); setSelectedCreatureId(null); setHighlightId(id); }} initialEditMode={isCreating} />
-                  ) : activeTab === 'list' ? (
-                    <div className="space-y-6">
-                      <div className="flex justify-between items-center">
-                        <h1 className="text-2xl font-bold">全個体一覧</h1>
-                        <button onClick={addNewCreature} className="flex items-center gap-2 bg-emerald-700 text-white px-4 py-2 rounded-lg font-bold hover:bg-emerald-800">
-                          ➕ 追加
-                        </button>
-                      </div>
-                      <div className="bg-white rounded-xl shadow overflow-x-auto relative">
-                        <table className="w-full text-sm min-w-[700px] border-collapse">
-                          <thead className="bg-emerald-50 text-emerald-800 sticky top-0 z-10">
-                            <tr>
-                              <th className="p-4 text-left">個体名</th><th className="p-4 text-left">産地</th><th className="p-4 text-left">累代</th><th className="p-4 text-left">ステージ</th><th className="p-4 text-left">サイズ</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {creatures.map(c => (
-                              <tr key={c.id} className="border-t hover:bg-emerald-50 cursor-pointer" onClick={() => { setSelectedCreatureId(c.id); setIsCreating(false); }}>
-                                <td className="p-4 font-bold text-emerald-700">{c.name}</td>
-                                <td className="p-4">{c.origin}</td>
-                                <td className="p-4">{c.generation}</td>
-                                <td className="p-4">{c.stage}</td>
-                                <td className="p-4">{getLatestSize(c.exchangeHistory)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  ) : activeTab === 'pairing' ? (
-                    <div className="space-y-6">
-                        <h1 className="text-2xl font-bold">ペアリング計画表</h1>
-                        <div className="bg-white p-6 rounded-xl shadow">
-                            <table className="w-full text-sm">
-                                <thead><tr className="bg-emerald-50 text-emerald-800"><th className="p-3 text-left">オス</th><th className="p-3 text-left">メス</th><th className="p-3 text-left">状況</th><th className="p-3 text-left">開始日</th></tr></thead>
-                                <tbody>{pairings.map(p => (
-                                    <tr key={p.id} className="border-t">
-                                        <td className="p-3">{creatures.find(c=>c.id===p.male)?.name}</td>
-                                        <td className="p-3">{creatures.find(c=>c.id===p.female)?.name}</td>
-                                        <td className="p-3"><span className="bg-amber-100 text-amber-800 px-2 py-1 rounded text-xs font-bold">{p.status}</span></td>
-                                        <td className="p-3">{p.date}</td>
-                                    </tr>
-                                ))}</tbody>
-                            </table>
-                        </div>
-                    </div>
-                  ) : activeTab === 'pedigree' ? (
-                    <div className="space-y-6">
-                      <h1 className="text-2xl font-bold">血統図</h1>
-                      <div className="bg-white p-8 rounded-xl shadow">
-                        {creatures.filter(c => !c.parents).map(root => (
-                          <TreeItem key={root.id} creature={root} all={creatures} onSelect={(id) => { setSelectedCreatureId(id); setIsCreating(false); }} highlightId={highlightId} />
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-6">
-                      <h1 className="text-2xl font-bold">交配シミュレーション</h1>
-                      <div className="bg-white p-6 rounded-xl shadow grid md:grid-cols-2 gap-8">
-                        <div>
-                          <h3 className="font-bold text-emerald-800 mb-4">親個体の選択</h3>
-                          <div className="space-y-4">
-                            <select className="w-full p-2 border rounded" onChange={e => setMaleId(e.target.value)}>
-                              <option value="">オス親を選択...</option>
-                              {creatures.filter(c => c.gender === 'male').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                            </select>
-                            <select className="w-full p-2 border rounded" onChange={e => setFemaleId(e.target.value)}>
-                              <option value="">メス親を選択...</option>
-                              {creatures.filter(c => c.gender === 'female').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                            </select>
-                            <button onClick={runSimulation} className="w-full bg-emerald-700 text-white py-2 rounded font-bold hover:bg-emerald-800">実行</button>
-                          </div>
-                        </div>
-                        <div className="bg-emerald-50 p-6 rounded-lg text-sm text-emerald-900 space-y-2">
-                          <h3 className="font-bold border-b border-emerald-200 pb-2">予測結果</h3>
-                          {simResult ? (
-                            <>
-                              <p>近親交配率: {simResult.inbreedingRate}%</p>
-                              <p>予想サイズ: {simResult.predictedSize}mm</p>
-                              <p>遺伝率: {simResult.heritabilityIndex} / 生存力: {simResult.vitalityScore}</p>
-                              <p>優性形質比率: {simResult.mendelDominantRatio}%</p>
-                              <div className="pt-2 border-t border-emerald-200 mt-2">
-                                <p>生存確率: {simResult.survivalProb}%</p>
-                                <p>形態予測: {simResult.morphologyType}</p>
-                                <p>成熟: {simResult.maturationPredict}</p>
-                              </div>
-                            </>
-                          ) : <p className="italic">親を選択して実行してください。</p>}
-                        </div>
-                      </div>
-                    </div>
-                  )}
+              <main className="p-4 overflow-x-auto">
+                <div className="bg-neutral-900 rounded-lg shadow-xl">
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="bg-neutral-800 text-left">
+                        <th className="p-3 sticky left-0 bg-neutral-800 z-20">販売</th>
+                        <th className="p-3 sticky left-12 bg-neutral-800 z-20">個体名</th>
+                        <th className="p-3">累代</th>
+                        <th className="p-3">ステージ</th>
+                        <th className="p-3">サイズ履歴</th>
+                        <th className="p-3">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {creatures.map(c => (
+                        <tr key={c.id} className="border-t border-neutral-800">
+                          <td className="p-3 sticky left-0 bg-neutral-900 z-10">
+                            <input type="checkbox" checked={c.isForSale} onChange={() => toggleSale(c.id)} className="w-5 h-5"/>
+                          </td>
+                          <td className="p-3 sticky left-12 bg-neutral-900 z-10 font-bold">{c.name}</td>
+                          <td className="p-3">{c.generation}</td>
+                          <td className="p-3">{c.stage}</td>
+                          <td className="p-3 text-xs">{c.exchangeHistory.map(h => h.size).join(' → ')}</td>
+                          <td className="p-3">
+                            <button onClick={() => deleteCreature(c.id)} className="text-red-400 font-bold">削除</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </main>
             </div>
           );
         }
 
-        function TreeItem({ creature, all, onSelect, highlightId }) {
-          const children = all.filter(c => c.parents?.male === creature.id || c.parents?.female === creature.id);
-          const isHighlighted = creature.id === highlightId;
-          return (
-            <div className={`ml-6 border-l-2 ${isHighlighted ? 'border-amber-500' : 'border-emerald-200'} pl-4 py-2`}>
-              <button onClick={() => onSelect(creature.id)} className={`flex items-center gap-2 font-bold px-2 py-1 rounded ${isHighlighted ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'text-emerald-900 hover:text-emerald-600'}`}>
-                ➡️ {creature.name}
-              </button>
-              {children.map(child => <TreeItem key={child.id} creature={child} all={all} onSelect={onSelect} highlightId={highlightId} />)}
-            </div>
-          );
-        }
-
-        function CreatureDetailView({ id, creatures, onUpdate, onBack, onJumpToPedigree, initialEditMode }) {
-          const c = creatures.find(x => x.id === id);
-          const [isEditing, setIsEditing] = useState(initialEditMode);
-          const [formData, setFormData] = useState(c);
-          return (
-            <div className="space-y-6 pb-20">
-              <div className="flex justify-between items-center">
-                <button onClick={onBack} className="flex items-center gap-2 text-emerald-700 font-bold">⬅️ 戻る</button>
-                <div className="flex gap-2">
-                    <button onClick={() => onJumpToPedigree(id)} className="bg-emerald-600 text-white px-4 py-2 rounded-lg font-bold">血統図へ</button>
-                    <button onClick={() => setIsEditing(!isEditing)} className="bg-emerald-900 text-white px-4 py-2 rounded-lg font-bold">{isEditing ? '保存' : '編集'}</button>
-                </div>
-              </div>
-              <div className="grid md:grid-cols-2 gap-6">
-                <div className="bg-white p-6 rounded-xl shadow border">
-                    <h2 className="text-xl font-bold">{formData.name}</h2>
-                    <div className="mt-4 space-y-2 text-emerald-800 text-sm">
-                        <p>産地: {formData.origin}</p><p>累代: {formData.generation}</p><p>性別: {formData.gender === 'male' ? 'オス' : 'メス'}</p>
-                        <div className="mt-4 border-t pt-4">
-                            <p>近親交配率: {formData.inbreedingRate}%</p><p>遺伝率: {formData.heritabilityIndex}</p>
-                        </div>
-                    </div>
-                </div>
-              </div>
-            </div>
-          );
-        }
-
-        // Reactアプリを画面に描画する
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
     </script>
