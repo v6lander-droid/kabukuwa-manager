@@ -51,8 +51,8 @@
                         <button onClick={() => { const n = {id:Date.now().toString(), name:'新規個体', history:[], stage:'幼虫', saleStatus:'非売', size:'0', alias:'', origin:'', generation:'', hatchDate:'', maleParent:'', femaleParent:''}; setCreatures([n,...creatures]); setSelectedCreature(n); }} className="bg-emerald-600 px-3 py-1 rounded text-white">➕ 追加</button>
                     </nav>
                     <div className="overflow-x-auto bg-neutral-900 rounded-lg">
-                        <table className="w-full text-sm border-collapse whitespace-nowrap">
-                            <thead><tr className="bg-neutral-800 text-left text-white border-b border-neutral-700">
+                        <table className="w-full text-sm border-collapse whitespace-nowrap text-white">
+                            <thead><tr className="bg-neutral-800 text-left border-b border-neutral-700">
                                 {[{k:'saleStatus',l:'販売'}, {k:'name',l:'個体名'}, {k:'alias',l:'名称'}, {k:'origin',l:'産地'}, {k:'generation',l:'累代'}, {k:'size',l:'サイズ'}, {k:'hatchDate',l:'羽化日'}, {k:'maleParent',l:'オス親'}, {k:'femaleParent',l:'メス親'}, {k:'stage',l:'ステージ'}].map(h => <th key={h.k} className="p-3 cursor-pointer hover:bg-neutral-700" onClick={() => setSort({key:h.k, direction: sort.key===h.k && sort.direction==='asc'?'desc':'asc'})}>{h.l}</th>)}
                                 <th className="p-3">操作</th>
                             </tr></thead>
@@ -104,17 +104,17 @@
                 <div className="p-6 max-w-lg mx-auto text-white">
                     <div className="flex justify-between mb-4">
                         <button onClick={onBack} className="text-emerald-400 font-bold">← 一覧に戻る</button>
-                        <button onClick={() => isEditing ? (onUpdate(form), setIsEditing(false)) : setIsEditing(true)} className="bg-emerald-600 px-4 py-1 rounded font-bold">{isEditing ? '保存' : '編集'}</button>
+                        <button onClick={() => isEditing ? (onUpdate(form), setIsEditing(false)) : setIsEditing(true)} className="bg-emerald-600 px-4 py-1 rounded font-bold text-white">{isEditing ? '保存' : '編集'}</button>
                     </div>
                     <div className="bg-neutral-900 p-6 rounded-xl space-y-4">
-                        <h2 className="text-xl font-bold border-b border-neutral-700 pb-2">詳細情報</h2>
+                        <h2 className="text-xl font-bold border-b border-neutral-700 pb-2 text-white">詳細情報</h2>
                         <div className="grid grid-cols-[100px,1fr] gap-2 items-center text-sm">
-                            {fields.map(f => <React.Fragment key={f.key}><p className="text-white">{f.label}:</p><input disabled={!isEditing} className={`bg-neutral-800 p-1 w-full text-white ${!isEditing && 'opacity-60'}`} value={form[f.key]} onChange={e => setForm({...form, [f.key]: e.target.value})} /></React.Fragment>)}
+                            {fields.map(f => <React.Fragment key={f.key}><p className="text-white">{f.label}:</p><input disabled={!isEditing} className={`bg-neutral-800 p-1 w-full text-white ${!isEditing && 'opacity-70'}`} value={form[f.key]} onChange={e => setForm({...form, [f.key]: e.target.value})} /></React.Fragment>)}
                         </div>
                         <canvas ref={canvasRef} width="400" height="200" className="bg-neutral-800 rounded w-full" />
                         <select className="w-full bg-neutral-800 p-2 text-white" onChange={(e) => setGhostId(e.target.value)}><option value="">比較対象(ゴースト)を選択</option>{creatures.filter(c => c.id !== form.id).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
                         <div className="border-t border-neutral-700 pt-4">
-                            <h3 className="font-bold mb-2">飼育記録</h3>
+                            <h3 className="font-bold mb-2 text-white">飼育記録</h3>
                             <table className="w-full text-xs text-left"><thead><tr className="text-white border-b border-neutral-700"><th>項目</th><th>サイズ</th></tr></thead>
                             <tbody>{form.history.map((h,i) => <tr key={i} className="border-b border-neutral-800"><td>{h.item}</td><td>{h.size}</td></tr>)}</tbody></table>
                             <button onClick={() => setShowModal(true)} className="w-full bg-emerald-600 mt-4 p-2 rounded text-white">＋ 記録を追加</button>
@@ -128,7 +128,7 @@
                                 <input placeholder="サイズ(数値)" className="w-full bg-neutral-800 p-2 rounded text-white" value={newRecord.size} onChange={e => setNewRecord({...newRecord, size: e.target.value})} />
                                 <div className="flex gap-2">
                                     <button onClick={() => setShowModal(false)} className="w-full bg-neutral-700 p-2 rounded">キャンセル</button>
-                                    <button onClick={() => { onUpdate({...form, history: [...form.history, newRecord]}); setNewRecord({item:'', size:''}); setShowModal(false); }} className="w-full bg-emerald-600 p-2 rounded">保存</button>
+                                    <button onClick={() => { onUpdate({...form, history: [...form.history, newRecord]}); setNewRecord({item:'', size:''}); setShowModal(false); }} className="w-full bg-emerald-600 p-2 rounded text-white">保存</button>
                                 </div>
                             </div>
                         </div>
