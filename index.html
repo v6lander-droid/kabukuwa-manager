@@ -52,9 +52,10 @@
 
             if (selectedCreature) return <DetailView creature={selectedCreature.data} isNew={selectedCreature.isNew} onBack={() => setSelectedCreature(null)} onSave={saveCreature} />;
 
+            // 項目順: 販売, 個体名, 名称, 累代, ステージ, サイズ, 羽化日
             const headers = [
-                {k:'saleStatus',l:'販売'}, {k:'name',l:'個体名'}, {k:'alias',l:'名称'}, {k:'generation',l:'累代'}, 
-                {k:'size',l:'サイズ'}, {k:'hatchDate',l:'羽化日'}, {k:'stage',l:'ステージ'}
+                {k:'saleStatus',l:'販売'}, {k:'name',l:'個体名'}, {k:'alias',l:'名称'}, 
+                {k:'generation',l:'累代'}, {k:'stage',l:'ステージ'}, {k:'size',l:'サイズ'}, {k:'hatchDate',l:'羽化日'}
             ];
 
             return (
@@ -80,8 +81,9 @@
                                 {processedCreatures.map(c => (
                                     <tr key={c.id} className="border-t border-neutral-800 hover:bg-neutral-800 cursor-pointer" onClick={() => setSelectedCreature({data:c, isNew:false})}>
                                         <td className="p-3"><button onClick={(e) => toggleSaleStatus(c.id, e)} className={`px-2 py-1 rounded text-[10px] font-bold ${c.saleStatus === '販売' ? 'bg-emerald-600' : c.saleStatus === '予備' ? 'bg-amber-600' : 'bg-neutral-600'}`}>{c.saleStatus}</button></td>
-                                        <td className="p-3 font-bold">{c.name}</td><td className="p-3">{c.alias}</td><td className="p-3">{c.generation}</td>
-                                        <td className="p-3">{c.size}</td><td className="p-3">{c.hatchDate}</td><td className="p-3">{c.stage}</td>
+                                        <td className="p-3 font-bold">{c.name}</td><td className="p-3">{c.alias}</td>
+                                        <td className="p-3">{c.generation}</td><td className="p-3">{c.stage}</td>
+                                        <td className="p-3">{c.size}</td><td className="p-3">{c.hatchDate}</td>
                                         <td className="p-3"><button onClick={(e) => { e.stopPropagation(); if(confirm('削除?')) setCreatures(creatures.filter(x=>x.id!==c.id)) }} className="bg-emerald-600 px-2 py-1 rounded text-xs text-white">削除</button></td>
                                     </tr>
                                 ))}
