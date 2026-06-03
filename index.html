@@ -13,27 +13,32 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+        const { useState, useEffect, useRef, useMemo } = React;
 
         function App() {
             const [selectedCreature, setSelectedCreature] = useState(null);
             const [creatures, setCreatures] = useState(() => {
                 const saved = localStorage.getItem('beetle_data');
-                return saved ? JSON.parse(saved) : [];
+                return saved ? JSON.parse(saved) : Array.from({ length: 10 }, (_, i) => ({
+                    id: (i + 1).toString(), name: `個体 ${i + 1}号`, alias: '極太血統',
+                    origin: '福岡県久留米市', generation: 'F5', stage: '幼虫', saleStatus: '非売', hatchDate: '2026-05-01', history: [{item: '孵化', date: '2026-04-01', size: '10mm'}]
+                }));
             });
+
             useEffect(() => { localStorage.setItem('beetle_data', JSON.stringify(creatures)); }, [creatures]);
 
-            const addNew = () => {
-                const newC = { id: Date.now().toString(), name: '新規個体', history: [], stage: '幼虫' };
-                setCreatures([newC, ...creatures]);
-                setSelectedCreature(newC);
+            const updateCreature = (updated) => {
+                setCreatures(creatures.map(c => c.id === updated.id ? updated : c));
+                setSelectedCreature(updated);
             };
 
-            if (selectedCreature) return <DetailView creature={selectedCreature} creatures={creatures} onBack={() => setSelectedCreature(null)} onUpdate={(u) => {setCreatures(creatures.map(c => c.id === u.id ? u : c)); setSelectedCreature(u);}} />;
+            if (selectedCreature) return <DetailView creature={selectedCreature} creatures={creatures} onBack={() => setSelectedCreature(null)} onUpdate={updateCreature} />;
 
             return (
-                <div className="p-4"><nav className="mb-4 flex justify-between items-center font-bold text-emerald-400"><span>Beetle Base</span><button onClick={addNew} className="bg-emerald-600 px-3 py-1 rounded text-white">➕ 追加</button></nav>
-                <div className="bg-neutral-900 rounded-lg p-4">{creatures.map(c => <div key={c.id} className="p-2 border-b border-neutral-800 cursor-pointer" onClick={() => setSelectedCreature(c)}>{c.name}</div>)}</div></div>
+                <div className="p-4"><nav className="mb-4 flex justify-between items-center font-bold text-emerald-400"><span>Beetle Base - 全個体一覧</span>
+                <button onClick={() => { const n = {id:Date.now().toString(), name:'新規個体', history:[], stage:'幼虫'}; setCreatures([n,...creatures]); setSelectedCreature(n); }} className="bg-emerald-600 px-3 py-1 rounded text-white">➕ 追加</button></nav>
+                <div className="overflow-x-auto bg-neutral-900 rounded-lg"><table className="w-full text-sm"><thead><tr className="bg-neutral-800 text-left"><th>個体名</th><th>ステージ</th><th>操作</th></tr></thead>
+                <tbody>{creatures.map(c => <tr key={c.id} className="border-t border-neutral-800 cursor-pointer hover:bg-neutral-800" onClick={() => setSelectedCreature(c)}><td className="p-3 font-bold">{c.name}</td><td className="p-3">{c.stage}</td><td className="p-3"><button onClick={(e) => {e.stopPropagation(); setCreatures(creatures.filter(x=>x.id!==c.id))}} className="bg-emerald-600 px-2 py-1 rounded">削除</button></td></tr>)}</tbody></table></div></div>
             );
         }
 
@@ -45,39 +50,31 @@
             useEffect(() => {
                 const ctx = canvasRef.current.getContext('2d');
                 ctx.clearRect(0, 0, 400, 200);
-                
                 const drawLine = (data, color, width) => {
-                    if (data.length < 2) return;
+                    if (data.length === 0) return;
                     ctx.beginPath();
                     ctx.strokeStyle = color;
                     ctx.lineWidth = width;
                     data.forEach((h, i) => {
-                        const x = (i / (data.length - 1)) * 380 + 10;
-                        const size = parseFloat(h.size.replace('g','').replace('mm',''));
-                        const y = 190 - (size / 100) * 180;
+                        const x = (i / Math.max(1, data.length - 1)) * 360 + 20;
+                        const size = parseFloat(h.size) || 0;
+                        const y = 180 - (size / 100) * 160;
                         i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
                     });
                     ctx.stroke();
                 };
-
                 drawLine(form.history, '#10b981', 3);
-                if (ghostId) {
-                    const ghost = creatures.find(c => c.id === ghostId);
-                    if (ghost) drawLine(ghost.history, '#4b5563', 1);
-                }
+                if (ghostId) drawLine((creatures.find(c => c.id === ghostId)||{history:[]}).history, '#4b5563', 1);
             }, [form, ghostId]);
 
             return (
                 <div className="p-6 max-w-lg mx-auto text-white">
-                    <button onClick={onBack} className="text-emerald-400 mb-4">← 戻る</button>
+                    <button onClick={onBack} className="text-emerald-400 mb-4">← 一覧に戻る</button>
                     <div className="bg-neutral-900 p-6 rounded-xl space-y-4">
                         <input className="w-full bg-neutral-800 p-2 text-xl font-bold" value={form.name} onChange={e => onUpdate({...form, name: e.target.value})} />
                         <canvas ref={canvasRef} width="400" height="200" className="bg-neutral-800 rounded w-full" />
-                        <select className="w-full bg-neutral-800 p-2" onChange={(e) => setGhostId(e.target.value)}>
-                            <option value="">ゴーストグラフを選択</option>
-                            {creatures.filter(c => c.id !== form.id).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
-                        <button onClick={() => { const s = prompt('記録追加 (項目,サイズ)'); if(s) { const [item, size] = s.split(','); onUpdate({...form, history: [...form.history, {item, size, date: 'today'}]}); }}} className="w-full bg-emerald-600 p-2">記録を追加</button>
+                        <select className="w-full bg-neutral-800 p-2" onChange={(e) => setGhostId(e.target.value)}><option value="">比較対象(ゴースト)を選択</option>{creatures.filter(c => c.id !== form.id).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+                        <button onClick={() => { const s = prompt('項目,サイズ(数値のみ)'); if(s) { const [item, size] = s.split(','); onUpdate({...form, history: [...form.history, {item, size, date: 'today'}]}); }}} className="w-full bg-emerald-600 p-2 rounded">＋ 記録を追加</button>
                     </div>
                 </div>
             );
