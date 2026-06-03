@@ -106,6 +106,7 @@
                     <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 space-y-4">
                         <h2 className="text-xl font-bold border-b pb-2">{isNew ? '新規個体登録' : '詳細情報'}</h2>
                         <div className="grid grid-cols-2 gap-2 text-sm">{fields.map(f => <React.Fragment key={f.key}><p className="text-neutral-400">{f.label}:</p><input className="bg-neutral-800 p-1 w-full" value={form[f.key]} onChange={e=>setForm({...form, [f.key]:e.target.value})} /></React.Fragment>)}</div>
+                        
                         <div className="border-t border-neutral-700 pt-4">
                             <div className="flex justify-between items-center mb-3">
                                 <h3 className="font-bold">飼育記録</h3>
@@ -116,7 +117,6 @@
                                 <tbody>{form.history.map((h,i) => <tr key={i} className="border-b border-neutral-800"><td>{h.item}</td><td>{h.date}</td><td>{h.size}</td><td><button onClick={() => setShowModal({item:h.item, size:h.size, index:i})} className="bg-emerald-600 px-1 rounded text-white">訂正</button></td></tr>)}</tbody>
                             </table>
                         </div>
-                        <button onClick={() => onSave(form, isNew)} className="w-full bg-emerald-600 py-2 rounded font-bold text-white">保存</button>
                     </div>
 
                     {showModal && (
