@@ -13,82 +13,48 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+        const { useState, useEffect } = React;
 
         function App() {
             const [selectedCreature, setSelectedCreature] = useState(null);
             const [creatures, setCreatures] = useState(() => {
                 const saved = localStorage.getItem('beetle_data');
-                return saved ? JSON.parse(saved) : Array.from({ length: 50 }, (_, i) => ({
-                    id: (i + 1).toString(), name: `個体 ${i + 1}号`, alias: '極太血統',
-                    origin: '福岡県久留米市', generation: 'F5', maleParent: 'M-1', femaleParent: 'F-1',
-                    stage: '幼虫', saleStatus: '非売', size: '80.0mm', hatchDate: '2026-05-01', history: []
-                }));
+                return saved ? JSON.parse(saved) : [];
             });
-            const [sort, setSort] = useState({ key: 'id', direction: 'asc' });
 
+            // creaturesの状態が変わるたびに自動保存
             useEffect(() => {
                 localStorage.setItem('beetle_data', JSON.stringify(creatures));
             }, [creatures]);
 
-            const toggleSaleStatus = (id, e) => {
-                e.stopPropagation();
-                const statuses = ['非売', '予備', '販売'];
-                setCreatures(creatures.map(c => c.id === id ? { ...c, saleStatus: statuses[(statuses.indexOf(c.saleStatus) + 1) % 3] } : c));
+            const updateCreature = (updatedCreature) => {
+                setCreatures(creatures.map(c => c.id === updatedCreature.id ? updatedCreature : c));
             };
 
-            const addNew = () => {
-                const newCreature = {
-                    id: Date.now().toString(), name: '新規個体', alias: '', origin: '', generation: '',
-                    maleParent: '', femaleParent: '', stage: '幼虫', saleStatus: '非売', size: '0mm', hatchDate: '-', history: []
-                };
-                setSelectedCreature({ data: newCreature, isNew: true });
-            };
-
-            const saveCreature = (creature, isNew) => {
-                if (isNew) setCreatures([creature, ...creatures]);
-                else setCreatures(creatures.map(c => c.id === creature.id ? creature : c));
-                setSelectedCreature(null);
-            };
-
-            const processedCreatures = useMemo(() => {
-                return [...creatures].sort((a, b) => (a[sort.key] < b[sort.key] ? -1 : 1) * (sort.direction === 'asc' ? 1 : -1));
-            }, [creatures, sort]);
-
-            if (selectedCreature) return <DetailView creature={selectedCreature.data} isNew={selectedCreature.isNew} onBack={() => setSelectedCreature(null)} onSave={saveCreature} />;
-
-            const headers = [
-                {k:'saleStatus',l:'販売'}, {k:'name',l:'個体名'}, {k:'alias',l:'名称'}, 
-                {k:'generation',l:'累代'}, {k:'stage',l:'ステージ'}, {k:'size',l:'サイズ'}, {k:'hatchDate',l:'羽化日'}
-            ];
+            if (selectedCreature) return <DetailView creature={selectedCreature} onBack={() => setSelectedCreature(null)} onUpdate={updateCreature} />;
 
             return (
                 <div className="min-h-screen p-4">
                     <nav className="mb-4 flex justify-between items-center font-bold text-emerald-400">
-                        <span>Beetle Base - 全個体一覧</span>
-                        <button onClick={addNew} className="bg-emerald-600 px-3 py-1 rounded text-sm text-white font-bold">➕ 追加</button>
+                        <span>Beetle Base</span>
+                        <button onClick={() => {
+                            const newC = { id: Date.now().toString(), name: '新規個体', history: [], stage: '幼虫' };
+                            setCreatures([newC, ...creatures]);
+                            setSelectedCreature(newC);
+                        }} className="bg-emerald-600 px-3 py-1 rounded text-sm text-white">➕ 追加</button>
                     </nav>
-                    
                     <div className="overflow-x-auto bg-neutral-900 rounded-lg shadow-xl">
                         <table className="w-full text-sm border-collapse whitespace-nowrap">
                             <thead className="bg-neutral-800">
                                 <tr>
-                                    {headers.map(h => (
-                                        <th key={h.k} className="p-3 cursor-pointer hover:bg-neutral-700" onClick={() => setSort({key:h.k, direction: sort.key===h.k && sort.direction==='asc'?'desc':'asc'})}>
-                                            {h.l} <span className="opacity-50">{sort.key === h.k && sort.direction === 'asc' ? '▲' : '▼'}</span>
-                                        </th>
-                                    ))}
-                                    <th className="p-3">操作</th>
+                                    <th className="p-3">個体名</th><th className="p-3">ステージ</th><th className="p-3">操作</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {processedCreatures.map(c => (
-                                    <tr key={c.id} className="border-t border-neutral-800 hover:bg-neutral-800 cursor-pointer" onClick={() => setSelectedCreature({data:c, isNew:false})}>
-                                        <td className="p-3"><button onClick={(e) => toggleSaleStatus(c.id, e)} className={`px-2 py-1 rounded text-[10px] font-bold ${c.saleStatus === '販売' ? 'bg-emerald-600' : c.saleStatus === '予備' ? 'bg-amber-600' : 'bg-neutral-600'}`}>{c.saleStatus}</button></td>
-                                        <td className="p-3 font-bold">{c.name}</td><td className="p-3">{c.alias}</td>
-                                        <td className="p-3">{c.generation}</td><td className="p-3">{c.stage}</td>
-                                        <td className="p-3">{c.size}</td><td className="p-3">{c.hatchDate}</td>
-                                        <td className="p-3"><button onClick={(e) => { e.stopPropagation(); if(confirm('削除?')) setCreatures(creatures.filter(x=>x.id!==c.id)) }} className="bg-emerald-600 px-2 py-1 rounded text-xs text-white">削除</button></td>
+                                {creatures.map(c => (
+                                    <tr key={c.id} className="border-t border-neutral-800 hover:bg-neutral-800 cursor-pointer" onClick={() => setSelectedCreature(c)}>
+                                        <td className="p-3 font-bold">{c.name}</td><td className="p-3">{c.stage}</td>
+                                        <td className="p-3"><button onClick={(e) => { e.stopPropagation(); setCreatures(creatures.filter(x=>x.id!==c.id)) }} className="bg-emerald-600 px-2 py-1 rounded text-xs text-white">削除</button></td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -98,16 +64,18 @@
             );
         }
 
-        function DetailView({ creature, isNew, onBack, onSave }) {
+        function DetailView({ creature, onBack, onUpdate }) {
             const [form, setForm] = useState(creature);
             const [showModal, setShowModal] = useState(null);
-            const fields = [{key:'name', label:'個体名'}, {key:'alias', label:'名称'}, {key:'origin', label:'産地'}, {key:'generation', label:'累代'}, {key:'size', label:'サイズ'}, {key:'hatchDate', label:'羽化日'}, {key:'maleParent', label:'オス親'}, {key:'femaleParent', label:'メス親'}, {key:'stage', label:'ステージ'}];
-            
+
             const saveRecord = (record) => {
                 let h = [...form.history];
                 if (record.index !== null) h[record.index] = {item:record.item, size:record.size, date:h[record.index].date};
                 else h.push({item:record.item, size:record.size, date:new Date().toISOString().split('T')[0]});
-                setForm({...form, history: h});
+                
+                const updated = {...form, history: h};
+                setForm(updated);
+                onUpdate(updated); // 記録追加の瞬間に親の状態(localStorage)を更新
                 setShowModal(null);
             };
 
@@ -115,25 +83,20 @@
                 <div className="p-6 max-w-lg mx-auto">
                     <button onClick={onBack} className="mb-4 text-emerald-400 font-bold">← 一覧に戻る</button>
                     <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 space-y-4">
-                        <h2 className="text-xl font-bold border-b pb-2">{isNew ? '新規個体登録' : '詳細情報'}</h2>
-                        <div className="grid grid-cols-2 gap-2 text-sm">{fields.map(f => <React.Fragment key={f.key}><p className="text-neutral-400">{f.label}:</p><input className="bg-neutral-800 p-1 w-full" value={form[f.key]} onChange={e=>setForm({...form, [f.key]:e.target.value})} /></React.Fragment>)}</div>
+                        <input className="bg-neutral-800 p-2 w-full font-bold text-xl" value={form.name} onChange={e=>setForm({...form, name:e.target.value})} />
                         <div className="border-t border-neutral-700 pt-4">
-                            <div className="flex justify-between items-center mb-3">
-                                <h3 className="font-bold">飼育記録</h3>
-                                <button onClick={() => setShowModal({item:'', size:'', index:null})} className="bg-emerald-600 px-2 py-1 rounded text-xs text-white">追加</button>
-                            </div>
-                            <table className="w-full text-xs">
-                                <thead><tr className="text-neutral-400 border-b border-neutral-700 text-left"><th>項目</th><th>日付</th><th>サイズ</th><th>操作</th></tr></thead>
-                                <tbody>{form.history.map((h,i) => <tr key={i} className="border-b border-neutral-800"><td>{h.item}</td><td>{h.date}</td><td>{h.size}</td><td><button onClick={() => setShowModal({item:h.item, size:h.size, index:i})} className="bg-emerald-600 px-1 rounded text-white">訂正</button></td></tr>)}</tbody>
-                            </table>
+                            <button onClick={() => setShowModal({item:'', size:'', index:null})} className="bg-emerald-600 px-3 py-1 rounded text-sm w-full mb-4">＋ 記録を追加</button>
+                            {form.history.map((h,i) => (
+                                <div key={i} className="flex justify-between bg-neutral-800 p-2 mb-2 rounded text-xs">
+                                    <span>{h.item} ({h.size})</span>
+                                    <button onClick={() => setShowModal({...h, index:i})} className="text-emerald-400">訂正</button>
+                                </div>
+                            ))}
                         </div>
-                        <button onClick={() => onSave(form, isNew)} className="w-full bg-emerald-600 py-2 rounded font-bold text-white">保存</button>
                     </div>
-
                     {showModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4">
                             <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4">
-                                <h3 className="font-bold">{showModal.index !== null ? '記録の訂正' : '記録の追加'}</h3>
                                 <input placeholder="項目" className="w-full bg-neutral-800 p-2 rounded" value={showModal.item} onChange={e=>setShowModal({...showModal, item:e.target.value})} />
                                 <input placeholder="サイズ" className="w-full bg-neutral-800 p-2 rounded" value={showModal.size} onChange={e=>setShowModal({...showModal, size:e.target.value})} />
                                 <button onClick={() => saveRecord(showModal)} className="w-full bg-emerald-600 py-2 rounded font-bold text-white">保存</button>
