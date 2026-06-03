@@ -20,10 +20,16 @@
             const [selectedCreature, setSelectedCreature] = useState(null);
             const [creatures, setCreatures] = useState(() => {
                 const saved = localStorage.getItem('beetle_data');
-                return saved ? JSON.parse(saved) : Array.from({ length: 50 }, (_, i) => ({
+                if (saved) return JSON.parse(saved);
+                return Array.from({ length: 50 }, (_, i) => ({
                     id: (i + 1).toString(), name: `個体 ${i + 1}号`, alias: '極太血統',
                     origin: '福岡県久留米市', generation: 'F5', maleParent: 'M-1', femaleParent: 'F-1',
-                    stage: '幼虫', saleStatus: '非売', size: '80', hatchDate: '2026-05-01', history: [{item: '孵化', date: '2026-04-01', size: '10'}]
+                    stage: '幼虫', saleStatus: '非売', size: '80', hatchDate: '2026-05-01', 
+                    history: [
+                        {item: '孵化', size: '10'},
+                        {item: '初令加重', size: '20'},
+                        {item: '2令加重', size: '40'}
+                    ]
                 }));
             });
             const [sort, setSort] = useState({ key: 'id', direction: 'asc' });
