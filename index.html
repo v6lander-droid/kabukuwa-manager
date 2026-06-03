@@ -13,19 +13,17 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
-
-        const generateDemoData = () => Array.from({ length: 50 }, (_, i) => ({
-            id: (i + 1).toString(), name: `個体 ${i + 1}号`, alias: '極太血統',
-            origin: '福岡県久留米市', generation: 'F5', maleParent: 'M-1', femaleParent: 'F-1',
-            stage: '幼虫', saleStatus: '非売', hatchDate: '2026-05-01', history: [{item: '孵化', date: '2026-04-01', size: '1g'}]
-        }));
+        const { useState, useEffect } = React;
 
         function App() {
             const [selectedCreature, setSelectedCreature] = useState(null);
             const [creatures, setCreatures] = useState(() => {
                 const saved = localStorage.getItem('beetle_data');
-                return saved ? JSON.parse(saved) : generateDemoData();
+                return saved ? JSON.parse(saved) : Array.from({ length: 50 }, (_, i) => ({
+                    id: (i + 1).toString(), name: `個体 ${i + 1}号`, alias: '極太血統',
+                    origin: '福岡県久留米市', generation: 'F5', maleParent: 'M-1', femaleParent: 'F-1',
+                    stage: '幼虫', saleStatus: '非売', hatchDate: '2026-05-01', history: [{item: '孵化', date: '2026-04-01', size: '1g'}]
+                }));
             });
             const [sort, setSort] = useState({ key: 'id', direction: 'asc' });
 
@@ -53,9 +51,7 @@
                 setSelectedCreature(updated);
             };
 
-            const processedCreatures = useMemo(() => {
-                return [...creatures].sort((a, b) => (a[sort.key] < b[sort.key] ? -1 : 1) * (sort.direction === 'asc' ? 1 : -1));
-            }, [creatures, sort]);
+            const processedCreatures = [...creatures].sort((a, b) => (a[sort.key] < b[sort.key] ? -1 : 1) * (sort.direction === 'asc' ? 1 : -1));
 
             if (selectedCreature) return <DetailView creature={selectedCreature} onBack={() => setSelectedCreature(null)} onUpdate={updateCreature} />;
 
@@ -73,7 +69,7 @@
                                 <tr>
                                     {headers.map(h => (
                                         <th key={h.k} className="p-3 cursor-pointer hover:bg-neutral-700" onClick={() => setSort({key:h.k, direction: sort.key===h.k && sort.direction==='asc'?'desc':'asc'})}>
-                                            {h.l} <span className="opacity-50">{sort.key === h.k && sort.direction === 'asc' ? '▲' : '▼'}</span>
+                                            {h.l}
                                         </th>
                                     ))}
                                     <th className="p-3">操作</th>
@@ -99,6 +95,9 @@
             const [showModal, setShowModal] = useState(null);
             const fields = [{key:'name', label:'個体名'}, {key:'alias', label:'名称'}, {key:'origin', label:'産地'}, {key:'generation', label:'累代'}, {key:'hatchDate', label:'羽化日'}, {key:'maleParent', label:'オス親'}, {key:'femaleParent', label:'メス親'}, {key:'stage', label:'ステージ'}];
             
+            // 飼育記録のサイズを矢印で連結
+            const sizeHistory = form.history.map(h => h.size).join(' → ') || '未計測';
+
             const saveRecord = (record) => {
                 let h = [...form.history];
                 if (record.index !== null) h[record.index] = {item:record.item, size:record.size, date:h[record.index].date};
@@ -115,6 +114,12 @@
                     <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 space-y-4">
                         <h2 className="text-xl font-bold border-b pb-2">詳細情報</h2>
                         <div className="grid grid-cols-2 gap-2 text-sm">{fields.map(f => <React.Fragment key={f.key}><p className="text-neutral-400">{f.label}:</p><input className="bg-neutral-800 p-1 w-full" value={form[f.key]} onChange={e => { const updated = {...form, [f.key]: e.target.value}; setForm(updated); onUpdate(updated); }} /></React.Fragment>)}</div>
+                        
+                        <div className="bg-neutral-800 p-3 rounded text-sm border border-neutral-700">
+                            <p className="text-neutral-400 text-xs mb-1">サイズ履歴:</p>
+                            <p className="font-bold text-emerald-400">{sizeHistory}</p>
+                        </div>
+
                         <div className="border-t border-neutral-700 pt-4">
                             <div className="flex justify-between items-center mb-3">
                                 <h3 className="font-bold">飼育記録</h3>
