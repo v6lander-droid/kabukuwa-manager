@@ -20,11 +20,17 @@
             const [selectedCreature, setSelectedCreature] = useState(null);
             const [creatures, setCreatures] = useState(() => {
                 const saved = localStorage.getItem('beetle_data');
-                return saved ? JSON.parse(saved) : Array.from({ length: 50 }, (_, i) => ({
+                if (saved) return JSON.parse(saved);
+                
+                return Array.from({ length: 50 }, (_, i) => ({
                     id: (i + 1).toString(), name: `個体 ${i + 1}号`, alias: '極太血統',
                     origin: '福岡県久留米市', generation: 'F5', maleParent: 'M-1', femaleParent: 'F-1',
                     stage: '幼虫', saleStatus: '非売', size: '80', hatchDate: '2026-05-01', 
-                    history: [{item: '孵化', size: '10'}, {item: '初令', size: '20'}, {item: '2令', size: '40'}]
+                    history: [
+                        {item: '孵化', size: (Math.random() * 5 + 5).toFixed(1)},
+                        {item: '初令', size: (Math.random() * 10 + 15).toFixed(1)},
+                        {item: '2令', size: (Math.random() * 20 + 30).toFixed(1)}
+                    ]
                 }));
             });
             const [sort, setSort] = useState({ key: 'id', direction: 'asc' });
@@ -93,7 +99,6 @@
             useEffect(() => {
                 const ctx = canvasRef.current.getContext('2d');
                 ctx.clearRect(0, 0, 400, 200);
-                
                 const drawLine = (data, color, width) => {
                     if (!data || data.length === 0) return;
                     ctx.beginPath();
@@ -107,14 +112,10 @@
                     });
                     ctx.stroke();
                 };
-
                 drawLine(form.history, '#10b981', 3);
-                
                 if (ghostId) {
                     const ghost = creatures.find(c => c.id === ghostId);
-                    if (ghost && ghost.history) {
-                        drawLine(ghost.history, '#9ca3af', 2);
-                    }
+                    if (ghost && ghost.history) drawLine(ghost.history, '#9ca3af', 2);
                 }
             }, [form, ghostId, creatures]);
 
