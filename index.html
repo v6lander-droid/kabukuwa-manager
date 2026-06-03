@@ -16,12 +16,11 @@
         const { useState } = React;
 
         function App() {
-            const [activeTab, setActiveTab] = useState('list');
             const [selectedCreature, setSelectedCreature] = useState(null);
             const [creatures, setCreatures] = useState([
-                { id: '1', name: '個体 1号', origin: '福岡県久留米市', generation: 'F5', maleParent: '-', femaleParent: '-', stage: '幼虫', isForSale: false, exchangeHistory: ['10g', '15g'] },
-                { id: '2', name: '個体 2号', origin: '福岡県久留米市', generation: 'F5', maleParent: '-', femaleParent: '-', stage: '蛹', isForSale: true, exchangeHistory: ['8g'] },
-                { id: '3', name: '個体 3号', origin: '福岡県久留米市', generation: 'F6', maleParent: '1', femaleParent: '2', stage: '成虫', isForSale: false, exchangeHistory: ['30g'] }
+                { id: '1', name: '個体 1号', alias: '極太血統A', origin: '福岡県久留米市', generation: 'F5', maleParent: '-', femaleParent: '-', stage: '幼虫', isForSale: false, exchangeHistory: ['10g', '15g'] },
+                { id: '2', name: '個体 2号', alias: '標準タイプ', origin: '福岡県久留米市', generation: 'F5', maleParent: '-', femaleParent: '-', stage: '蛹', isForSale: true, exchangeHistory: ['8g'] },
+                { id: '3', name: '個体 3号', alias: '期待の星', origin: '福岡県久留米市', generation: 'F6', maleParent: '1', femaleParent: '2', stage: '成虫', isForSale: false, exchangeHistory: ['30g'] }
             ]);
 
             const toggleSale = (id) => setCreatures(creatures.map(c => c.id === id ? {...c, isForSale: !c.isForSale} : c));
@@ -33,20 +32,17 @@
 
             return (
                 <div className="min-h-screen flex flex-col">
-                    <nav className="bg-neutral-900 border-b border-neutral-800 p-4 flex gap-4">
-                        <button onClick={() => setActiveTab('list')} className={activeTab === 'list' ? "font-bold text-emerald-400" : ""}>一覧</button>
-                    </nav>
-
+                    <nav className="bg-neutral-900 border-b border-neutral-800 p-4 font-bold text-emerald-400">Beetle Base</nav>
                     <main className="p-4 overflow-x-auto">
                         <div className="bg-neutral-900 rounded-lg shadow-xl overflow-x-auto">
                             <table className="w-full text-sm border-collapse">
                                 <thead>
                                     <tr className="bg-neutral-800">
                                         <th className="p-3 sticky left-0 bg-neutral-800 z-20">販売</th>
-                                        <th className="p-3 sticky left-12 bg-neutral-800 z-20">名称</th>
+                                        <th className="p-3 sticky left-12 bg-neutral-800 z-20">個体名</th>
+                                        <th className="p-3">名称</th>
                                         <th className="p-3">産地</th>
                                         <th className="p-3">累代</th>
-                                        <th className="p-3">ステージ</th>
                                         <th className="p-3">操作</th>
                                     </tr>
                                 </thead>
@@ -57,9 +53,9 @@
                                                 <input type="checkbox" checked={c.isForSale} onChange={() => toggleSale(c.id)} />
                                             </td>
                                             <td className="p-3 sticky left-12 bg-neutral-900 z-10 font-bold">{c.name}</td>
+                                            <td className="p-3">{c.alias}</td>
                                             <td className="p-3">{c.origin}</td>
                                             <td className="p-3">{c.generation}</td>
-                                            <td className="p-3">{c.stage}</td>
                                             <td className="p-3"><button onClick={(e) => { e.stopPropagation(); deleteCreature(c.id); }} className="text-red-400">削除</button></td>
                                         </tr>
                                     ))}
@@ -78,15 +74,12 @@
                     <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 shadow-xl space-y-4">
                         <h2 className="text-2xl font-bold border-b border-neutral-700 pb-2 mb-4">{creature.name}</h2>
                         <div className="grid grid-cols-2 gap-4 text-sm">
+                            <p className="text-neutral-400">名称:</p><p className="font-bold">{creature.alias}</p>
                             <p className="text-neutral-400">産地:</p><p className="font-bold">{creature.origin}</p>
                             <p className="text-neutral-400">累代:</p><p className="font-bold">{creature.generation}</p>
                             <p className="text-neutral-400">ステージ:</p><p className="font-bold">{creature.stage}</p>
                             <p className="text-neutral-400">オス親:</p><p className="font-bold">{creature.maleParent}</p>
                             <p className="text-neutral-400">メス親:</p><p className="font-bold">{creature.femaleParent}</p>
-                        </div>
-                        <div className="mt-4 pt-4 border-t border-neutral-700">
-                            <p className="text-neutral-400 text-sm mb-1">サイズ履歴:</p>
-                            <p className="font-mono bg-neutral-800 p-2 rounded">{creature.exchangeHistory.join(' → ')}</p>
                         </div>
                     </div>
                 </div>
