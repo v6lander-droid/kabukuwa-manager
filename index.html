@@ -77,15 +77,15 @@
                     <div className="bg-neutral-900 p-6 rounded-xl space-y-4">
                         <h2 className="text-xl font-bold border-b border-neutral-700 pb-2">詳細情報</h2>
                         <div className="grid grid-cols-[100px,1fr] gap-2 items-center text-sm">
-                            {fields.map(f => <React.Fragment key={f.key}><p>{f.label}:</p><input className="bg-neutral-800 p-1 w-full" value={form[f.key]} onChange={e => onUpdate({...form, [f.key]: e.target.value})} /></React.Fragment>)}
+                            {fields.map(f => <React.Fragment key={f.key}><p className="text-white">{f.label}:</p><input className="bg-neutral-800 p-1 w-full text-white" value={form[f.key]} onChange={e => onUpdate({...form, [f.key]: e.target.value})} /></React.Fragment>)}
                         </div>
                         <canvas ref={canvasRef} width="400" height="200" className="bg-neutral-800 rounded w-full" />
-                        <select className="w-full bg-neutral-800 p-2" onChange={(e) => setGhostId(e.target.value)}><option value="">比較対象(ゴースト)を選択</option>{creatures.filter(c => c.id !== form.id).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+                        <select className="w-full bg-neutral-800 p-2 text-white" onChange={(e) => setGhostId(e.target.value)}><option value="">比較対象(ゴースト)を選択</option>{creatures.filter(c => c.id !== form.id).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
                         <div className="border-t border-neutral-700 pt-4">
                             <h3 className="font-bold mb-2">飼育記録</h3>
-                            <table className="w-full text-xs text-left"><thead><tr className="text-neutral-400 border-b border-neutral-700"><th>項目</th><th>サイズ</th></tr></thead>
+                            <table className="w-full text-xs text-left"><thead><tr className="text-white border-b border-neutral-700"><th>項目</th><th>サイズ</th></tr></thead>
                             <tbody>{form.history.map((h,i) => <tr key={i} className="border-b border-neutral-800"><td>{h.item}</td><td>{h.size}</td></tr>)}</tbody></table>
-                            <button onClick={() => { const s = prompt('項目,サイズ(数値)'); if(s) { const [item, size] = s.split(','); onUpdate({...form, history: [...form.history, {item, size}]}); }}} className="w-full bg-emerald-600 mt-4 p-2 rounded">＋ 記録を追加</button>
+                            <button onClick={() => { const s = prompt('項目,サイズ(数値)'); if(s) { const [item, size] = s.split(','); onUpdate({...form, history: [...form.history, {item, size}]}); }}} className="w-full bg-emerald-600 mt-4 p-2 rounded text-white">＋ 記録を追加</button>
                         </div>
                     </div>
                 </div>
