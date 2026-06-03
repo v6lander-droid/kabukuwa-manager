@@ -57,7 +57,11 @@
                         <table className="w-full text-sm border-collapse whitespace-nowrap">
                             <thead className="bg-neutral-800">
                                 <tr>
-                                    {headers.map(h => <th key={h.key} className="p-3 cursor-pointer hover:bg-neutral-700" onClick={() => setSort({key:h.key, direction: sort.key===h.key && sort.direction==='asc'?'desc':'asc'})}>{h.label} {sort.key === h.key ? (sort.direction === 'asc' ? '▲' : '▼') : ''}</th>)}
+                                    {headers.map(h => (
+                                        <th key={h.key} className="p-3 cursor-pointer hover:bg-neutral-700" onClick={() => setSort({key:h.key, direction: sort.key===h.key && sort.direction==='asc'?'desc':'asc'})}>
+                                            {h.label} <span className="opacity-50">{sort.key === h.key && sort.direction === 'asc' ? '▲' : '▼'}</span>
+                                        </th>
+                                    ))}
                                 </tr>
                             </thead>
                             <tbody>
@@ -74,6 +78,7 @@
             );
         }
 
+        // DetailView は省略（前回のものを保持）
         function DetailView({ creature, onBack, onUpdate }) {
             const [isEditing, setIsEditing] = useState(false);
             const [form, setForm] = useState(creature);
