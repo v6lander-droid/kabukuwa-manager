@@ -97,4 +97,18 @@
                             </table>
                             {/* 常駐入力ウインドウ */}
                             <div className="bg-neutral-800 p-3 rounded space-y-2">
-                                <input placeholder="項目" className="w-full bg-neutral-700 p-1" value={input.item} onChange={e=>setInput({...input, item
+                                <input placeholder="項目" className="w-full bg-neutral-700 p-1" value={input.item} onChange={e=>setInput({...input, item:e.target.value})} />
+                                <input placeholder="サイズ" className="w-full bg-neutral-700 p-1" value={input.size} onChange={e=>setInput({...input, size:e.target.value})} />
+                                <button onClick={saveHistory} className="w-full bg-emerald-600 py-1 rounded font-bold">{input.index !== null ? '訂正を確定' : '履歴を追加'}</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
