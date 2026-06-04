@@ -82,6 +82,15 @@
             useEffect(() => {
                 const ctx = canvasRef.current.getContext('2d');
                 ctx.clearRect(0, 0, 400, 200);
+                
+                // 目盛線の描画
+                ctx.strokeStyle = '#374151';
+                ctx.lineWidth = 1;
+                for(let i=0; i<=4; i++) {
+                    const y = 20 + i * 40;
+                    ctx.beginPath(); ctx.moveTo(20, y); ctx.lineTo(380, y); ctx.stroke();
+                }
+
                 const drawLine = (data, color, width) => {
                     if (!data || data.length === 0) return;
                     ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = width;
