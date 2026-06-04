@@ -48,7 +48,7 @@
                 <div className="p-4">
                     <nav className="mb-4 flex justify-between items-center font-bold text-emerald-400">
                         <span>Beetle Base - 全個体一覧</span>
-                        <button onClick={() => { const n = {id:Date.now().toString(), name:'新規個体', history:[], stage:'幼虫', saleStatus:'非売', size:'0', alias:'', origin:'', generation:'', hatchDate:'', gene:'未解析', maleParent:'', femaleParent:''}; setCreatures([n,...creatures]); setSelectedCreature(n); }} className="bg-emerald-600 px-3 py-1 rounded text-white">➕ 追加</button>
+                        <button onClick={() => { const n = {id:Date.now().toString(), name:'新規個体', history:[], stage:'幼虫', saleStatus:'非売', size:'0', alias:'', origin:'', generation:'', hatchDate:'2026-06-05', gene:'未解析', maleParent:'', femaleParent:''}; setCreatures([n,...creatures]); setSelectedCreature(n); }} className="bg-emerald-600 px-3 py-1 rounded text-white">➕ 追加</button>
                     </nav>
                     <div className="overflow-x-auto bg-neutral-900 rounded-lg">
                         <table className="w-full text-sm border-collapse whitespace-nowrap text-white">
@@ -88,28 +88,33 @@
                 ctx.font = '10px sans-serif';
                 ctx.strokeStyle = '#374151'; 
                 ctx.lineWidth = 1;
+                // 目盛り描画
                 for(let i=0; i<=4; i++) {
                     const y = 20 + i * 40;
-                    const val = (4 - i) * 12.5;
                     ctx.beginPath(); ctx.moveTo(30, y); ctx.lineTo(380, y); ctx.stroke();
-                    ctx.fillText(val.toFixed(0) + 'g', 0, y + 3);
+                    ctx.fillText(((4 - i) * 12.5).toFixed(0) + 'g', 0, y + 3);
                 }
 
-                const drawLine = (data, color, width) => {
+                const drawLine = (data, hatchDate, color, width) => {
                     if (!data || data.length === 0) return;
+                    const hDate = new Date(hatchDate);
                     ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = width;
+                    
                     data.forEach((h, i) => {
-                        const x = (i / Math.max(1, data.length - 1)) * 350 + 30;
+                        const recDate = new Date(h.date);
+                        const days = (recDate - hDate) / (1000 * 60 * 60 * 24);
+                        const x = (days / 100) * 350 + 30; // 100日をグラフの最大幅とする
                         const size = parseFloat(h.size) || 0;
                         const y = 180 - Math.min(1, size / 50) * 160;
                         i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
                     });
                     ctx.stroke();
                 };
-                drawLine(form.history, '#10b981', 3);
+                
+                drawLine(form.history, form.hatchDate, '#10b981', 3);
                 if (ghostId) {
                     const ghost = creatures.find(c => c.id === ghostId);
-                    if (ghost && ghost.history) drawLine(ghost.history, '#9ca3af', 2);
+                    if (ghost && ghost.history) drawLine(ghost.history, ghost.hatchDate, '#9ca3af', 2);
                 }
             }, [form, ghostId, creatures]);
 
@@ -123,15 +128,12 @@
                         <h2 className="text-xl font-bold border-b border-neutral-700 pb-2 text-white">詳細情報</h2>
                         <div className="space-y-2 text-sm">
                             {fields.map(f => (
-                                <div key={f.key} className="flex">
-                                    <span className="w-24 font-bold text-white shrink-0">{f.label}:</span>
-                                    <span className="break-all">{form[f.key]}</span>
-                                </div>
+                                <div key={f.key} className="flex"><span className="w-24 font-bold text-white shrink-0">{f.label}:</span><span className="break-all">{form[f.key]}</span></div>
                             ))}
                         </div>
                         <canvas ref={canvasRef} width="400" height="200" className="bg-neutral-900 rounded w-full" />
                         
-                        <button onClick={() => setGhostModal(true)} className="w-full bg-emerald-600 px-4 py-2 rounded text-white font-bold text-sm">
+                        <button onClick={() => setGhostModal(true)} className="bg-emerald-600 px-4 py-2 rounded text-white font-bold text-sm inline-block">
                             {ghostId ? `比較中: ${creatures.find(c=>c.id===ghostId)?.name}` : '比較対象を選択'}
                         </button>
 
@@ -158,12 +160,8 @@
                     {editModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
                             <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-3">
-                                <h3 className="font-bold text-white mb-4">情報の編集</h3>
                                 {fields.map(f => <div key={f.key}><label className="text-xs text-gray-400">{f.label}</label><input className="w-full bg-neutral-800 p-2 rounded text-white" value={form[f.key]} onChange={e => setForm({...form, [f.key]: e.target.value})} /></div>)}
-                                <div className="flex gap-2 pt-4">
-                                    <button onClick={() => setEditModal(false)} className="w-full bg-neutral-700 p-2 rounded">キャンセル</button>
-                                    <button onClick={() => { onUpdate(form); setEditModal(false); }} className="w-full bg-emerald-600 p-2 rounded">保存</button>
-                                </div>
+                                <button onClick={() => { onUpdate(form); setEditModal(false); }} className="w-full bg-emerald-600 p-2 rounded">保存</button>
                             </div>
                         </div>
                     )}
