@@ -24,17 +24,16 @@
                 
                 return Array.from({ length: 50 }, (_, i) => {
                     const hDate = '2026-06-05';
+                    const history = Array.from({ length: 5 }, (_, j) => ({
+                        date: `2026-${String(6 + Math.floor(j/2)).padStart(2,'0')}-${String(5 + j * 7).padStart(2,'0')}`,
+                        item: ['孵化', '初令交換', '菌糸投入', 'マット交換', '測定'][j],
+                        size: (10 + j * 8 + Math.floor(Math.random() * 5)).toString()
+                    }));
                     return {
                         id: (i + 1).toString(), name: `個体 ${i + 1}号`, alias: '極太血統',
                         origin: '福岡県久留米市', generation: 'F5', maleParent: 'M-1', femaleParent: 'F-1',
-                        gene: '未解析', mendelPrediction: 'AA:100%', stage: '幼虫', saleStatus: '非売', size: '45', hatchDate: hDate, 
-                        history: [
-                            {date: '2026-06-05', item: '孵化', size: '10'},
-                            {date: '2026-06-25', item: '初令交換', size: '15'},
-                            {date: '2026-07-15', item: '菌糸投入', size: '25'},
-                            {date: '2026-08-05', item: 'マット交換', size: '35'},
-                            {date: '2026-08-25', item: '測定', size: '45'}
-                        ]
+                        gene: '未解析', mendelPrediction: 'AA:100%', stage: '幼虫', saleStatus: '非売', 
+                        size: history[history.length-1].size, hatchDate: hDate, history
                     };
                 });
             });
@@ -159,7 +158,6 @@
                             <button onClick={() => setRecordModal({open: true, data: {date: new Date().toISOString().split('T')[0], item: '', size: ''}, index: null})} className="inline-block bg-emerald-600 px-3 py-1 mt-4 rounded text-xs font-bold">追加</button>
                         </div>
                     </div>
-                    {/* 以下モーダル群は維持 */}
                     {ghostModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
                             <div className="bg-neutral-900 p-4 rounded-xl w-full max-w-sm border border-neutral-700">
@@ -172,7 +170,9 @@
                     {editModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
                             <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-3">
-                                {fields.map(f => <div key={f.key}><label className="text-xs">{f.label}</label><input className="w-full bg-neutral-800 p-2 rounded" value={form[f.key]} onChange={e => setForm({...form, [f.key]: e.target.value})} /></div>)}
+                                <div className="max-h-[60vh] overflow-y-auto pr-2 space-y-3">
+                                    {fields.map(f => <div key={f.key}><label className="text-xs">{f.label}</label><input className="w-full bg-neutral-800 p-2 rounded" value={form[f.key]} onChange={e => setForm({...form, [f.key]: e.target.value})} /></div>)}
+                                </div>
                                 <button onClick={() => { onUpdate(form); setEditModal(false); }} className="w-full bg-emerald-600 p-2 rounded text-white">保存</button>
                             </div>
                         </div>
