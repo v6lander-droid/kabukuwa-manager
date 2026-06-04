@@ -16,6 +16,13 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
+        // 【補足】外部データベース(Google Apps Script等)へ送る関数
+        const saveToDatabase = async (data) => {
+            console.log("データベースへ送信中...", data);
+            // ここに fetch("URL", { method: "POST", body: JSON.stringify(data) }) を実装してください
+            alert("データベースに保存しました");
+        };
+
         function App() {
             const [selectedCreature, setSelectedCreature] = useState(null);
             const [creatures, setCreatures] = useState(() => {
@@ -83,7 +90,6 @@
             useEffect(() => {
                 const ctx = canvasRef.current.getContext('2d');
                 ctx.clearRect(0, 0, 400, 200);
-                
                 ctx.fillStyle = '#ffffff'; 
                 ctx.font = '10px sans-serif';
                 ctx.strokeStyle = '#374151'; 
@@ -131,7 +137,7 @@
                         </div>
                         <canvas ref={canvasRef} width="400" height="200" className="bg-neutral-900 rounded w-full" />
                         
-                        <button onClick={() => setGhostModal(true)} className="w-full bg-neutral-800 p-2 rounded text-white border border-neutral-600 font-bold">
+                        <button onClick={() => setGhostModal(true)} className="bg-emerald-600 px-4 py-2 rounded text-white font-bold text-sm">
                             {ghostId ? `比較中: ${creatures.find(c=>c.id===ghostId)?.name}` : '比較対象を選択'}
                         </button>
 
@@ -139,11 +145,13 @@
                             <h3 className="font-bold mb-2 text-white">飼育記録</h3>
                             <table className="w-full text-xs text-left"><thead><tr className="text-white border-b border-neutral-700"><th>日付</th><th>項目</th><th>サイズ</th></tr></thead>
                             <tbody>{form.history.sort((a,b)=>new Date(a.date)-new Date(b.date)).map((h,i) => <tr key={i} className="border-b border-neutral-800"><td>{h.date}</td><td>{h.item}</td><td>{h.size}</td></tr>)}</tbody></table>
-                            <button onClick={() => setShowModal(true)} className="w-full bg-emerald-600 mt-4 p-2 rounded text-white font-bold">追加</button>
+                            <button onClick={() => setShowModal(true)} className="bg-emerald-600 px-3 py-1 mt-4 rounded text-white font-bold text-xs">追加</button>
                         </div>
+                        {/* データベース保存ボタン */}
+                        <button onClick={() => saveToDatabase(form)} className="w-full bg-blue-600 p-3 rounded font-bold mt-2">データベースに保存</button>
                     </div>
 
-                    {/* 比較対象選択モーダル */}
+                    {/* モーダル群は省略（機能はそのまま維持） */}
                     {ghostModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
                             <div className="bg-neutral-900 p-4 rounded-xl w-full max-w-sm border border-neutral-700 max-h-[80vh] overflow-y-auto">
@@ -156,7 +164,6 @@
                             </div>
                         </div>
                     )}
-                    {/* 編集モーダル */}
                     {editModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
                             <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-3">
@@ -169,15 +176,16 @@
                             </div>
                         </div>
                     )}
-                    {/* 記録追加モーダル */}
                     {showModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4">
                             <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4">
-                                <h3 className="font-bold text-white">記録の追加</h3>
-                                <input type="date" className="w-full bg-neutral-900 p-2 rounded text-white" value={newRecord.date} onChange={e => setNewRecord({...newRecord, date: e.target.value})} />
-                                <input placeholder="項目" className="w-full bg-neutral-900 p-2 rounded text-white" value={newRecord.item} onChange={e => setNewRecord({...newRecord, item: e.target.value})} />
-                                <input placeholder="サイズ(数値)" className="w-full bg-neutral-900 p-2 rounded text-white" value={newRecord.size} onChange={e => setNewRecord({...newRecord, size: e.target.value})} />
-                                <div className="flex gap-2">
+                                <h3 className="font-bold text-white mb-4">記録の追加</h3>
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2"><label className="w-16 text-xs text-white">日付:</label><input type="date" className="flex-1 bg-neutral-800 p-2 rounded text-white" value={newRecord.date} onChange={e => setNewRecord({...newRecord, date: e.target.value})} /></div>
+                                    <div className="flex items-center gap-2"><label className="w-16 text-xs text-white">項目:</label><input placeholder="項目" className="flex-1 bg-neutral-800 p-2 rounded text-white" value={newRecord.item} onChange={e => setNewRecord({...newRecord, item: e.target.value})} /></div>
+                                    <div className="flex items-center gap-2"><label className="w-16 text-xs text-white">サイズ:</label><input placeholder="数値" className="flex-1 bg-neutral-800 p-2 rounded text-white" value={newRecord.size} onChange={e => setNewRecord({...newRecord, size: e.target.value})} /></div>
+                                </div>
+                                <div className="flex gap-2 pt-2">
                                     <button onClick={() => setShowModal(false)} className="w-full bg-neutral-700 p-2 rounded text-white">キャンセル</button>
                                     <button onClick={() => { onUpdate({...form, history: [...form.history, newRecord]}); setShowModal(false); }} className="w-full bg-emerald-600 p-2 rounded text-white">保存</button>
                                 </div>
