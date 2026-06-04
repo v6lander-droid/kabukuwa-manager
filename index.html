@@ -24,7 +24,7 @@
                 return Array.from({ length: 50 }, (_, i) => ({
                     id: (i + 1).toString(), name: `個体 ${i + 1}号`, alias: '極太血統',
                     origin: '福岡県久留米市', generation: 'F5', maleParent: 'M-1', femaleParent: 'F-1',
-                    stage: '幼虫', saleStatus: '非売', size: '80', hatchDate: '2026-05-01', 
+                    gene: '未解析', stage: '幼虫', saleStatus: '非売', size: '80', hatchDate: '2026-05-01', 
                     history: [{date: '2026-05-01', item: '孵化', size: '10'}]
                 }));
             });
@@ -48,16 +48,16 @@
                 <div className="p-4">
                     <nav className="mb-4 flex justify-between items-center font-bold text-emerald-400">
                         <span>Beetle Base - 全個体一覧</span>
-                        <button onClick={() => { const n = {id:Date.now().toString(), name:'新規個体', history:[], stage:'幼虫', saleStatus:'非売', size:'0', alias:'', origin:'', generation:'', hatchDate:'', maleParent:'', femaleParent:''}; setCreatures([n,...creatures]); setSelectedCreature(n); }} className="bg-emerald-600 px-3 py-1 rounded text-white">➕ 追加</button>
+                        <button onClick={() => { const n = {id:Date.now().toString(), name:'新規個体', history:[], stage:'幼虫', saleStatus:'非売', size:'0', alias:'', origin:'', generation:'', hatchDate:'', gene:'未解析', maleParent:'', femaleParent:''}; setCreatures([n,...creatures]); setSelectedCreature(n); }} className="bg-emerald-600 px-3 py-1 rounded text-white">➕ 追加</button>
                     </nav>
                     <div className="overflow-x-auto bg-neutral-900 rounded-lg">
                         <table className="w-full text-sm border-collapse whitespace-nowrap text-white">
                             <thead><tr className="bg-neutral-800 text-left border-b border-neutral-700">
-                                {[{k:'saleStatus',l:'販売'}, {k:'name',l:'個体名'}, {k:'alias',l:'名称'}, {k:'origin',l:'産地'}, {k:'generation',l:'累代'}, {k:'size',l:'サイズ'}, {k:'hatchDate',l:'孵化日'}, {k:'maleParent',l:'オス親'}, {k:'femaleParent',l:'メス親'}, {k:'stage',l:'ステージ'}].map(h => <th key={h.k} className="p-3 cursor-pointer hover:bg-neutral-700" onClick={() => setSort({key:h.k, direction: sort.key===h.k && sort.direction==='asc'?'desc':'asc'})}>{h.l}</th>)}
+                                {[{k:'saleStatus',l:'販売'}, {k:'name',l:'個体名'}, {k:'alias',l:'名称'}, {k:'origin',l:'産地'}, {k:'generation',l:'累代'}, {k:'size',l:'サイズ'}, {k:'hatchDate',l:'孵化日'}, {k:'gene',l:'遺伝子'}, {k:'maleParent',l:'オス親'}, {k:'femaleParent',l:'メス親'}, {k:'stage',l:'ステージ'}].map(h => <th key={h.k} className="p-3 cursor-pointer hover:bg-neutral-700" onClick={() => setSort({key:h.k, direction: sort.key===h.k && sort.direction==='asc'?'desc':'asc'})}>{h.l}</th>)}
                                 <th className="p-3">操作</th>
                             </tr></thead>
                             <tbody>{processedCreatures.map(c => <tr key={c.id} className="border-b border-neutral-800 cursor-pointer hover:bg-neutral-800" onClick={() => setSelectedCreature(c)}>
-                                <td className="p-3">{c.saleStatus}</td><td className="p-3 font-bold">{c.name}</td><td className="p-3">{c.alias}</td><td className="p-3">{c.origin}</td><td className="p-3">{c.generation}</td><td className="p-3">{c.size}</td><td className="p-3">{c.hatchDate}</td><td className="p-3">{c.maleParent}</td><td className="p-3">{c.femaleParent}</td><td className="p-3">{c.stage}</td>
+                                <td className="p-3">{c.saleStatus}</td><td className="p-3 font-bold">{c.name}</td><td className="p-3">{c.alias}</td><td className="p-3">{c.origin}</td><td className="p-3">{c.generation}</td><td className="p-3">{c.size}</td><td className="p-3">{c.hatchDate}</td><td className="p-3">{c.gene}</td><td className="p-3">{c.maleParent}</td><td className="p-3">{c.femaleParent}</td><td className="p-3">{c.stage}</td>
                                 <td className="p-3"><button onClick={(e) => {e.stopPropagation(); if(confirm('削除?')) setCreatures(creatures.filter(x=>x.id!==c.id))}} className="bg-emerald-600 px-2 py-1 rounded">削除</button></td>
                             </tr>)}</tbody>
                         </table>
@@ -77,7 +77,7 @@
             const fields = [
                 {key:'name', label:'個体名'}, {key:'alias', label:'名称'}, {key:'origin', label:'産地'}, 
                 {key:'generation', label:'累代'}, {key:'size', label:'サイズ'}, {key:'hatchDate', label:'孵化日'}, 
-                {key:'maleParent', label:'オス親'}, {key:'femaleParent', label:'メス親'}, {key:'stage', label:'ステージ'}
+                {key:'gene', label:'遺伝子解析'}, {key:'maleParent', label:'オス親'}, {key:'femaleParent', label:'メス親'}, {key:'stage', label:'ステージ'}
             ];
 
             useEffect(() => {
@@ -87,9 +87,8 @@
                 ctx.strokeStyle = '#374151'; ctx.lineWidth = 1;
                 for(let i=0; i<=4; i++) {
                     const y = 20 + i * 40;
-                    const val = (4 - i) * 12.5;
                     ctx.beginPath(); ctx.moveTo(30, y); ctx.lineTo(380, y); ctx.stroke();
-                    ctx.fillText(val.toFixed(0) + 'g', 0, y + 3);
+                    ctx.fillText(((4 - i) * 12.5).toFixed(0) + 'g', 0, y + 3);
                 }
                 const drawLine = (data, color, width) => {
                     if (!data || data.length === 0) return;
@@ -133,31 +132,7 @@
                             <button onClick={() => setShowModal(true)} className="bg-emerald-600 px-3 py-1 mt-4 rounded text-white font-bold text-xs">追加</button>
                         </div>
                     </div>
-                    {/* 各モーダル省略（機能維持） */}
-                    {ghostModal && (
-                        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-                            <div className="bg-neutral-900 p-4 rounded-xl w-full max-w-sm border border-neutral-700 max-h-[80vh] overflow-y-auto">
-                                <h3 className="font-bold mb-3 text-white">比較対象を選択</h3>
-                                <button onClick={() => {setGhostId(''); setGhostModal(false);}} className="w-full text-left p-2 border-b border-neutral-800">比較解除</button>
-                                {creatures.filter(c => c.id !== form.id).map(c => (
-                                    <button key={c.id} onClick={() => {setGhostId(c.id); setGhostModal(false);}} className="w-full text-left p-2 border-b border-neutral-800 hover:bg-neutral-800">{c.name}</button>
-                                ))}
-                                <button onClick={() => setGhostModal(false)} className="w-full mt-4 bg-neutral-700 p-2 rounded">閉じる</button>
-                            </div>
-                        </div>
-                    )}
-                    {editModal && (
-                        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-                            <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-3">
-                                <h3 className="font-bold text-white mb-4">情報の編集</h3>
-                                {fields.map(f => <div key={f.key}><label className="text-xs text-gray-400">{f.label}</label><input className="w-full bg-neutral-800 p-2 rounded text-white" value={form[f.key]} onChange={e => setForm({...form, [f.key]: e.target.value})} /></div>)}
-                                <div className="flex gap-2 pt-4">
-                                    <button onClick={() => setEditModal(false)} className="w-full bg-neutral-700 p-2 rounded">キャンセル</button>
-                                    <button onClick={() => { onUpdate(form); setEditModal(false); }} className="w-full bg-emerald-600 p-2 rounded">保存</button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
+
                     {showModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4">
                             <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4">
@@ -169,7 +144,12 @@
                                 </div>
                                 <div className="flex gap-2 pt-2">
                                     <button onClick={() => setShowModal(false)} className="w-full bg-neutral-700 p-2 rounded text-white">キャンセル</button>
-                                    <button onClick={() => { onUpdate({...form, history: [...form.history, newRecord]}); setShowModal(false); }} className="w-full bg-emerald-600 p-2 rounded text-white">保存</button>
+                                    <button onClick={() => { 
+                                        const updatedForm = {...form, history: [...form.history, newRecord]};
+                                        setForm(updatedForm); // 内部状態を即座に更新
+                                        onUpdate(updatedForm); // 親の状態も更新
+                                        setShowModal(false); 
+                                    }} className="w-full bg-emerald-600 p-2 rounded text-white">保存</button>
                                 </div>
                             </div>
                         </div>
