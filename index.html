@@ -16,13 +16,6 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
-        // 【補足】外部データベース(Google Apps Script等)へ送る関数
-        const saveToDatabase = async (data) => {
-            console.log("データベースへ送信中...", data);
-            // ここに fetch("URL", { method: "POST", body: JSON.stringify(data) }) を実装してください
-            alert("データベースに保存しました");
-        };
-
         function App() {
             const [selectedCreature, setSelectedCreature] = useState(null);
             const [creatures, setCreatures] = useState(() => {
@@ -90,17 +83,14 @@
             useEffect(() => {
                 const ctx = canvasRef.current.getContext('2d');
                 ctx.clearRect(0, 0, 400, 200);
-                ctx.fillStyle = '#ffffff'; 
-                ctx.font = '10px sans-serif';
-                ctx.strokeStyle = '#374151'; 
-                ctx.lineWidth = 1;
+                ctx.fillStyle = '#ffffff'; ctx.font = '10px sans-serif';
+                ctx.strokeStyle = '#374151'; ctx.lineWidth = 1;
                 for(let i=0; i<=4; i++) {
                     const y = 20 + i * 40;
                     const val = (4 - i) * 12.5;
                     ctx.beginPath(); ctx.moveTo(30, y); ctx.lineTo(380, y); ctx.stroke();
                     ctx.fillText(val.toFixed(0) + 'g', 0, y + 3);
                 }
-
                 const drawLine = (data, color, width) => {
                     if (!data || data.length === 0) return;
                     ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = width;
@@ -129,29 +119,21 @@
                         <h2 className="text-xl font-bold border-b border-neutral-700 pb-2 text-white">詳細情報</h2>
                         <div className="space-y-2 text-sm">
                             {fields.map(f => (
-                                <div key={f.key} className="flex">
-                                    <span className="w-24 font-bold text-white shrink-0">{f.label}:</span>
-                                    <span className="break-all">{form[f.key]}</span>
-                                </div>
+                                <div key={f.key} className="flex"><span className="w-24 font-bold text-white shrink-0">{f.label}:</span><span className="break-all">{form[f.key]}</span></div>
                             ))}
                         </div>
                         <canvas ref={canvasRef} width="400" height="200" className="bg-neutral-900 rounded w-full" />
-                        
                         <button onClick={() => setGhostModal(true)} className="bg-emerald-600 px-4 py-2 rounded text-white font-bold text-sm">
                             {ghostId ? `比較中: ${creatures.find(c=>c.id===ghostId)?.name}` : '比較対象を選択'}
                         </button>
-
                         <div className="border-t border-neutral-700 pt-4">
                             <h3 className="font-bold mb-2 text-white">飼育記録</h3>
                             <table className="w-full text-xs text-left"><thead><tr className="text-white border-b border-neutral-700"><th>日付</th><th>項目</th><th>サイズ</th></tr></thead>
                             <tbody>{form.history.sort((a,b)=>new Date(a.date)-new Date(b.date)).map((h,i) => <tr key={i} className="border-b border-neutral-800"><td>{h.date}</td><td>{h.item}</td><td>{h.size}</td></tr>)}</tbody></table>
                             <button onClick={() => setShowModal(true)} className="bg-emerald-600 px-3 py-1 mt-4 rounded text-white font-bold text-xs">追加</button>
                         </div>
-                        {/* データベース保存ボタン */}
-                        <button onClick={() => saveToDatabase(form)} className="w-full bg-blue-600 p-3 rounded font-bold mt-2">データベースに保存</button>
                     </div>
-
-                    {/* モーダル群は省略（機能はそのまま維持） */}
+                    {/* 各モーダル省略（機能維持） */}
                     {ghostModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
                             <div className="bg-neutral-900 p-4 rounded-xl w-full max-w-sm border border-neutral-700 max-h-[80vh] overflow-y-auto">
