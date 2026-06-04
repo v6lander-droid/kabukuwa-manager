@@ -69,6 +69,7 @@
         function DetailView({ creature, creatures, onBack, onUpdate }) {
             const [form, setForm] = useState(creature);
             const [editModal, setEditModal] = useState(false);
+            const [ghostModal, setGhostModal] = useState(false);
             const [ghostId, setGhostId] = useState('');
             const [showModal, setShowModal] = useState(false);
             const [newRecord, setNewRecord] = useState({date: new Date().toISOString().split('T')[0], item: '', size: ''});
@@ -83,8 +84,10 @@
                 const ctx = canvasRef.current.getContext('2d');
                 ctx.clearRect(0, 0, 400, 200);
                 
-                ctx.fillStyle = '#9ca3af'; ctx.font = '10px sans-serif';
-                ctx.strokeStyle = '#374151'; ctx.lineWidth = 1;
+                ctx.fillStyle = '#ffffff'; 
+                ctx.font = '10px sans-serif';
+                ctx.strokeStyle = '#374151'; 
+                ctx.lineWidth = 1;
                 for(let i=0; i<=4; i++) {
                     const y = 20 + i * 40;
                     const val = (4 - i) * 12.5;
@@ -118,24 +121,41 @@
                     </div>
                     <div className="bg-neutral-900 p-6 rounded-xl space-y-4">
                         <h2 className="text-xl font-bold border-b border-neutral-700 pb-2 text-white">詳細情報</h2>
-                        {/* 左揃えで整列された項目 */}
                         <div className="space-y-2 text-sm">
                             {fields.map(f => (
                                 <div key={f.key} className="flex">
-                                    <span className="w-24 font-bold text-emerald-400 shrink-0">{f.label}:</span>
+                                    <span className="w-24 font-bold text-white shrink-0">{f.label}:</span>
                                     <span className="break-all">{form[f.key]}</span>
                                 </div>
                             ))}
                         </div>
                         <canvas ref={canvasRef} width="400" height="200" className="bg-neutral-900 rounded w-full" />
-                        <select className="w-full bg-neutral-900 p-2 text-white font-bold border border-neutral-700 rounded" onChange={(e) => setGhostId(e.target.value)}><option value="">比較対象を選択</option>{creatures.filter(c => c.id !== form.id).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+                        
+                        <button onClick={() => setGhostModal(true)} className="w-full bg-neutral-800 p-2 rounded text-white border border-neutral-600 font-bold">
+                            {ghostId ? `比較中: ${creatures.find(c=>c.id===ghostId)?.name}` : '比較対象を選択'}
+                        </button>
+
                         <div className="border-t border-neutral-700 pt-4">
                             <h3 className="font-bold mb-2 text-white">飼育記録</h3>
                             <table className="w-full text-xs text-left"><thead><tr className="text-white border-b border-neutral-700"><th>日付</th><th>項目</th><th>サイズ</th></tr></thead>
                             <tbody>{form.history.sort((a,b)=>new Date(a.date)-new Date(b.date)).map((h,i) => <tr key={i} className="border-b border-neutral-800"><td>{h.date}</td><td>{h.item}</td><td>{h.size}</td></tr>)}</tbody></table>
-                            <button onClick={() => setShowModal(true)} className="w-full bg-emerald-600 mt-4 p-2 rounded text-white font-bold">＋ 記録を追加</button>
+                            <button onClick={() => setShowModal(true)} className="w-full bg-emerald-600 mt-4 p-2 rounded text-white font-bold">追加</button>
                         </div>
                     </div>
+
+                    {/* 比較対象選択モーダル */}
+                    {ghostModal && (
+                        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+                            <div className="bg-neutral-900 p-4 rounded-xl w-full max-w-sm border border-neutral-700 max-h-[80vh] overflow-y-auto">
+                                <h3 className="font-bold mb-3 text-white">比較対象を選択</h3>
+                                <button onClick={() => {setGhostId(''); setGhostModal(false);}} className="w-full text-left p-2 border-b border-neutral-800">比較解除</button>
+                                {creatures.filter(c => c.id !== form.id).map(c => (
+                                    <button key={c.id} onClick={() => {setGhostId(c.id); setGhostModal(false);}} className="w-full text-left p-2 border-b border-neutral-800 hover:bg-neutral-800">{c.name}</button>
+                                ))}
+                                <button onClick={() => setGhostModal(false)} className="w-full mt-4 bg-neutral-700 p-2 rounded">閉じる</button>
+                            </div>
+                        </div>
+                    )}
                     {/* 編集モーダル */}
                     {editModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
