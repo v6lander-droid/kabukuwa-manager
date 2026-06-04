@@ -24,7 +24,7 @@
                 return Array.from({ length: 50 }, (_, i) => ({
                     id: (i + 1).toString(), name: `個体 ${i + 1}号`, alias: '極太血統',
                     origin: '福岡県久留米市', generation: 'F5', maleParent: 'M-1', femaleParent: 'F-1',
-                    gene: '未解析', stage: '幼虫', saleStatus: '非売', size: '80', hatchDate: '2026-06-05', 
+                    gene: '未解析', mendelPrediction: 'AA:100%', stage: '幼虫', saleStatus: '非売', size: '80', hatchDate: '2026-06-05', 
                     history: [{date: '2026-06-05', item: '孵化', size: '10'}]
                 }));
             });
@@ -48,16 +48,16 @@
                 <div className="p-4">
                     <nav className="mb-4 flex justify-between items-center font-bold text-emerald-400">
                         <span>Beetle Base - 全個体一覧</span>
-                        <button onClick={() => { const n = {id:Date.now().toString(), name:'新規個体', history:[], stage:'幼虫', saleStatus:'非売', size:'0', alias:'', origin:'', generation:'', hatchDate:'2026-06-05', gene:'未解析', maleParent:'', femaleParent:''}; setCreatures([n,...creatures]); setSelectedCreature(n); }} className="bg-emerald-600 px-3 py-1 rounded text-white">追加</button>
+                        <button onClick={() => { const n = {id:Date.now().toString(), name:'新規個体', history:[], stage:'幼虫', saleStatus:'非売', size:'0', alias:'', origin:'', generation:'', hatchDate:'2026-06-05', gene:'未解析', mendelPrediction:'-', maleParent:'', femaleParent:''}; setCreatures([n,...creatures]); setSelectedCreature(n); }} className="bg-emerald-600 px-3 py-1 rounded text-white">追加</button>
                     </nav>
                     <div className="overflow-x-auto bg-neutral-900 rounded-lg">
                         <table className="w-full text-sm border-collapse whitespace-nowrap text-white">
                             <thead><tr className="bg-neutral-800 text-left border-b border-neutral-700">
-                                {[{k:'saleStatus',l:'販売'}, {k:'name',l:'個体名'}, {k:'gene',l:'遺伝子'}, {k:'size',l:'サイズ'}, {k:'stage',l:'ステージ'}].map(h => <th key={h.k} className="p-3 cursor-pointer hover:bg-neutral-700" onClick={() => setSort({key:h.k, direction: sort.key===h.k && sort.direction==='asc'?'desc':'asc'})}>{h.l}</th>)}
+                                {[{k:'saleStatus',l:'販売'}, {k:'name',l:'個体名'}, {k:'gene',l:'遺伝子'}, {k:'size',l:'サイズ'}, {k:'maleParent',l:'オス親'}, {k:'femaleParent',l:'メス親'}, {k:'stage',l:'ステージ'}].map(h => <th key={h.k} className="p-3 cursor-pointer hover:bg-neutral-700" onClick={() => setSort({key:h.k, direction: sort.key===h.k && sort.direction==='asc'?'desc':'asc'})}>{h.l}</th>)}
                                 <th className="p-3">操作</th>
                             </tr></thead>
                             <tbody>{processedCreatures.map(c => <tr key={c.id} className="border-b border-neutral-800 cursor-pointer hover:bg-neutral-800" onClick={() => setSelectedCreature(c)}>
-                                <td className="p-3">{c.saleStatus}</td><td className="p-3 font-bold">{c.name}</td><td className="p-3">{c.gene}</td><td className="p-3">{c.size}</td><td className="p-3">{c.stage}</td>
+                                <td className="p-3">{c.saleStatus}</td><td className="p-3 font-bold">{c.name}</td><td className="p-3">{c.gene}</td><td className="p-3">{c.size}</td><td className="p-3">{c.maleParent}</td><td className="p-3">{c.femaleParent}</td><td className="p-3">{c.stage}</td>
                                 <td className="p-3"><button onClick={(e) => {e.stopPropagation(); if(confirm('削除?')) setCreatures(creatures.filter(x=>x.id!==c.id))}} className="bg-emerald-600 px-2 py-1 rounded">削除</button></td>
                             </tr>)}</tbody>
                         </table>
@@ -77,7 +77,7 @@
             const fields = [
                 {key:'name', label:'個体名'}, {key:'alias', label:'名称'}, {key:'origin', label:'産地'}, 
                 {key:'generation', label:'累代'}, {key:'size', label:'サイズ'}, {key:'hatchDate', label:'孵化日'}, 
-                {key:'gene', label:'遺伝子'}, {key:'maleParent', label:'オス親'}, {key:'femaleParent', label:'メス親'}, {key:'stage', label:'ステージ'}
+                {key:'gene', label:'遺伝子'}, {key:'mendelPrediction', label:'メンデル予測'}, {key:'maleParent', label:'オス親'}, {key:'femaleParent', label:'メス親'}, {key:'stage', label:'ステージ'}
             ];
 
             const saveRecord = (record, index) => {
@@ -127,7 +127,6 @@
                     <div className="bg-neutral-900 p-6 rounded-xl space-y-4 relative">
                         <h2 className="text-xl font-bold border-b border-neutral-700 pb-2">詳細情報</h2>
                         <button onClick={() => setEditModal(true)} className="absolute top-6 right-6 bg-emerald-600 px-3 py-1 rounded text-xs font-bold text-white">編集</button>
-                        
                         {fields.map(f => (
                             <div key={f.key} className="flex text-sm"><span className="w-24 font-bold text-white shrink-0">{f.label}:</span><span className="break-all">{form[f.key]}</span></div>
                         ))}
@@ -149,7 +148,7 @@
                             <button onClick={() => setRecordModal({open: true, data: {date: new Date().toISOString().split('T')[0], item: '', size: ''}, index: null})} className="inline-block bg-emerald-600 px-3 py-1 mt-4 rounded text-xs font-bold">追加</button>
                         </div>
                     </div>
-                    {/* 以下、モーダル群は維持 */}
+                    {/* 以下モーダル群 */}
                     {ghostModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
                             <div className="bg-neutral-900 p-4 rounded-xl w-full max-w-sm border border-neutral-700">
