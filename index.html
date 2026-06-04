@@ -23,9 +23,9 @@
                 if (saved) return JSON.parse(saved);
                 return Array.from({ length: 50 }, (_, i) => ({
                     id: (i + 1).toString(), name: `個体 ${i + 1}号`, alias: '極太血統',
-                    origin: '福岡県久留米市', generation: 'F5', stage: '幼虫', saleStatus: '非売', 
-                    size: '80', hatchDate: '2026-04-01', 
-                    history: [{date: '2026-04-01', item: '孵化', size: '10'}]
+                    origin: '福岡県久留米市', generation: 'F5', maleParent: 'M-1', femaleParent: 'F-1',
+                    stage: '幼虫', saleStatus: '非売', size: '80', hatchDate: '2026-05-01', 
+                    history: [{date: '2026-05-01', item: '孵化', size: '10'}]
                 }));
             });
             const [sort, setSort] = useState({ key: 'id', direction: 'asc' });
@@ -48,16 +48,16 @@
                 <div className="p-4">
                     <nav className="mb-4 flex justify-between items-center font-bold text-emerald-400">
                         <span>Beetle Base - 全個体一覧</span>
-                        <button onClick={() => { const n = {id:Date.now().toString(), name:'新規個体', history:[], stage:'幼虫', saleStatus:'非売', size:'0', hatchDate:'2026-04-01'}; setCreatures([n,...creatures]); setSelectedCreature(n); }} className="bg-emerald-600 px-3 py-1 rounded text-white">➕ 追加</button>
+                        <button onClick={() => { const n = {id:Date.now().toString(), name:'新規個体', history:[], stage:'幼虫', saleStatus:'非売', size:'0', alias:'', origin:'', generation:'', hatchDate:'', maleParent:'', femaleParent:''}; setCreatures([n,...creatures]); setSelectedCreature(n); }} className="bg-emerald-600 px-3 py-1 rounded text-white">➕ 追加</button>
                     </nav>
                     <div className="overflow-x-auto bg-neutral-900 rounded-lg">
                         <table className="w-full text-sm border-collapse whitespace-nowrap text-white">
                             <thead><tr className="bg-neutral-800 text-left border-b border-neutral-700">
-                                {[{k:'saleStatus',l:'販売'}, {k:'name',l:'個体名'}, {k:'size',l:'サイズ'}, {k:'hatchDate',l:'孵化日'}].map(h => <th key={h.k} className="p-3 cursor-pointer hover:bg-neutral-700" onClick={() => setSort({key:h.k, direction: sort.key===h.k && sort.direction==='asc'?'desc':'asc'})}>{h.l}</th>)}
+                                {[{k:'saleStatus',l:'販売'}, {k:'name',l:'個体名'}, {k:'alias',l:'名称'}, {k:'origin',l:'産地'}, {k:'generation',l:'累代'}, {k:'size',l:'サイズ'}, {k:'hatchDate',l:'羽化日'}, {k:'maleParent',l:'オス親'}, {k:'femaleParent',l:'メス親'}, {k:'stage',l:'ステージ'}].map(h => <th key={h.k} className="p-3 cursor-pointer hover:bg-neutral-700" onClick={() => setSort({key:h.k, direction: sort.key===h.k && sort.direction==='asc'?'desc':'asc'})}>{h.l}</th>)}
                                 <th className="p-3">操作</th>
                             </tr></thead>
                             <tbody>{processedCreatures.map(c => <tr key={c.id} className="border-b border-neutral-800 cursor-pointer hover:bg-neutral-800" onClick={() => setSelectedCreature(c)}>
-                                <td className="p-3">{c.saleStatus}</td><td className="p-3 font-bold">{c.name}</td><td className="p-3">{c.size}</td><td className="p-3">{c.hatchDate}</td>
+                                <td className="p-3">{c.saleStatus}</td><td className="p-3 font-bold">{c.name}</td><td className="p-3">{c.alias}</td><td className="p-3">{c.origin}</td><td className="p-3">{c.generation}</td><td className="p-3">{c.size}</td><td className="p-3">{c.hatchDate}</td><td className="p-3">{c.maleParent}</td><td className="p-3">{c.femaleParent}</td><td className="p-3">{c.stage}</td>
                                 <td className="p-3"><button onClick={(e) => {e.stopPropagation(); if(confirm('削除?')) setCreatures(creatures.filter(x=>x.id!==c.id))}} className="bg-emerald-600 px-2 py-1 rounded">削除</button></td>
                             </tr>)}</tbody>
                         </table>
@@ -73,23 +73,32 @@
             const [showModal, setShowModal] = useState(false);
             const [newRecord, setNewRecord] = useState({date: new Date().toISOString().split('T')[0], item: '', size: ''});
             const canvasRef = useRef(null);
-            const fields = [{key:'name', label:'個体名'}, {key:'size', label:'サイズ'}, {key:'hatchDate', label:'孵化日'}];
+            const fields = [
+                {key:'name', label:'個体名'}, {key:'alias', label:'名称'}, {key:'origin', label:'産地'}, 
+                {key:'generation', label:'累代'}, {key:'size', label:'サイズ'}, {key:'hatchDate', label:'羽化日'}, 
+                {key:'maleParent', label:'オス親'}, {key:'femaleParent', label:'メス親'}, {key:'stage', label:'ステージ'}
+            ];
 
             useEffect(() => {
                 const ctx = canvasRef.current.getContext('2d');
                 ctx.clearRect(0, 0, 400, 200);
+                
+                ctx.fillStyle = '#9ca3af'; ctx.font = '10px sans-serif';
                 ctx.strokeStyle = '#374151'; ctx.lineWidth = 1;
                 for(let i=0; i<=4; i++) {
                     const y = 20 + i * 40;
-                    ctx.beginPath(); ctx.moveTo(20, y); ctx.lineTo(380, y); ctx.stroke();
+                    const val = (4 - i) * 12.5;
+                    ctx.beginPath(); ctx.moveTo(30, y); ctx.lineTo(380, y); ctx.stroke();
+                    ctx.fillText(val.toFixed(0) + 'g', 0, y + 3);
                 }
+
                 const drawLine = (data, color, width) => {
                     if (!data || data.length === 0) return;
                     ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = width;
                     data.forEach((h, i) => {
-                        const x = (i / Math.max(1, data.length - 1)) * 360 + 20;
+                        const x = (i / Math.max(1, data.length - 1)) * 350 + 30;
                         const size = parseFloat(h.size) || 0;
-                        const y = 180 - Math.min(1, size / 100) * 160;
+                        const y = 180 - Math.min(1, size / 50) * 160;
                         i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
                     });
                     ctx.stroke();
@@ -104,29 +113,33 @@
             return (
                 <div className="p-6 max-w-lg mx-auto text-white">
                     <div className="flex justify-between mb-4">
-                        <button onClick={onBack} className="text-emerald-400 font-bold">← 一覧</button>
+                        <button onClick={onBack} className="text-emerald-400 font-bold">← 一覧に戻る</button>
                         <button onClick={() => isEditing ? (onUpdate(form), setIsEditing(false)) : setIsEditing(true)} className="bg-emerald-600 px-4 py-1 rounded font-bold text-white">{isEditing ? '保存' : '編集'}</button>
                     </div>
                     <div className="bg-neutral-900 p-6 rounded-xl space-y-4">
+                        <h2 className="text-xl font-bold border-b border-neutral-700 pb-2 text-white">詳細情報</h2>
                         <div className="grid grid-cols-[100px,1fr] gap-2 items-center text-sm">
                             {fields.map(f => <React.Fragment key={f.key}><p className="text-white font-bold">{f.label}:</p><input disabled={!isEditing} className={`bg-neutral-900 p-1 w-full text-white font-bold ${!isEditing && 'opacity-80'}`} value={form[f.key]} onChange={e => setForm({...form, [f.key]: e.target.value})} /></React.Fragment>)}
                         </div>
-                        <canvas ref={canvasRef} width="400" height="200" className="bg-neutral-900 rounded w-full border border-neutral-700" />
-                        <select className="w-full bg-neutral-900 p-2 text-white font-bold" onChange={(e) => setGhostId(e.target.value)}><option value="">比較対象を選択</option>{creatures.filter(c => c.id !== form.id).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
-                        <table className="w-full text-xs text-left"><thead><tr className="text-white border-b border-neutral-700"><th>日付</th><th>項目</th><th>サイズ</th></tr></thead>
-                        <tbody>{form.history.map((h,i) => <tr key={i}><td>{h.date}</td><td>{h.item}</td><td>{h.size}</td></tr>)}</tbody></table>
-                        <button onClick={() => setShowModal(true)} className="w-full bg-emerald-600 p-2 rounded text-white">＋ 記録追加</button>
+                        <canvas ref={canvasRef} width="400" height="200" className="bg-neutral-900 rounded w-full" />
+                        <select className="w-full bg-neutral-900 p-2 text-white font-bold" onChange={(e) => setGhostId(e.target.value)}><option value="">比較対象(ゴースト)を選択</option>{creatures.filter(c => c.id !== form.id).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+                        <div className="border-t border-neutral-700 pt-4">
+                            <h3 className="font-bold mb-2 text-white">飼育記録</h3>
+                            <table className="w-full text-xs text-left"><thead><tr className="text-white border-b border-neutral-700"><th>日付</th><th>項目</th><th>サイズ</th></tr></thead>
+                            <tbody>{form.history.sort((a,b)=>new Date(a.date)-new Date(b.date)).map((h,i) => <tr key={i} className="border-b border-neutral-800"><td>{h.date}</td><td>{h.item}</td><td>{h.size}</td></tr>)}</tbody></table>
+                            <button onClick={() => setShowModal(true)} className="w-full bg-emerald-600 mt-4 p-2 rounded text-white">＋ 記録を追加</button>
+                        </div>
                     </div>
                     {showModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4">
                             <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4">
-                                <h3 className="font-bold text-white">飼育記録の追加</h3>
+                                <h3 className="font-bold text-white">記録の追加</h3>
                                 <input type="date" className="w-full bg-neutral-900 p-2 rounded text-white" value={newRecord.date} onChange={e => setNewRecord({...newRecord, date: e.target.value})} />
                                 <input placeholder="項目" className="w-full bg-neutral-900 p-2 rounded text-white" value={newRecord.item} onChange={e => setNewRecord({...newRecord, item: e.target.value})} />
-                                <input placeholder="サイズ" className="w-full bg-neutral-900 p-2 rounded text-white" value={newRecord.size} onChange={e => setNewRecord({...newRecord, size: e.target.value})} />
+                                <input placeholder="サイズ(数値)" className="w-full bg-neutral-900 p-2 rounded text-white" value={newRecord.size} onChange={e => setNewRecord({...newRecord, size: e.target.value})} />
                                 <div className="flex gap-2">
                                     <button onClick={() => setShowModal(false)} className="w-full bg-neutral-700 p-2 rounded text-white">キャンセル</button>
-                                    <button onClick={() => { onUpdate({...form, history: [...form.history, newRecord].sort((a,b)=>new Date(a.date)-new Date(b.date))}); setShowModal(false); }} className="w-full bg-emerald-600 p-2 rounded text-white">保存</button>
+                                    <button onClick={() => { onUpdate({...form, history: [...form.history, newRecord]}); setShowModal(false); }} className="w-full bg-emerald-600 p-2 rounded text-white">保存</button>
                                 </div>
                             </div>
                         </div>
