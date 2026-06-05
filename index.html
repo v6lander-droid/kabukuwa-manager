@@ -10,7 +10,7 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
         table { border-collapse: separate; border-spacing: 0; width: 100%; }
-        /* 販売欄のz-indexを高くして優先的に反応させる */
+        /* z-indexを調整し、販売欄が他の要素より上にくるように設定 */
         .sticky-col-sale { position: sticky; left: 0; z-index: 100; background-color: #171717; border-right: 1px solid #333; }
         .sticky-col-name { position: sticky; left: 80px; z-index: 10; background-color: #171717; border-right: 1px solid #333; }
         .scrollable-area { max-height: 70vh; overflow-y: auto; }
@@ -40,23 +40,12 @@
             const [creatures, setCreatures] = useState(() => {
                 const saved = localStorage.getItem('beetle_data');
                 if (saved) return JSON.parse(saved);
-                
                 return Array.from({ length: 50 }, (_, i) => {
                     const offset = i * 2;
                     return {
-                        id: (i + 1).toString(), 
-                        name: `個体 ${i + 1}号`, 
-                        alias: '極太血統',
-                        origin: '福岡県久留米市', 
-                        generation: 'F5', 
-                        maleParent: 'M-1', 
-                        femaleParent: 'F-1',
-                        gene: '未解析', 
-                        mendelPrediction: 'AA:100%', 
-                        stage: i % 3 === 0 ? '蛹' : '幼虫', 
-                        saleStatus: '非売', 
-                        size: (30 + offset).toString(), 
-                        hatchDate: '2026-06-05', 
+                        id: (i + 1).toString(), name: `個体 ${i + 1}号`, alias: '極太血統',
+                        origin: '福岡県久留米市', generation: 'F5', maleParent: 'M-1', femaleParent: 'F-1',
+                        gene: '未解析', mendelPrediction: 'AA:100%', stage: i % 3 === 0 ? '蛹' : '幼虫', saleStatus: '非売', size: (30 + offset).toString(), hatchDate: '2026-06-05', 
                         history: [
                             {date: '2026-06-05', item: '孵化', size: '5'},
                             {date: `2026-06-${10 + offset}`, item: '初令交換', size: (10 + offset).toString()},
@@ -120,6 +109,7 @@
                                                 type="button"
                                                 onClick={(e) => {
                                                     e.preventDefault();
+                                                    e.stopPropagation();
                                                     const statuses = ['販売', '予備', '非売'];
                                                     const currentIndex = statuses.indexOf(c.saleStatus);
                                                     const nextStatus = statuses[(currentIndex + 1) % statuses.length];
@@ -136,8 +126,8 @@
                                         <td className="p-3">{c.maleParent}</td>
                                         <td className="p-3">{c.femaleParent}</td>
                                         <td className="p-3">{c.stage}</td>
-                                        <td className="p-3" onClick={(e) => e.stopPropagation()}>
-                                            <button onClick={() => {if(confirm('削除?')) setCreatures(creatures.filter(x=>x.id!==c.id))}} className="bg-emerald-600 px-2 py-1 rounded">削除</button>
+                                        <td className="p-3">
+                                            <button onClick={(e) => {e.stopPropagation(); if(confirm('削除?')) setCreatures(creatures.filter(x=>x.id!==c.id))}} className="bg-emerald-600 px-2 py-1 rounded">削除</button>
                                         </td>
                                     </tr>
                                 ))}
