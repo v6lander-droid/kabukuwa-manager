@@ -9,7 +9,9 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
-        table { writing-mode: horizontal-tb !important; }
+        table { writing-mode: horizontal-tb !important; border-collapse: separate; border-spacing: 0; }
+        .sticky-col-1 { position: sticky; left: 0; z-index: 10; background-color: #171717; }
+        .sticky-col-2 { position: sticky; left: 60px; z-index: 10; background-color: #171717; }
         .scrollable-area { max-height: 70vh; overflow-y: auto; }
         .history-scroll { max-height: 300px; overflow-y: auto; }
     </style>
@@ -20,7 +22,6 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
-        // 背景スクロールを確実に制御するフック
         function useBodyScrollLock(isLocked) {
             useEffect(() => {
                 const originalStyle = window.getComputedStyle(document.body).overflow;
@@ -35,6 +36,7 @@
 
         function App() {
             const [selectedCreature, setSelectedCreature] = useState(null);
+            const [filterStatus, setFilterStatus] = useState('すべて');
             const [creatures, setCreatures] = useState(() => {
                 const saved = localStorage.getItem('beetle_data');
                 if (saved) return JSON.parse(saved);
@@ -42,19 +44,9 @@
                 return Array.from({ length: 50 }, (_, i) => {
                     const offset = i * 2;
                     return {
-                        id: (i + 1).toString(), 
-                        name: `個体 ${i + 1}号`, 
-                        alias: '極太血統',
-                        origin: '福岡県久留米市', 
-                        generation: 'F5', 
-                        maleParent: 'M-1', 
-                        femaleParent: 'F-1',
-                        gene: '未解析', 
-                        mendelPrediction: 'AA:100%', 
-                        stage: i % 3 === 0 ? '蛹' : '幼虫', 
-                        saleStatus: i % 5 === 0 ? '販売中' : '非売', 
-                        size: (30 + offset).toString(), 
-                        hatchDate: '2026-06-05', 
+                        id: (i + 1).toString(), name: `個体 ${i + 1}号`, alias: '極太血統',
+                        origin: '福岡県久留米市', generation: 'F5', maleParent: 'M-1', femaleParent: 'F-1',
+                        gene: '未解析', mendelPrediction: 'AA:100%', stage: i % 3 === 0 ? '蛹' : '幼虫', saleStatus: '非売', size: (30 + offset).toString(), hatchDate: '2026-06-05', 
                         history: [
                             {date: '2026-06-05', item: '孵化', size: '5'},
                             {date: `2026-06-${10 + offset}`, item: '初令交換', size: (10 + offset).toString()},
@@ -73,7 +65,23 @@
                 setSelectedCreature(updated);
             };
 
-            const processedCreatures = [...creatures].sort((a, b) => {
+            const toggleSaleStatus = (e, creature) => {
+                e.stopPropagation();
+                const statuses = ['販売', '予備', '非売'];
+                const currentIndex = statuses.indexOf(creature.saleStatus);
+                const nextStatus = statuses[(currentIndex + 1) % statuses.length];
+                updateCreature({ ...creature, saleStatus: nextStatus });
+            };
+
+            const getStatusColor = (status) => {
+                if (status === '販売') return 'text-emerald-400 font-bold';
+                if (status === '予備') return 'text-yellow-400 font-bold';
+                return 'text-neutral-400';
+            };
+
+            const filteredCreatures = creatures.filter(c => filterStatus === 'すべて' || c.saleStatus === filterStatus);
+
+            const processedCreatures = [...filteredCreatures].sort((a, b) => {
                 const valA = a[sort.key] || '', valB = b[sort.key] || '';
                 return (valA < valB ? -1 : 1) * (sort.direction === 'asc' ? 1 : -1);
             });
@@ -82,18 +90,29 @@
 
             return (
                 <div className="p-4">
-                    <nav className="mb-4 flex justify-between items-center font-bold text-emerald-400">
-                        <span>Beetle Base - 全個体一覧</span>
-                        <button onClick={() => { const n = {id:Date.now().toString(), name:'新規個体', history:[], stage:'幼虫', saleStatus:'非売', size:'0', alias:'', origin:'', generation:'', hatchDate:'2026-06-05', gene:'未解析', mendelPrediction:'-', maleParent:'', femaleParent:''}; setCreatures([n,...creatures]); setSelectedCreature(n); }} className="bg-emerald-600 px-3 py-1 rounded text-white">追加</button>
+                    <nav className="mb-4 flex flex-col gap-4">
+                        <div className="flex justify-between items-center font-bold text-emerald-400">
+                            <span>Beetle Base - 全個体一覧</span>
+                            <button onClick={() => { const n = {id:Date.now().toString(), name:'新規個体', history:[], stage:'幼虫', saleStatus:'非売', size:'0', alias:'', origin:'', generation:'', hatchDate:'2026-06-05', gene:'未解析', mendelPrediction:'-', maleParent:'', femaleParent:''}; setCreatures([n,...creatures]); setSelectedCreature(n); }} className="bg-emerald-600 px-3 py-1 rounded text-white">追加</button>
+                        </div>
+                        <div className="flex gap-2 text-xs">
+                            {['すべて', '販売', '予備', '非売'].map(s => (
+                                <button key={s} onClick={() => setFilterStatus(s)} className={`px-3 py-1 rounded ${filterStatus === s ? 'bg-emerald-600 text-white' : 'bg-neutral-800 text-neutral-400'}`}>{s}</button>
+                            ))}
+                        </div>
                     </nav>
                     <div className="overflow-x-auto bg-neutral-900 rounded-lg">
-                        <table className="w-full text-sm border-collapse whitespace-nowrap text-white">
+                        <table className="w-full text-sm border-collapse text-white">
                             <thead><tr className="bg-neutral-800 text-left border-b border-neutral-700">
-                                {[{k:'saleStatus',l:'販売'}, {k:'name',l:'個体名'}, {k:'gene',l:'遺伝子'}, {k:'size',l:'サイズ'}, {k:'maleParent',l:'オス親'}, {k:'femaleParent',l:'メス親'}, {k:'stage',l:'ステージ'}].map(h => <th key={h.k} className="p-3 cursor-pointer hover:bg-neutral-700" onClick={() => setSort({key:h.k, direction: sort.key===h.k && sort.direction==='asc'?'desc':'asc'})}>{h.l}</th>)}
+                                <th className="p-3 sticky-col-1 cursor-pointer hover:bg-neutral-700" onClick={() => setSort({key:'saleStatus', direction: sort.key==='saleStatus' && sort.direction==='asc'?'desc':'asc'})}>販売</th>
+                                <th className="p-3 sticky-col-2 cursor-pointer hover:bg-neutral-700" onClick={() => setSort({key:'name', direction: sort.key==='name' && sort.direction==='asc'?'desc':'asc'})}>個体名</th>
+                                {[{k:'gene',l:'遺伝子'}, {k:'size',l:'サイズ'}, {k:'maleParent',l:'オス親'}, {k:'femaleParent',l:'メス親'}, {k:'stage',l:'ステージ'}].map(h => <th key={h.k} className="p-3 cursor-pointer hover:bg-neutral-700" onClick={() => setSort({key:h.k, direction: sort.key===h.k && sort.direction==='asc'?'desc':'asc'})}>{h.l}</th>)}
                                 <th className="p-3">操作</th>
                             </tr></thead>
                             <tbody>{processedCreatures.map(c => <tr key={c.id} className="border-b border-neutral-800 cursor-pointer hover:bg-neutral-800" onClick={() => setSelectedCreature(c)}>
-                                <td className="p-3">{c.saleStatus}</td><td className="p-3 font-bold">{c.name}</td><td className="p-3">{c.gene}</td><td className="p-3">{c.size}</td><td className="p-3">{c.maleParent}</td><td className="p-3">{c.femaleParent}</td><td className="p-3">{c.stage}</td>
+                                <td className={`p-3 sticky-col-1 cursor-pointer ${getStatusColor(c.saleStatus)}`} onClick={(e) => toggleSaleStatus(e, c)}>{c.saleStatus}</td>
+                                <td className="p-3 sticky-col-2 font-bold">{c.name}</td>
+                                <td className="p-3">{c.gene}</td><td className="p-3">{c.size}</td><td className="p-3">{c.maleParent}</td><td className="p-3">{c.femaleParent}</td><td className="p-3">{c.stage}</td>
                                 <td className="p-3"><button onClick={(e) => {e.stopPropagation(); if(confirm('削除?')) setCreatures(creatures.filter(x=>x.id!==c.id))}} className="bg-emerald-600 px-2 py-1 rounded">削除</button></td>
                             </tr>)}</tbody>
                         </table>
@@ -110,7 +129,6 @@
             const [recordModal, setRecordModal] = useState({open: false, data: null, index: null});
             const canvasRef = useRef(null);
 
-            // モーダルのいずれかが開いている場合、背景を固定
             useBodyScrollLock(editModal || ghostModal || recordModal.open);
 
             const fields = [
@@ -129,12 +147,23 @@
                 setRecordModal({open: false, data: null, index: null});
             };
 
+            const deleteRecord = (index) => {
+                if(!confirm('この記録を削除しますか？')) return;
+                const newHistory = form.history.filter((_, i) => i !== index);
+                const updated = {...form, history: newHistory};
+                setForm(updated);
+                onUpdate(updated);
+            };
+
             useEffect(() => {
                 const ctx = canvasRef.current.getContext('2d');
                 ctx.clearRect(0, 0, 400, 200);
-                const allData = [...form.history, ...(ghostId ? creatures.find(c=>c.id===ghostId)?.history || [] : [])];
-                const maxDays = Math.max(10, ...allData.map(h => (new Date(h.date) - new Date(form.hatchDate)) / (1000 * 60 * 60 * 24)));
-                const maxSize = Math.max(50, ...allData.map(h => parseFloat(h.size || 0)));
+                const ghost = creatures.find(c => c.id === ghostId);
+                const combinedData = [...form.history, ...(ghost ? ghost.history : [])];
+                
+                const getDays = (date, hatch) => (new Date(date) - new Date(hatch)) / (1000 * 60 * 60 * 24);
+                const maxDays = Math.max(10, ...form.history.map(h => getDays(h.date, form.hatchDate)), ghost ? ...ghost.history.map(h => getDays(h.date, ghost.hatchDate)) : 0);
+                const maxSize = Math.max(50, ...combinedData.map(h => parseFloat(h.size || 0)));
 
                 ctx.strokeStyle = '#374151'; ctx.fillStyle = '#ffffff'; ctx.font = '10px sans-serif';
                 for(let i=0; i<=4; i++) {
@@ -142,22 +171,21 @@
                     ctx.beginPath(); ctx.moveTo(30, y); ctx.lineTo(380, y); ctx.stroke();
                     ctx.fillText(((4 - i) * (maxSize / 4)).toFixed(0) + 'g', 0, y + 3);
                 }
+
                 const drawLine = (data, hatchDate, color, width) => {
                     if (!data || data.length === 0) return;
                     ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = width;
                     data.sort((a,b)=>new Date(a.date)-new Date(b.date)).forEach((h, i) => {
-                        const days = Math.max(0, (new Date(h.date) - new Date(hatchDate)) / (1000 * 60 * 60 * 24));
+                        const days = Math.max(0, getDays(h.date, hatchDate));
                         const x = (days / maxDays) * 350 + 30;
                         const y = 180 - (parseFloat(h.size || 0) / maxSize) * 160;
                         i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
                     });
                     ctx.stroke();
                 };
+
                 drawLine(form.history, form.hatchDate, '#10b981', 3);
-                if (ghostId) {
-                    const ghost = creatures.find(c => c.id === ghostId);
-                    if (ghost) drawLine(ghost.history, ghost.hatchDate, '#9ca3af', 2);
-                }
+                if (ghost) drawLine(ghost.history, ghost.hatchDate, '#9ca3af', 2);
             }, [form, ghostId, creatures]);
 
             return (
@@ -182,7 +210,10 @@
                                     <tbody>{form.history.sort((a,b)=>new Date(a.date)-new Date(b.date)).map((h, i) => (
                                         <tr key={i} className="border-b border-neutral-800">
                                             <td className="p-2 text-left">{h.date}</td><td className="p-2">{h.item}</td><td className="p-2">{h.size}</td>
-                                            <td className="p-2"><button onClick={() => setRecordModal({open: true, data: h, index: i})} className="bg-emerald-600 text-white px-2 py-1 rounded font-bold">編集</button></td>
+                                            <td className="p-2 flex gap-1">
+                                                <button onClick={() => setRecordModal({open: true, data: h, index: i})} className="bg-emerald-600 text-white px-2 py-1 rounded font-bold">編集</button>
+                                                <button onClick={() => deleteRecord(i)} className="bg-red-600 text-white px-2 py-1 rounded font-bold">削除</button>
+                                            </td>
                                         </tr>
                                     ))}</tbody>
                                 </table>
@@ -215,7 +246,7 @@
                     {recordModal.open && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
                             <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4">
-                                <h3 className="font-bold">記録の編集</h3>
+                                <h3 className="font-bold">飼育記録の追加・編集</h3>
                                 <div className="space-y-3">
                                     <div className="flex items-center gap-2"><label className="w-16 text-xs">日付:</label><input type="date" className="flex-1 bg-neutral-800 p-2 rounded text-center" value={recordModal.data.date} onChange={e => setRecordModal({...recordModal, data: {...recordModal.data, date: e.target.value}})} /></div>
                                     <div className="flex items-center gap-2"><label className="w-16 text-xs">項目:</label><input className="flex-1 bg-neutral-800 p-2 rounded text-center" value={recordModal.data.item} onChange={e => setRecordModal({...recordModal, data: {...recordModal.data, item: e.target.value}})} /></div>
