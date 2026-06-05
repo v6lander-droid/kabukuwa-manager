@@ -154,8 +154,6 @@
                 {key:'maleParent', label:'オス親'}, {key:'femaleParent', label:'メス親'}, {key:'stage', label:'ステージ'}
             ];
             
-            const sizeHistory = form.history.map(h => `${h.size}(${h.temp})`).join(' → ') || '未計測';
-
             const saveEdit = () => {
                 setForm(editForm);
                 onUpdate(editForm);
@@ -164,8 +162,8 @@
 
             const saveRecord = (record) => {
                 let h = [...form.history];
-                if (record.index !== null) h[record.index] = {item:record.item, size:record.size, temp:record.temp, date:h[record.index].date};
-                else h.push({item:record.item, size:record.size, temp:record.temp, date:new Date().toISOString().split('T')[0]});
+                if (record.index !== null) h[record.index] = {item:record.item, size:record.size, temp:record.temp, date:record.date};
+                else h.push({item:record.item, size:record.size, temp:record.temp, date:record.date || new Date().toISOString().split('T')[0]});
                 const updated = {...form, history: h};
                 setForm(updated);
                 onUpdate(updated);
@@ -206,18 +204,16 @@
                                     <p className="p-2 bg-neutral-800 rounded text-white w-full">{form[f.key] || '-'}</p>
                                 </React.Fragment>
                             ))}
-                            <p className="text-white text-left">サイズ履歴:</p>
-                            <p className="p-2 bg-neutral-800 rounded font-bold text-white w-full break-words">{sizeHistory}</p>
                         </div>
                         
                         <div className="border-t border-neutral-700 pt-4">
                             <div className="flex justify-between items-center mb-3">
                                 <h3 className="font-bold">飼育記録</h3>
-                                <button onClick={() => setShowRecordModal({item:'', size:'', temp:'', index:null})} className="bg-emerald-600 px-2 py-1 rounded text-xs text-white">追加</button>
+                                <button onClick={() => setShowRecordModal({item:'', size:'', temp:'', date:new Date().toISOString().split('T')[0], index:null})} className="bg-emerald-600 px-2 py-1 rounded text-xs text-white">追加</button>
                             </div>
                             <table className="w-full text-xs">
-                                <thead><tr className="text-white border-b border-neutral-700 text-left"><th>項目</th><th>日付</th><th>サイズ</th><th>温度</th><th>操作</th></tr></thead>
-                                <tbody>{form.history.map((h,i) => <tr key={i} className="border-b border-neutral-800"><td>{h.item}</td><td>{h.date}</td><td>{h.size}</td><td>{h.temp}</td><td><button onClick={() => setShowRecordModal({item:h.item, size:h.size, temp:h.temp, index:i})} className="bg-emerald-600 px-1 rounded text-white">訂正</button></td></tr>)}</tbody>
+                                <thead><tr className="text-white border-b border-neutral-700 text-left"><th>日付</th><th>項目</th><th>サイズ</th><th>温度</th><th>操作</th></tr></thead>
+                                <tbody>{form.history.map((h,i) => <tr key={i} className="border-b border-neutral-800"><td>{h.date}</td><td>{h.item}</td><td>{h.size}</td><td>{h.temp}</td><td><button onClick={() => setShowRecordModal({item:h.item, size:h.size, temp:h.temp, date:h.date, index:i})} className="bg-emerald-600 px-1 rounded text-white">訂正</button></td></tr>)}</tbody>
                             </table>
                         </div>
                     </div>
@@ -225,6 +221,7 @@
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
                             <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4">
                                 <h3 className="font-bold text-white">{showRecordModal.index !== null ? '記録の訂正' : '記録の追加'}</h3>
+                                <input type="date" className="w-full bg-neutral-800 p-2 rounded text-white" value={showRecordModal.date} onChange={e=>setShowRecordModal({...showRecordModal, date:e.target.value})} />
                                 <input placeholder="項目" className="w-full bg-neutral-800 p-2 rounded text-white" value={showRecordModal.item} onChange={e=>setShowRecordModal({...showRecordModal, item:e.target.value})} />
                                 <input placeholder="サイズ" className="w-full bg-neutral-800 p-2 rounded text-white" value={showRecordModal.size} onChange={e=>setShowRecordModal({...showRecordModal, size:e.target.value})} />
                                 <input placeholder="管理温度" className="w-full bg-neutral-800 p-2 rounded text-white" value={showRecordModal.temp} onChange={e=>setShowRecordModal({...showRecordModal, temp:e.target.value})} />
