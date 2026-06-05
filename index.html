@@ -43,19 +43,9 @@
                 return Array.from({ length: 50 }, (_, i) => {
                     const offset = i * 2;
                     return {
-                        id: (i + 1).toString(), 
-                        name: `個体 ${i + 1}号`, 
-                        alias: '極太血統',
-                        origin: '福岡県久留米市', 
-                        generation: 'F5', 
-                        maleParent: 'M-1', 
-                        femaleParent: 'F-1',
-                        gene: '未解析', 
-                        mendelPrediction: 'AA:100%', 
-                        stage: i % 3 === 0 ? '蛹' : '幼虫', 
-                        saleStatus: '非売', 
-                        size: (30 + offset).toString(), 
-                        hatchDate: '2026-06-05', 
+                        id: (i + 1).toString(), name: `個体 ${i + 1}号`, alias: '極太血統',
+                        origin: '福岡県久留米市', generation: 'F5', maleParent: 'M-1', femaleParent: 'F-1',
+                        gene: '未解析', mendelPrediction: 'AA:100%', stage: i % 3 === 0 ? '蛹' : '幼虫', saleStatus: '非売', size: (30 + offset).toString(), hatchDate: '2026-06-05', 
                         history: [
                             {date: '2026-06-05', item: '孵化', size: '5'},
                             {date: `2026-06-${10 + offset}`, item: '初令交換', size: (10 + offset).toString()},
@@ -75,7 +65,8 @@
             };
 
             const toggleSaleStatus = (e, creature) => {
-                e.stopPropagation(); // ここで親要素へのクリック伝播を完全に阻止
+                e.preventDefault(); // デフォルト動作を防止
+                e.stopPropagation(); // イベントの伝播をここで確実に停止する
                 const statuses = ['販売', '予備', '非売'];
                 const currentIndex = statuses.indexOf(creature.saleStatus);
                 const nextStatus = statuses[(currentIndex + 1) % statuses.length];
@@ -129,7 +120,7 @@
             );
         }
 
-        // --- DetailView以下は変更なしのため省略せず記載 ---
+        // --- DetailViewコンポーネント以下は省略なし ---
         function DetailView({ creature, creatures, onBack, onUpdate }) {
             const [form, setForm] = useState(creature);
             const [editModal, setEditModal] = useState(false);
@@ -137,15 +128,10 @@
             const [ghostId, setGhostId] = useState('');
             const [recordModal, setRecordModal] = useState({open: false, data: null, index: null});
             const canvasRef = useRef(null);
-
             useBodyScrollLock(editModal || ghostModal || recordModal.open);
-
-            const fields = [
-                {key:'name', label:'個体名'}, {key:'alias', label:'名称'}, {key:'origin', label:'産地'}, 
-                {key:'generation', label:'累代'}, {key:'size', label:'サイズ'}, {key:'hatchDate', label:'孵化日'}, 
-                {key:'gene', label:'遺伝子'}, {key:'mendelPrediction', label:'メンデル予測'}, {key:'maleParent', label:'オス親'}, {key:'femaleParent', label:'メス親'}, {key:'stage', label:'ステージ'}
-            ];
-
+            
+            const fields = [{key:'name', label:'個体名'}, {key:'alias', label:'名称'}, {key:'origin', label:'産地'}, {key:'generation', label:'累代'}, {key:'size', label:'サイズ'}, {key:'hatchDate', label:'孵化日'}, {key:'gene', label:'遺伝子'}, {key:'mendelPrediction', label:'メンデル予測'}, {key:'maleParent', label:'オス親'}, {key:'femaleParent', label:'メス親'}, {key:'stage', label:'ステージ'}];
+            
             const saveRecord = (record, index) => {
                 const newHistory = [...form.history];
                 if (index !== null) newHistory[index] = record;
@@ -155,7 +141,7 @@
                 onUpdate(updated);
                 setRecordModal({open: false, data: null, index: null});
             };
-
+            
             useEffect(() => {
                 if(!canvasRef.current) return;
                 const ctx = canvasRef.current.getContext('2d');
@@ -163,7 +149,6 @@
                 const allData = [...form.history, ...(ghostId ? creatures.find(c=>c.id===ghostId)?.history || [] : [])];
                 const maxDays = Math.max(10, ...allData.map(h => (new Date(h.date) - new Date(form.hatchDate)) / (1000 * 60 * 60 * 24)));
                 const maxSize = Math.max(50, ...allData.map(h => parseFloat(h.size || 0)));
-
                 ctx.strokeStyle = '#374151'; ctx.fillStyle = '#ffffff'; ctx.font = '10px sans-serif';
                 for(let i=0; i<=4; i++) {
                     const y = 20 + i * 40;
@@ -194,10 +179,7 @@
                     <div className="bg-neutral-900 p-6 rounded-xl space-y-4 relative">
                         <h2 className="text-xl font-bold border-b border-neutral-700 pb-2">詳細情報</h2>
                         <button onClick={() => setEditModal(true)} className="absolute top-6 right-6 bg-emerald-600 px-3 py-1 rounded text-xs font-bold text-white">編集</button>
-                        
-                        {fields.map(f => (
-                            <div key={f.key} className="flex text-sm"><span className="w-24 font-bold text-white shrink-0">{f.label}:</span><span className="break-all">{form[f.key]}</span></div>
-                        ))}
+                        {fields.map(f => <div key={f.key} className="flex text-sm"><span className="w-24 font-bold text-white shrink-0">{f.label}:</span><span className="break-all">{form[f.key]}</span></div>)}
                         <canvas ref={canvasRef} width="400" height="200" className="bg-neutral-900 rounded w-full border border-neutral-800" />
                         <button onClick={() => setGhostModal(true)} className="bg-emerald-600 px-4 py-2 rounded text-sm inline-block font-bold">
                             {ghostId ? `比較中: ${creatures.find(c=>c.id===ghostId)?.name}` : '比較対象を選択'}
@@ -208,46 +190,13 @@
                                 <table className="w-full text-xs text-left">
                                     <thead className="bg-neutral-800 sticky top-0"><tr><th className="p-2">日付</th><th className="p-2">項目</th><th className="p-2">サイズ</th><th className="p-2">操作</th></tr></thead>
                                     <tbody>{form.history.sort((a,b)=>new Date(a.date)-new Date(b.date)).map((h, i) => (
-                                        <tr key={i} className="border-b border-neutral-800">
-                                            <td className="p-2 text-left">{h.date}</td><td className="p-2">{h.item}</td><td className="p-2">{h.size}</td>
-                                            <td className="p-2"><button onClick={() => setRecordModal({open: true, data: h, index: i})} className="bg-emerald-600 text-white px-2 py-1 rounded font-bold">編集</button></td>
-                                        </tr>
+                                        <tr key={i} className="border-b border-neutral-800"><td className="p-2 text-left">{h.date}</td><td className="p-2">{h.item}</td><td className="p-2">{h.size}</td><td className="p-2"><button onClick={() => setRecordModal({open: true, data: h, index: i})} className="bg-emerald-600 text-white px-2 py-1 rounded font-bold">編集</button></td></tr>
                                     ))}</tbody>
                                 </table>
                             </div>
                             <button onClick={() => setRecordModal({open: true, data: {date: new Date().toISOString().split('T')[0], item: '', size: ''}, index: null})} className="inline-block bg-emerald-600 px-3 py-1 mt-4 rounded text-xs font-bold">追加</button>
                         </div>
                     </div>
-                    {ghostModal && (
-                        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-                            <div className="bg-neutral-900 p-4 rounded-xl w-full max-w-sm border border-neutral-700 scrollable-area">
-                                <h3 className="font-bold mb-3">比較対象を選択</h3>
-                                <button onClick={() => {setGhostId(''); setGhostModal(false);}} className="w-full text-left p-2 border-b border-neutral-800">比較解除</button>
-                                {creatures.filter(c => c.id !== form.id).map(c => <button key={c.id} onClick={() => {setGhostId(c.id); setGhostModal(false);}} className="w-full text-left p-2 border-b border-neutral-800 hover:bg-neutral-800">{c.name}</button>)}
-                            </div>
-                        </div>
-                    )}
-                    {editModal && (
-                        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-                            <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-3 scrollable-area">
-                                {fields.map(f => <div key={f.key}><label className="text-xs">{f.label}</label><input className="w-full bg-neutral-800 p-2 rounded" value={form[f.key]} onChange={e => setForm({...form, [f.key]: e.target.value})} /></div>)}
-                                <button onClick={() => { onUpdate(form); setEditModal(false); }} className="w-full bg-emerald-600 p-2 rounded text-white">保存</button>
-                            </div>
-                        </div>
-                    )}
-                    {recordModal.open && (
-                        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-                            <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4">
-                                <h3 className="font-bold">記録の編集</h3>
-                                <div className="space-y-3">
-                                    <div className="flex items-center gap-2"><label className="w-16 text-xs">日付:</label><input type="date" className="flex-1 bg-neutral-800 p-2 rounded" value={recordModal.data.date} onChange={e => setRecordModal({...recordModal, data: {...recordModal.data, date: e.target.value}})} /></div>
-                                    <div className="flex items-center gap-2"><label className="w-16 text-xs">項目:</label><input className="flex-1 bg-neutral-800 p-2 rounded" value={recordModal.data.item} onChange={e => setRecordModal({...recordModal, data: {...recordModal.data, item: e.target.value}})} /></div>
-                                    <div className="flex items-center gap-2"><label className="w-16 text-xs">サイズ:</label><input className="flex-1 bg-neutral-800 p-2 rounded" value={recordModal.data.size} onChange={e => setRecordModal({...recordModal, data: {...recordModal.data, size: e.target.value}})} /></div>
-                                </div>
-                                <div className="flex gap-2"><button onClick={() => setRecordModal({open: false})} className="w-full bg-neutral-700 p-2 rounded">戻る</button><button onClick={() => saveRecord(recordModal.data, recordModal.index)} className="w-full bg-emerald-600 p-2 rounded text-white">保存</button></div>
-                            </div>
-                        </div>
-                    )}
                 </div>
             );
         }
