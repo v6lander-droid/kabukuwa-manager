@@ -11,7 +11,7 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
-<body class="bg-emerald-50">
+<body class="bg-neutral-950 text-neutral-100 font-sans">
     <div id="root"></div>
 
     <script type="text/babel">
@@ -117,21 +117,21 @@
           };
 
           return (
-            <div className="h-screen bg-emerald-50 text-emerald-950 font-sans flex flex-col">
-              <nav className="shrink-0 z-50 w-full bg-emerald-900 text-emerald-100 flex p-2 md:p-4 gap-2 shadow-lg overflow-x-auto">
-                <div className="hidden md:flex font-bold text-amber-400 items-center gap-2 px-2 border-r border-emerald-700 mr-2 shrink-0">
+            <div className="h-screen bg-neutral-950 text-neutral-100 font-sans flex flex-col">
+              <nav className="shrink-0 z-50 w-full bg-neutral-900 text-neutral-200 flex p-2 md:p-4 gap-2 shadow-lg overflow-x-auto border-b border-neutral-800">
+                <div className="hidden md:flex font-bold text-emerald-400 items-center gap-2 px-2 border-r border-neutral-700 mr-2 shrink-0">
                   🪲 Beetle Base
                 </div>
-                <button onClick={() => { setActiveTab('list'); setSelectedCreatureId(null); }} className={`flex items-center gap-2 px-4 py-2 rounded ${activeTab === 'list' ? 'bg-emerald-800 text-white' : 'hover:bg-emerald-800'}`}>
+                <button onClick={() => { setActiveTab('list'); setSelectedCreatureId(null); }} className={`flex items-center gap-2 px-4 py-2 rounded ${activeTab === 'list' ? 'bg-neutral-800 text-emerald-400' : 'hover:bg-neutral-800'}`}>
                   📋 <span className="text-sm">一覧</span>
                 </button>
-                <button onClick={() => { setActiveTab('pedigree'); setSelectedCreatureId(null); }} className={`flex items-center gap-2 px-4 py-2 rounded ${activeTab === 'pedigree' ? 'bg-emerald-800 text-white' : 'hover:bg-emerald-800'}`}>
+                <button onClick={() => { setActiveTab('pedigree'); setSelectedCreatureId(null); }} className={`flex items-center gap-2 px-4 py-2 rounded ${activeTab === 'pedigree' ? 'bg-neutral-800 text-emerald-400' : 'hover:bg-neutral-800'}`}>
                   🌿 <span className="text-sm">血統図</span>
                 </button>
-                <button onClick={() => { setActiveTab('pairing'); setSelectedCreatureId(null); }} className={`flex items-center gap-2 px-4 py-2 rounded ${activeTab === 'pairing' ? 'bg-emerald-800 text-white' : 'hover:bg-emerald-800'}`}>
+                <button onClick={() => { setActiveTab('pairing'); setSelectedCreatureId(null); }} className={`flex items-center gap-2 px-4 py-2 rounded ${activeTab === 'pairing' ? 'bg-neutral-800 text-emerald-400' : 'hover:bg-neutral-800'}`}>
                   📅 <span className="text-sm">計画表</span>
                 </button>
-                <button onClick={() => { setActiveTab('simulation'); setSelectedCreatureId(null); }} className={`flex items-center gap-2 px-4 py-2 rounded ${activeTab === 'simulation' ? 'bg-emerald-800 text-white' : 'hover:bg-emerald-800'}`}>
+                <button onClick={() => { setActiveTab('simulation'); setSelectedCreatureId(null); }} className={`flex items-center gap-2 px-4 py-2 rounded ${activeTab === 'simulation' ? 'bg-neutral-800 text-emerald-400' : 'hover:bg-neutral-800'}`}>
                   ⚡ <span className="text-sm">シミュ</span>
                 </button>
               </nav>
@@ -144,21 +144,21 @@
                     <div className="space-y-6">
                       <div className="flex justify-between items-center">
                         <h1 className="text-2xl font-bold">全個体一覧</h1>
-                        <button onClick={addNewCreature} className="flex items-center gap-2 bg-emerald-700 text-white px-4 py-2 rounded-lg font-bold hover:bg-emerald-800">
+                        <button onClick={addNewCreature} className="flex items-center gap-2 bg-emerald-700 text-white px-4 py-2 rounded-lg font-bold hover:bg-emerald-600">
                           ➕ 追加
                         </button>
                       </div>
-                      <div className="bg-white rounded-xl shadow overflow-x-auto relative">
+                      <div className="bg-neutral-900 rounded-xl shadow overflow-x-auto border border-neutral-800">
                         <table className="w-full text-sm min-w-[700px] border-collapse">
-                          <thead className="bg-emerald-50 text-emerald-800 sticky top-0 z-10">
+                          <thead className="bg-neutral-900 text-emerald-400 sticky top-0 z-10 border-b border-neutral-800">
                             <tr>
                               <th className="p-4 text-left">個体名</th><th className="p-4 text-left">産地</th><th className="p-4 text-left">累代</th><th className="p-4 text-left">ステージ</th><th className="p-4 text-left">サイズ</th>
                             </tr>
                           </thead>
                           <tbody>
                             {creatures.map(c => (
-                              <tr key={c.id} className="border-t hover:bg-emerald-50 cursor-pointer" onClick={() => { setSelectedCreatureId(c.id); setIsCreating(false); }}>
-                                <td className="p-4 font-bold text-emerald-700">{c.name}</td>
+                              <tr key={c.id} className="border-t border-neutral-800 hover:bg-neutral-800 cursor-pointer" onClick={() => { setSelectedCreatureId(c.id); setIsCreating(false); }}>
+                                <td className="p-4 font-bold text-emerald-400">{c.name}</td>
                                 <td className="p-4">{c.origin}</td>
                                 <td className="p-4">{c.generation}</td>
                                 <td className="p-4">{c.stage}</td>
@@ -172,14 +172,14 @@
                   ) : activeTab === 'pairing' ? (
                     <div className="space-y-6">
                         <h1 className="text-2xl font-bold">ペアリング計画表</h1>
-                        <div className="bg-white p-6 rounded-xl shadow">
+                        <div className="bg-neutral-900 p-6 rounded-xl shadow border border-neutral-800">
                             <table className="w-full text-sm">
-                                <thead><tr className="bg-emerald-50 text-emerald-800"><th className="p-3 text-left">オス</th><th className="p-3 text-left">メス</th><th className="p-3 text-left">状況</th><th className="p-3 text-left">開始日</th></tr></thead>
+                                <thead><tr className="bg-neutral-800 text-emerald-400"><th className="p-3 text-left">オス</th><th className="p-3 text-left">メス</th><th className="p-3 text-left">状況</th><th className="p-3 text-left">開始日</th></tr></thead>
                                 <tbody>{pairings.map(p => (
-                                    <tr key={p.id} className="border-t">
+                                    <tr key={p.id} className="border-t border-neutral-800">
                                         <td className="p-3">{creatures.find(c=>c.id===p.male)?.name}</td>
                                         <td className="p-3">{creatures.find(c=>c.id===p.female)?.name}</td>
-                                        <td className="p-3"><span className="bg-amber-100 text-amber-800 px-2 py-1 rounded text-xs font-bold">{p.status}</span></td>
+                                        <td className="p-3"><span className="bg-amber-900 text-amber-200 px-2 py-1 rounded text-xs font-bold">{p.status}</span></td>
                                         <td className="p-3">{p.date}</td>
                                     </tr>
                                 ))}</tbody>
@@ -189,7 +189,7 @@
                   ) : activeTab === 'pedigree' ? (
                     <div className="space-y-6">
                       <h1 className="text-2xl font-bold">血統図</h1>
-                      <div className="bg-white p-8 rounded-xl shadow">
+                      <div className="bg-neutral-900 p-8 rounded-xl shadow border border-neutral-800">
                         {creatures.filter(c => !c.parents).map(root => (
                           <TreeItem key={root.id} creature={root} all={creatures} onSelect={(id) => { setSelectedCreatureId(id); setIsCreating(false); }} highlightId={highlightId} />
                         ))}
@@ -198,30 +198,30 @@
                   ) : (
                     <div className="space-y-6">
                       <h1 className="text-2xl font-bold">交配シミュレーション</h1>
-                      <div className="bg-white p-6 rounded-xl shadow grid md:grid-cols-2 gap-8">
+                      <div className="bg-neutral-900 p-6 rounded-xl shadow border border-neutral-800 grid md:grid-cols-2 gap-8">
                         <div>
-                          <h3 className="font-bold text-emerald-800 mb-4">親個体の選択</h3>
+                          <h3 className="font-bold text-emerald-400 mb-4">親個体の選択</h3>
                           <div className="space-y-4">
-                            <select className="w-full p-2 border rounded" onChange={e => setMaleId(e.target.value)}>
+                            <select className="w-full p-2 bg-neutral-800 border border-neutral-700 rounded" onChange={e => setMaleId(e.target.value)}>
                               <option value="">オス親を選択...</option>
                               {creatures.filter(c => c.gender === 'male').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                             </select>
-                            <select className="w-full p-2 border rounded" onChange={e => setFemaleId(e.target.value)}>
+                            <select className="w-full p-2 bg-neutral-800 border border-neutral-700 rounded" onChange={e => setFemaleId(e.target.value)}>
                               <option value="">メス親を選択...</option>
                               {creatures.filter(c => c.gender === 'female').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                             </select>
-                            <button onClick={runSimulation} className="w-full bg-emerald-700 text-white py-2 rounded font-bold hover:bg-emerald-800">実行</button>
+                            <button onClick={runSimulation} className="w-full bg-emerald-700 text-white py-2 rounded font-bold hover:bg-emerald-600">実行</button>
                           </div>
                         </div>
-                        <div className="bg-emerald-50 p-6 rounded-lg text-sm text-emerald-900 space-y-2">
-                          <h3 className="font-bold border-b border-emerald-200 pb-2">予測結果</h3>
+                        <div className="bg-neutral-800 p-6 rounded-lg text-sm text-neutral-300 space-y-2 border border-neutral-700">
+                          <h3 className="font-bold border-b border-neutral-700 pb-2 text-emerald-400">予測結果</h3>
                           {simResult ? (
                             <>
                               <p>近親交配率: {simResult.inbreedingRate}%</p>
                               <p>予想サイズ: {simResult.predictedSize}mm</p>
                               <p>遺伝率: {simResult.heritabilityIndex} / 生存力: {simResult.vitalityScore}</p>
                               <p>優性形質比率: {simResult.mendelDominantRatio}%</p>
-                              <div className="pt-2 border-t border-emerald-200 mt-2">
+                              <div className="pt-2 border-t border-neutral-700 mt-2">
                                 <p>生存確率: {simResult.survivalProb}%</p>
                                 <p>形態予測: {simResult.morphologyType}</p>
                                 <p>成熟: {simResult.maturationPredict}</p>
@@ -242,8 +242,8 @@
           const children = all.filter(c => c.parents?.male === creature.id || c.parents?.female === creature.id);
           const isHighlighted = creature.id === highlightId;
           return (
-            <div className={`ml-6 border-l-2 ${isHighlighted ? 'border-amber-500' : 'border-emerald-200'} pl-4 py-2`}>
-              <button onClick={() => onSelect(creature.id)} className={`flex items-center gap-2 font-bold px-2 py-1 rounded ${isHighlighted ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'text-emerald-900 hover:text-emerald-600'}`}>
+            <div className={`ml-6 border-l-2 ${isHighlighted ? 'border-amber-500' : 'border-neutral-700'} pl-4 py-2`}>
+              <button onClick={() => onSelect(creature.id)} className={`flex items-center gap-2 font-bold px-2 py-1 rounded ${isHighlighted ? 'bg-amber-900 text-amber-100' : 'text-neutral-300 hover:text-emerald-400'}`}>
                 ➡️ {creature.name}
               </button>
               {children.map(child => <TreeItem key={child.id} creature={child} all={all} onSelect={onSelect} highlightId={highlightId} />)}
@@ -254,23 +254,22 @@
         function CreatureDetailView({ id, creatures, onUpdate, onBack, onJumpToPedigree, initialEditMode }) {
           const c = creatures.find(x => x.id === id);
           const [isEditing, setIsEditing] = useState(initialEditMode);
-          const [formData, setFormData] = useState(c);
           return (
             <div className="space-y-6 pb-20">
               <div className="flex justify-between items-center">
-                <button onClick={onBack} className="flex items-center gap-2 text-emerald-700 font-bold">⬅️ 戻る</button>
+                <button onClick={onBack} className="flex items-center gap-2 text-emerald-400 font-bold">⬅️ 戻る</button>
                 <div className="flex gap-2">
-                    <button onClick={() => onJumpToPedigree(id)} className="bg-emerald-600 text-white px-4 py-2 rounded-lg font-bold">血統図へ</button>
-                    <button onClick={() => setIsEditing(!isEditing)} className="bg-emerald-900 text-white px-4 py-2 rounded-lg font-bold">{isEditing ? '保存' : '編集'}</button>
+                    <button onClick={() => onJumpToPedigree(id)} className="bg-emerald-700 text-white px-4 py-2 rounded-lg font-bold">血統図へ</button>
+                    <button onClick={() => setIsEditing(!isEditing)} className="bg-neutral-800 text-white px-4 py-2 rounded-lg font-bold border border-neutral-600">{isEditing ? '保存' : '編集'}</button>
                 </div>
               </div>
               <div className="grid md:grid-cols-2 gap-6">
-                <div className="bg-white p-6 rounded-xl shadow border">
-                    <h2 className="text-xl font-bold">{formData.name}</h2>
-                    <div className="mt-4 space-y-2 text-emerald-800 text-sm">
-                        <p>産地: {formData.origin}</p><p>累代: {formData.generation}</p><p>性別: {formData.gender === 'male' ? 'オス' : 'メス'}</p>
-                        <div className="mt-4 border-t pt-4">
-                            <p>近親交配率: {formData.inbreedingRate}%</p><p>遺伝率: {formData.heritabilityIndex}</p>
+                <div className="bg-neutral-900 p-6 rounded-xl shadow border border-neutral-800">
+                    <h2 className="text-xl font-bold text-emerald-400">{c.name}</h2>
+                    <div className="mt-4 space-y-2 text-neutral-300 text-sm">
+                        <p>産地: {c.origin}</p><p>累代: {c.generation}</p><p>性別: {c.gender === 'male' ? 'オス' : 'メス'}</p>
+                        <div className="mt-4 border-t border-neutral-700 pt-4">
+                            <p>近親交配率: {c.inbreedingRate}%</p><p>遺伝率: {c.heritabilityIndex}</p>
                         </div>
                     </div>
                 </div>
