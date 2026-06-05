@@ -8,7 +8,11 @@
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <style>table { writing-mode: horizontal-tb !important; }</style>
+    <style>
+        table { writing-mode: horizontal-tb !important; }
+        /* 飼育記録テーブル用のスクロール設定 */
+        .history-scroll { max-height: 300px; overflow-y: auto; }
+    </style>
 </head>
 <body class="bg-neutral-950 text-white font-sans">
     <div id="root"></div>
@@ -147,19 +151,22 @@
                         </button>
                         <div className="border-t border-neutral-700 pt-4">
                             <h3 className="font-bold mb-2">飼育記録</h3>
-                            <table className="w-full text-xs text-left">
-                                <thead><tr className="border-b border-neutral-700"><th>日付</th><th>項目</th><th>サイズ</th><th>操作</th></tr></thead>
-                                <tbody>{form.history.sort((a,b)=>new Date(a.date)-new Date(b.date)).map((h, i) => (
-                                    <tr key={i} className="border-b border-neutral-800">
-                                        <td className="text-left">{h.date}</td><td>{h.item}</td><td>{h.size}</td>
-                                        <td><button onClick={() => setRecordModal({open: true, data: h, index: i})} className="bg-emerald-600 text-white px-2 py-1 rounded font-bold">編集</button></td>
-                                    </tr>
-                                ))}</tbody>
-                            </table>
+                            {/* スクロール適用エリア */}
+                            <div className="history-scroll border border-neutral-800 rounded bg-neutral-950">
+                                <table className="w-full text-xs text-left">
+                                    <thead className="bg-neutral-800 sticky top-0"><tr><th className="p-2">日付</th><th className="p-2">項目</th><th className="p-2">サイズ</th><th className="p-2">操作</th></tr></thead>
+                                    <tbody>{form.history.sort((a,b)=>new Date(a.date)-new Date(b.date)).map((h, i) => (
+                                        <tr key={i} className="border-b border-neutral-800">
+                                            <td className="p-2 text-left">{h.date}</td><td className="p-2">{h.item}</td><td className="p-2">{h.size}</td>
+                                            <td className="p-2"><button onClick={() => setRecordModal({open: true, data: h, index: i})} className="bg-emerald-600 text-white px-2 py-1 rounded font-bold">編集</button></td>
+                                        </tr>
+                                    ))}</tbody>
+                                </table>
+                            </div>
                             <button onClick={() => setRecordModal({open: true, data: {date: new Date().toISOString().split('T')[0], item: '', size: ''}, index: null})} className="inline-block bg-emerald-600 px-3 py-1 mt-4 rounded text-xs font-bold">追加</button>
                         </div>
                     </div>
-                    {/* 以下モーダル群は維持 */}
+                    {/* モーダル群は維持 */}
                     {ghostModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
                             <div className="bg-neutral-900 p-4 rounded-xl w-full max-w-sm border border-neutral-700">
