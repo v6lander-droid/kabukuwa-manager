@@ -43,9 +43,19 @@
                 return Array.from({ length: 50 }, (_, i) => {
                     const offset = i * 2;
                     return {
-                        id: (i + 1).toString(), name: `個体 ${i + 1}号`, alias: '極太血統',
-                        origin: '福岡県久留米市', generation: 'F5', maleParent: 'M-1', femaleParent: 'F-1',
-                        gene: '未解析', mendelPrediction: 'AA:100%', stage: i % 3 === 0 ? '蛹' : '幼虫', saleStatus: '非売', size: (30 + offset).toString(), hatchDate: '2026-06-05', 
+                        id: (i + 1).toString(), 
+                        name: `個体 ${i + 1}号`, 
+                        alias: '極太血統',
+                        origin: '福岡県久留米市', 
+                        generation: 'F5', 
+                        maleParent: 'M-1', 
+                        femaleParent: 'F-1',
+                        gene: '未解析', 
+                        mendelPrediction: 'AA:100%', 
+                        stage: i % 3 === 0 ? '蛹' : '幼虫', 
+                        saleStatus: '非売', 
+                        size: (30 + offset).toString(), 
+                        hatchDate: '2026-06-05', 
                         history: [
                             {date: '2026-06-05', item: '孵化', size: '5'},
                             {date: `2026-06-${10 + offset}`, item: '初令交換', size: (10 + offset).toString()},
@@ -65,7 +75,7 @@
             };
 
             const toggleSaleStatus = (e, creature) => {
-                e.stopPropagation(); // ここで親要素へのイベント伝播を停止しています
+                e.stopPropagation(); // イベント伝播を停止
                 const statuses = ['販売', '予備', '非売'];
                 const currentIndex = statuses.indexOf(creature.saleStatus);
                 const nextStatus = statuses[(currentIndex + 1) % statuses.length];
