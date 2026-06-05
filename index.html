@@ -10,8 +10,8 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
         table { writing-mode: horizontal-tb !important; border-collapse: separate; border-spacing: 0; }
-        .sticky-col-1 { position: sticky; left: 0; z-index: 10; background-color: #171717; }
-        .sticky-col-2 { position: sticky; left: 60px; z-index: 10; background-color: #171717; }
+        .sticky-col-1 { position: sticky; left: 0; z-index: 20; background-color: #171717; }
+        .sticky-col-2 { position: sticky; left: 60px; z-index: 20; background-color: #171717; }
         .scrollable-area { max-height: 70vh; overflow-y: auto; }
         .history-scroll { max-height: 300px; overflow-y: auto; }
     </style>
@@ -39,29 +39,31 @@
             const [filterStatus, setFilterStatus] = useState('すべて');
             const [creatures, setCreatures] = useState(() => {
                 const saved = localStorage.getItem('beetle_data');
-                if (saved) return JSON.parse(saved);
-                
-                return Array.from({ length: 50 }, (_, i) => {
-                    const offset = i * 2;
-                    return {
-                        id: (i + 1).toString(), name: `個体 ${i + 1}号`, alias: '極太血統',
-                        origin: '福岡県久留米市', generation: 'F5', maleParent: 'M-1', femaleParent: 'F-1',
-                        gene: '未解析', mendelPrediction: 'AA:100%', stage: i % 3 === 0 ? '蛹' : '幼虫', saleStatus: '非売', size: (30 + offset).toString(), hatchDate: '2026-06-05', 
-                        history: [
-                            {date: '2026-06-05', item: '孵化', size: '5'},
-                            {date: `2026-06-${10 + offset}`, item: '初令交換', size: (10 + offset).toString()},
-                            {date: `2026-07-${10 + offset}`, item: '菌糸投入', size: (20 + offset).toString()},
-                            {date: `2026-08-${10 + offset}`, item: 'マット交換', size: (30 + offset).toString()}
-                        ]
-                    };
-                });
+                try {
+                    return saved ? JSON.parse(saved) : Array.from({ length: 50 }, (_, i) => {
+                        const offset = i * 2;
+                        return {
+                            id: (i + 1).toString(), name: `個体 ${i + 1}号`, alias: '極太血統',
+                            origin: '福岡県久留米市', generation: 'F5', maleParent: 'M-1', femaleParent: 'F-1',
+                            gene: '未解析', mendelPrediction: 'AA:100%', stage: i % 3 === 0 ? '蛹' : '幼虫', saleStatus: '非売', size: (30 + offset).toString(), hatchDate: '2026-06-05', 
+                            history: [
+                                {date: '2026-06-05', item: '孵化', size: '5'},
+                                {date: `2026-06-${10 + offset}`, item: '初令交換', size: (10 + offset).toString()},
+                                {date: `2026-07-${10 + offset}`, item: '菌糸投入', size: (20 + offset).toString()},
+                                {date: `2026-08-${10 + offset}`, item: 'マット交換', size: (30 + offset).toString()}
+                            ]
+                        };
+                    });
+                } catch {
+                    return [];
+                }
             });
             const [sort, setSort] = useState({ key: 'id', direction: 'asc' });
 
             useEffect(() => { localStorage.setItem('beetle_data', JSON.stringify(creatures)); }, [creatures]);
 
             const updateCreature = (updated) => {
-                setCreatures(creatures.map(c => c.id === updated.id ? updated : c));
+                setCreatures(prev => prev.map(c => c.id === updated.id ? updated : c));
                 setSelectedCreature(updated);
             };
 
@@ -106,7 +108,7 @@
                             <thead><tr className="bg-neutral-800 text-left border-b border-neutral-700">
                                 <th className="p-3 sticky-col-1 cursor-pointer hover:bg-neutral-700" onClick={() => setSort({key:'saleStatus', direction: sort.key==='saleStatus' && sort.direction==='asc'?'desc':'asc'})}>販売</th>
                                 <th className="p-3 sticky-col-2 cursor-pointer hover:bg-neutral-700" onClick={() => setSort({key:'name', direction: sort.key==='name' && sort.direction==='asc'?'desc':'asc'})}>個体名</th>
-                                {[{k:'gene',l:'遺伝子'}, {k:'size',l:'サイズ'}, {k:'maleParent',l:'オス親'}, {k:'femaleParent',l:'メス親'}, {k:'stage',l:'ステージ'}].map(h => <th key={h.k} className="p-3 cursor-pointer hover:bg-neutral-700" onClick={() => setSort({key:h.k, direction: sort.key===h.k && sort.direction==='asc'?'desc':'asc'})}>{h.l}</th>)}
+                                {[{k:'gene',l:'遺伝子'}, {k:'size',l:'サイズ'}, {k:'maleParent',l:'オス親'}, {k:'femaleParent',l:'メス親'}, {k:'stage',l:'ステージ'}].map(h => <th key={h.k} className="p-3 cursor-pointer hover:bg-neutral-700" onClick={() => setSort({key:h.k, direction: sort.key===h.k && sort.direction==='asc'?'desc':'asc'})}>{h.l} {sort.key === h.k ? (sort.direction === 'asc' ? '▲' : '▼') : ''}</th>)}
                                 <th className="p-3">操作</th>
                             </tr></thead>
                             <tbody>{processedCreatures.map(c => <tr key={c.id} className="border-b border-neutral-800 cursor-pointer hover:bg-neutral-800" onClick={() => setSelectedCreature(c)}>
@@ -156,10 +158,11 @@
             };
 
             useEffect(() => {
+                if (!canvasRef.current) return;
                 const ctx = canvasRef.current.getContext('2d');
                 ctx.clearRect(0, 0, 400, 200);
                 const ghost = creatures.find(c => c.id === ghostId);
-                const combinedData = [...form.history, ...(ghost ? ghost.history : [])];
+                const combinedData = [...form.history, ...(ghost?.history || [])];
                 
                 const getDays = (date, hatch) => (new Date(date) - new Date(hatch)) / (1000 * 60 * 60 * 24);
                 const maxDays = Math.max(10, ...form.history.map(h => getDays(h.date, form.hatchDate)), ghost ? ...ghost.history.map(h => getDays(h.date, ghost.hatchDate)) : 0);
