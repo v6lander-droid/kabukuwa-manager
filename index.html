@@ -8,6 +8,25 @@
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        .sticky-col-1 {
+            position: sticky;
+            left: 0;
+            z-index: 20;
+            background-color: #171717; /* neutral-900 */
+        }
+        .sticky-col-2 {
+            position: sticky;
+            left: 60px; /* 最初の列の幅に合わせて調整 */
+            z-index: 20;
+            background-color: #171717;
+        }
+        /* ヘッダー固定用のスタイル */
+        thead th.sticky-col-1, thead th.sticky-col-2 {
+            background-color: #262626; /* neutral-800 */
+            z-index: 30;
+        }
+    </style>
 </head>
 <body class="bg-neutral-950 text-white font-sans">
     <div id="root"></div>
@@ -67,8 +86,8 @@
                         <table className="w-full text-sm border-collapse whitespace-nowrap">
                             <thead className="bg-neutral-800">
                                 <tr>
-                                    {headers.map(h => (
-                                        <th key={h.k} className="p-3 cursor-pointer hover:bg-neutral-700" onClick={() => setSort({key:h.k, direction: sort.key===h.k && sort.direction==='asc'?'desc':'asc'})}>
+                                    {headers.map((h, i) => (
+                                        <th key={h.k} className={`p-3 cursor-pointer hover:bg-neutral-700 ${i < 2 ? `sticky-col-${i+1}` : ''}`} onClick={() => setSort({key:h.k, direction: sort.key===h.k && sort.direction==='asc'?'desc':'asc'})}>
                                             {h.l}
                                         </th>
                                     ))}
@@ -78,8 +97,12 @@
                             <tbody>
                                 {processedCreatures.map(c => (
                                     <tr key={c.id} className="border-t border-neutral-800 hover:bg-neutral-800 cursor-pointer" onClick={() => setSelectedCreature(c)}>
-                                        <td className="p-3"><button onClick={(e) => toggleSaleStatus(c.id, e)} className={`px-2 py-1 rounded text-[10px] font-bold ${c.saleStatus === '販売' ? 'bg-emerald-600' : c.saleStatus === '予備' ? 'bg-amber-600' : 'bg-neutral-600'}`}>{c.saleStatus}</button></td>
-                                        <td className="p-3 font-bold">{c.name}</td><td className="p-3">{c.alias}</td><td className="p-3">{c.generation}</td><td className="p-3">{c.stage}</td><td className="p-3">{c.hatchDate}</td>
+                                        <td className="p-3 sticky-col-1"><button onClick={(e) => toggleSaleStatus(c.id, e)} className={`px-2 py-1 rounded text-[10px] font-bold ${c.saleStatus === '販売' ? 'bg-emerald-600' : c.saleStatus === '予備' ? 'bg-amber-600' : 'bg-neutral-600'}`}>{c.saleStatus}</button></td>
+                                        <td className="p-3 sticky-col-2 font-bold">{c.name}</td>
+                                        <td className="p-3">{c.alias}</td>
+                                        <td className="p-3">{c.generation}</td>
+                                        <td className="p-3">{c.stage}</td>
+                                        <td className="p-3">{c.hatchDate}</td>
                                         <td className="p-3"><button onClick={(e) => { e.stopPropagation(); if(confirm('削除?')) setCreatures(creatures.filter(x=>x.id!==c.id)) }} className="bg-emerald-600 px-2 py-1 rounded text-xs text-white">削除</button></td>
                                     </tr>
                                 ))}
