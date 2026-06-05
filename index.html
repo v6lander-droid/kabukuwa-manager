@@ -75,7 +75,7 @@
             };
 
             const toggleSaleStatus = (e, creature) => {
-                e.stopPropagation(); // イベント伝播を停止
+                e.stopPropagation(); // 詳細画面への遷移を阻止
                 const statuses = ['販売', '予備', '非売'];
                 const currentIndex = statuses.indexOf(creature.saleStatus);
                 const nextStatus = statuses[(currentIndex + 1) % statuses.length];
