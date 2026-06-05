@@ -43,9 +43,19 @@
                 return Array.from({ length: 50 }, (_, i) => {
                     const offset = i * 2;
                     return {
-                        id: (i + 1).toString(), name: `個体 ${i + 1}号`, alias: '極太血統',
-                        origin: '福岡県久留米市', generation: 'F5', maleParent: 'M-1', femaleParent: 'F-1',
-                        gene: '未解析', mendelPrediction: 'AA:100%', stage: i % 3 === 0 ? '蛹' : '幼虫', saleStatus: '非売', size: (30 + offset).toString(), hatchDate: '2026-06-05', 
+                        id: (i + 1).toString(), 
+                        name: `個体 ${i + 1}号`, 
+                        alias: '極太血統',
+                        origin: '福岡県久留米市', 
+                        generation: 'F5', 
+                        maleParent: 'M-1', 
+                        femaleParent: 'F-1',
+                        gene: '未解析', 
+                        mendelPrediction: 'AA:100%', 
+                        stage: i % 3 === 0 ? '蛹' : '幼虫', 
+                        saleStatus: '非売', 
+                        size: (30 + offset).toString(), 
+                        hatchDate: '2026-06-05', 
                         history: [
                             {date: '2026-06-05', item: '孵化', size: '5'},
                             {date: `2026-06-${10 + offset}`, item: '初令交換', size: (10 + offset).toString()},
@@ -65,8 +75,7 @@
             };
 
             const toggleSaleStatus = (e, creature) => {
-                e.preventDefault(); // デフォルト動作を防止
-                e.stopPropagation(); // イベントの伝播をここで確実に停止する
+                e.stopPropagation(); // ここで伝播を完全に停止し、trのonClickが発火しないようにします
                 const statuses = ['販売', '予備', '非売'];
                 const currentIndex = statuses.indexOf(creature.saleStatus);
                 const nextStatus = statuses[(currentIndex + 1) % statuses.length];
@@ -104,13 +113,13 @@
                             </thead>
                             <tbody>
                                 {processedCreatures.map(c => (
-                                    <tr key={c.id} className="border-b border-neutral-800 cursor-pointer hover:bg-neutral-800" onClick={() => setSelectedCreature(c)}>
-                                        <td className="p-3 sticky-col-sale">
+                                    <tr key={c.id} className="border-b border-neutral-800 hover:bg-neutral-800" onClick={() => setSelectedCreature(c)}>
+                                        <td className="p-3 sticky-col-sale cursor-auto">
                                             <button onClick={(e) => toggleSaleStatus(e, c)} className={`px-2 py-1 rounded text-xs w-16 ${getStatusBtnColor(c.saleStatus)}`}>{c.saleStatus}</button>
                                         </td>
-                                        <td className="p-3 sticky-col-name font-bold">{c.name}</td>
-                                        <td className="p-3">{c.gene}</td><td className="p-3">{c.size}</td><td className="p-3">{c.maleParent}</td><td className="p-3">{c.femaleParent}</td><td className="p-3">{c.stage}</td>
-                                        <td className="p-3"><button onClick={(e) => {e.stopPropagation(); if(confirm('削除?')) setCreatures(creatures.filter(x=>x.id!==c.id))}} className="bg-emerald-600 px-2 py-1 rounded">削除</button></td>
+                                        <td className="p-3 sticky-col-name font-bold cursor-pointer">{c.name}</td>
+                                        <td className="p-3 cursor-pointer">{c.gene}</td><td className="p-3 cursor-pointer">{c.size}</td><td className="p-3 cursor-pointer">{c.maleParent}</td><td className="p-3 cursor-pointer">{c.femaleParent}</td><td className="p-3 cursor-pointer">{c.stage}</td>
+                                        <td className="p-3 cursor-pointer"><button onClick={(e) => {e.stopPropagation(); if(confirm('削除?')) setCreatures(creatures.filter(x=>x.id!==c.id))}} className="bg-emerald-600 px-2 py-1 rounded">削除</button></td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -120,7 +129,7 @@
             );
         }
 
-        // --- DetailViewコンポーネント以下は省略なし ---
+        // --- DetailViewコンポーネント (以下省略なしで保持) ---
         function DetailView({ creature, creatures, onBack, onUpdate }) {
             const [form, setForm] = useState(creature);
             const [editModal, setEditModal] = useState(false);
@@ -129,7 +138,7 @@
             const [recordModal, setRecordModal] = useState({open: false, data: null, index: null});
             const canvasRef = useRef(null);
             useBodyScrollLock(editModal || ghostModal || recordModal.open);
-            
+
             const fields = [{key:'name', label:'個体名'}, {key:'alias', label:'名称'}, {key:'origin', label:'産地'}, {key:'generation', label:'累代'}, {key:'size', label:'サイズ'}, {key:'hatchDate', label:'孵化日'}, {key:'gene', label:'遺伝子'}, {key:'mendelPrediction', label:'メンデル予測'}, {key:'maleParent', label:'オス親'}, {key:'femaleParent', label:'メス親'}, {key:'stage', label:'ステージ'}];
             
             const saveRecord = (record, index) => {
@@ -142,6 +151,14 @@
                 setRecordModal({open: false, data: null, index: null});
             };
             
+            const deleteRecord = (index) => {
+                if(!confirm('この記録を削除しますか？')) return;
+                const newHistory = form.history.filter((_, i) => i !== index);
+                const updated = {...form, history: newHistory};
+                setForm(updated);
+                onUpdate(updated);
+            };
+
             useEffect(() => {
                 if(!canvasRef.current) return;
                 const ctx = canvasRef.current.getContext('2d');
@@ -197,6 +214,36 @@
                             <button onClick={() => setRecordModal({open: true, data: {date: new Date().toISOString().split('T')[0], item: '', size: ''}, index: null})} className="inline-block bg-emerald-600 px-3 py-1 mt-4 rounded text-xs font-bold">追加</button>
                         </div>
                     </div>
+                    {ghostModal && (
+                        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+                            <div className="bg-neutral-900 p-4 rounded-xl w-full max-w-sm border border-neutral-700 scrollable-area">
+                                <h3 className="font-bold mb-3">比較対象を選択</h3>
+                                <button onClick={() => {setGhostId(''); setGhostModal(false);}} className="w-full text-left p-2 border-b border-neutral-800">比較解除</button>
+                                {creatures.filter(c => c.id !== form.id).map(c => <button key={c.id} onClick={() => {setGhostId(c.id); setGhostModal(false);}} className="w-full text-left p-2 border-b border-neutral-800 hover:bg-neutral-800">{c.name}</button>)}
+                            </div>
+                        </div>
+                    )}
+                    {editModal && (
+                        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+                            <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-3 scrollable-area">
+                                {fields.map(f => <div key={f.key}><label className="text-xs">{f.label}</label><input className="w-full bg-neutral-800 p-2 rounded" value={form[f.key]} onChange={e => setForm({...form, [f.key]: e.target.value})} /></div>)}
+                                <button onClick={() => { onUpdate(form); setEditModal(false); }} className="w-full bg-emerald-600 p-2 rounded text-white">保存</button>
+                            </div>
+                        </div>
+                    )}
+                    {recordModal.open && (
+                        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+                            <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4">
+                                <h3 className="font-bold">記録の編集</h3>
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2"><label className="w-16 text-xs">日付:</label><input type="date" className="flex-1 bg-neutral-800 p-2 rounded" value={recordModal.data.date} onChange={e => setRecordModal({...recordModal, data: {...recordModal.data, date: e.target.value}})} /></div>
+                                    <div className="flex items-center gap-2"><label className="w-16 text-xs">項目:</label><input className="flex-1 bg-neutral-800 p-2 rounded" value={recordModal.data.item} onChange={e => setRecordModal({...recordModal, data: {...recordModal.data, item: e.target.value}})} /></div>
+                                    <div className="flex items-center gap-2"><label className="w-16 text-xs">サイズ:</label><input className="flex-1 bg-neutral-800 p-2 rounded" value={recordModal.data.size} onChange={e => setRecordModal({...recordModal, data: {...recordModal.data, size: e.target.value}})} /></div>
+                                </div>
+                                <div className="flex gap-2"><button onClick={() => setRecordModal({open: false})} className="w-full bg-neutral-700 p-2 rounded">戻る</button><button onClick={() => saveRecord(recordModal.data, recordModal.index)} className="w-full bg-emerald-600 p-2 rounded text-white">保存</button></div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         }
