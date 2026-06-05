@@ -75,7 +75,7 @@
             };
 
             const toggleSaleStatus = (e, creature) => {
-                e.stopPropagation(); // 詳細画面への遷移を阻止
+                e.stopPropagation(); // ここで親要素へのクリック伝播を完全に阻止
                 const statuses = ['販売', '予備', '非売'];
                 const currentIndex = statuses.indexOf(creature.saleStatus);
                 const nextStatus = statuses[(currentIndex + 1) % statuses.length];
@@ -129,6 +129,7 @@
             );
         }
 
+        // --- DetailView以下は変更なしのため省略せず記載 ---
         function DetailView({ creature, creatures, onBack, onUpdate }) {
             const [form, setForm] = useState(creature);
             const [editModal, setEditModal] = useState(false);
