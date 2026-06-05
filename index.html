@@ -10,7 +10,7 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
         table { writing-mode: horizontal-tb !important; }
-        /* 飼育記録テーブル用のスクロール設定 */
+        .scrollable-area { max-height: 70vh; overflow-y: auto; }
         .history-scroll { max-height: 300px; overflow-y: auto; }
     </style>
 </head>
@@ -151,7 +151,6 @@
                         </button>
                         <div className="border-t border-neutral-700 pt-4">
                             <h3 className="font-bold mb-2">飼育記録</h3>
-                            {/* スクロール適用エリア */}
                             <div className="history-scroll border border-neutral-800 rounded bg-neutral-950">
                                 <table className="w-full text-xs text-left">
                                     <thead className="bg-neutral-800 sticky top-0"><tr><th className="p-2">日付</th><th className="p-2">項目</th><th className="p-2">サイズ</th><th className="p-2">操作</th></tr></thead>
@@ -166,19 +165,19 @@
                             <button onClick={() => setRecordModal({open: true, data: {date: new Date().toISOString().split('T')[0], item: '', size: ''}, index: null})} className="inline-block bg-emerald-600 px-3 py-1 mt-4 rounded text-xs font-bold">追加</button>
                         </div>
                     </div>
-                    {/* モーダル群は維持 */}
                     {ghostModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-                            <div className="bg-neutral-900 p-4 rounded-xl w-full max-w-sm border border-neutral-700">
+                            <div className="bg-neutral-900 p-4 rounded-xl w-full max-w-sm border border-neutral-700 scrollable-area">
                                 <h3 className="font-bold mb-3">比較対象を選択</h3>
-                                <button onClick={() => {setGhostId(''); setGhostModal(false);}} className="w-full text-left p-2 border-b border-neutral-800">比較解除</button>
-                                {creatures.filter(c => c.id !== form.id).map(c => <button key={c.id} onClick={() => {setGhostId(c.id); setGhostModal(false);}} className="w-full text-left p-2 border-b border-neutral-800 hover:bg-neutral-800">{c.name}</button>)}
+                                <button onClick={() => {setGhostId(''); setGhostModal(false);}} className="w-full text-left p-2 border-b border-neutral-800 hover:bg-neutral-800">比較解除</button>
+                                {creatures.filter(c => c.id !== form.id).map(c => <button key={c.id} onClick={() => {setGhostId(c.id); setGhostModal(false);}} className="w-full text-left p-2 border-b border-neutral-800 hover:bg-neutral-800">{c.name} ({c.size}g)</button>)}
                             </div>
                         </div>
                     )}
                     {editModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-                            <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-3">
+                            <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-3 scrollable-area">
+                                <h3 className="font-bold border-b border-neutral-700 pb-2">個体編集</h3>
                                 {fields.map(f => <div key={f.key}><label className="text-xs">{f.label}</label><input className="w-full bg-neutral-800 p-2 rounded" value={form[f.key]} onChange={e => setForm({...form, [f.key]: e.target.value})} /></div>)}
                                 <button onClick={() => { onUpdate(form); setEditModal(false); }} className="w-full bg-emerald-600 p-2 rounded text-white">保存</button>
                             </div>
