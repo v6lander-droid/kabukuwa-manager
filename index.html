@@ -44,7 +44,7 @@
                 return saved ? JSON.parse(saved) : Array.from({ length: 50 }, (_, i) => ({
                     id: (i + 1).toString(), name: `個体 ${i + 1}号`, alias: '極太血統',
                     origin: '福岡県久留米市', generation: 'F5', maleParent: 'M-1', femaleParent: 'F-1',
-                    stage: '幼虫', saleStatus: '非売', hatchDate: '2026-04-01', emergenceDate: '2026-05-01', history: [{item: '孵化', date: '2026-04-01', size: '1g'}]
+                    stage: '幼虫', saleStatus: '非売', hatchDate: '2026-04-01', emergenceDate: '2026-05-01', history: [{item: '孵化', date: '2026-04-01', size: '1g', temp: '25℃'}]
                 }));
             });
             const [sort, setSort] = useState({ key: 'id', direction: 'asc' });
@@ -144,72 +144,93 @@
 
         function DetailView({ creature, onBack, onUpdate }) {
             const [form, setForm] = useState(creature);
-            const [isEditing, setIsEditing] = useState(false);
-            const [showModal, setShowModal] = useState(null);
+            const [showEditModal, setShowEditModal] = useState(false);
+            const [editForm, setEditForm] = useState(creature);
+            const [showRecordModal, setShowRecordModal] = useState(null);
+            
             const fields = [
                 {key:'name', label:'個体名'}, {key:'alias', label:'名称'}, {key:'origin', label:'産地'}, 
                 {key:'generation', label:'累代'}, {key:'hatchDate', label:'孵化日'}, {key:'emergenceDate', label:'羽化日'}, 
                 {key:'maleParent', label:'オス親'}, {key:'femaleParent', label:'メス親'}, {key:'stage', label:'ステージ'}
             ];
             
-            const sizeHistory = form.history.map(h => h.size).join(' → ') || '未計測';
+            const sizeHistory = form.history.map(h => `${h.size}(${h.temp})`).join(' → ') || '未計測';
+
+            const saveEdit = () => {
+                setForm(editForm);
+                onUpdate(editForm);
+                setShowEditModal(false);
+            };
 
             const saveRecord = (record) => {
                 let h = [...form.history];
-                if (record.index !== null) h[record.index] = {item:record.item, size:record.size, date:h[record.index].date};
-                else h.push({item:record.item, size:record.size, date:new Date().toISOString().split('T')[0]});
+                if (record.index !== null) h[record.index] = {item:record.item, size:record.size, temp:record.temp, date:h[record.index].date};
+                else h.push({item:record.item, size:record.size, temp:record.temp, date:new Date().toISOString().split('T')[0]});
                 const updated = {...form, history: h};
                 setForm(updated);
                 onUpdate(updated);
-                setShowModal(null);
+                setShowRecordModal(null);
             };
 
             return (
                 <div className="p-6 max-w-lg mx-auto">
                     <div className="flex justify-between items-center mb-4">
                         <button onClick={onBack} className="text-emerald-400 font-bold">← 一覧に戻る</button>
-                        <button onClick={() => setIsEditing(!isEditing)} className={`px-4 py-1 rounded text-sm font-bold ${isEditing ? 'bg-neutral-600' : 'bg-emerald-600'}`}>
-                            {isEditing ? '編集完了' : '編集'}
-                        </button>
+                        <button onClick={() => { setEditForm(form); setShowEditModal(true); }} className="bg-emerald-600 px-4 py-1 rounded text-sm font-bold">編集</button>
                     </div>
+                    
+                    {showEditModal && (
+                        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+                            <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4">
+                                <h3 className="font-bold text-white">詳細情報の編集</h3>
+                                {fields.map(f => (
+                                    <div key={f.key}>
+                                        <p className="text-[10px] text-neutral-400">{f.label}</p>
+                                        <input className="w-full bg-neutral-800 p-2 rounded text-white text-sm" value={editForm[f.key] || ''} onChange={e => setEditForm({...editForm, [f.key]: e.target.value})} />
+                                    </div>
+                                ))}
+                                <div className="flex gap-2">
+                                    <button onClick={() => setShowEditModal(false)} className="w-full bg-neutral-700 py-2 rounded font-bold text-white">キャンセル</button>
+                                    <button onClick={saveEdit} className="w-full bg-emerald-600 py-2 rounded font-bold text-white">保存</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 space-y-4 text-white">
                         <h2 className="text-xl font-bold border-b border-neutral-700 pb-2">詳細情報</h2>
                         <div className="grid grid-cols-[100px,1fr] gap-x-2 gap-y-2 text-sm items-center">
                             {fields.map(f => (
                                 <React.Fragment key={f.key}>
                                     <p className="text-white text-left">{f.label}:</p>
-                                    <input 
-                                        className={`bg-neutral-800 p-1 w-full text-white ${!isEditing && 'opacity-60'}`} 
-                                        readOnly={!isEditing}
-                                        value={form[f.key] || ''} 
-                                        onChange={e => { const updated = {...form, [f.key]: e.target.value}; setForm(updated); onUpdate(updated); }} 
-                                    />
+                                    <p className="p-2 bg-neutral-800 rounded text-white w-full">{form[f.key] || '-'}</p>
                                 </React.Fragment>
                             ))}
                             <p className="text-white text-left">サイズ履歴:</p>
-                            <p className="p-1 font-bold text-white break-words">{sizeHistory}</p>
+                            <p className="p-2 bg-neutral-800 rounded font-bold text-white w-full break-words">{sizeHistory}</p>
                         </div>
                         
                         <div className="border-t border-neutral-700 pt-4">
                             <div className="flex justify-between items-center mb-3">
                                 <h3 className="font-bold">飼育記録</h3>
-                                <button onClick={() => setShowModal({item:'', size:'', index:null})} className="bg-emerald-600 px-2 py-1 rounded text-xs text-white">追加</button>
+                                <button onClick={() => setShowRecordModal({item:'', size:'', temp:'', index:null})} className="bg-emerald-600 px-2 py-1 rounded text-xs text-white">追加</button>
                             </div>
                             <table className="w-full text-xs">
-                                <thead><tr className="text-white border-b border-neutral-700 text-left"><th>項目</th><th>日付</th><th>サイズ</th><th>操作</th></tr></thead>
-                                <tbody>{form.history.map((h,i) => <tr key={i} className="border-b border-neutral-800"><td>{h.item}</td><td>{h.date}</td><td>{h.size}</td><td><button onClick={() => setShowModal({item:h.item, size:h.size, index:i})} className="bg-emerald-600 px-1 rounded text-white">訂正</button></td></tr>)}</tbody>
+                                <thead><tr className="text-white border-b border-neutral-700 text-left"><th>項目</th><th>日付</th><th>サイズ</th><th>温度</th><th>操作</th></tr></thead>
+                                <tbody>{form.history.map((h,i) => <tr key={i} className="border-b border-neutral-800"><td>{h.item}</td><td>{h.date}</td><td>{h.size}</td><td>{h.temp}</td><td><button onClick={() => setShowRecordModal({item:h.item, size:h.size, temp:h.temp, index:i})} className="bg-emerald-600 px-1 rounded text-white">訂正</button></td></tr>)}</tbody>
                             </table>
                         </div>
                     </div>
-                    {showModal && (
+                    {showRecordModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
                             <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4">
-                                <h3 className="font-bold text-white">{showModal.index !== null ? '記録の訂正' : '記録の追加'}</h3>
-                                <input placeholder="項目" className="w-full bg-neutral-800 p-2 rounded text-white" value={showModal.item} onChange={e=>setShowModal({...showModal, item:e.target.value})} />
-                                <input placeholder="サイズ" className="w-full bg-neutral-800 p-2 rounded text-white" value={showModal.size} onChange={e=>setShowModal({...showModal, size:e.target.value})} />
+                                <h3 className="font-bold text-white">{showRecordModal.index !== null ? '記録の訂正' : '記録の追加'}</h3>
+                                <input placeholder="項目" className="w-full bg-neutral-800 p-2 rounded text-white" value={showRecordModal.item} onChange={e=>setShowRecordModal({...showRecordModal, item:e.target.value})} />
+                                <input placeholder="サイズ" className="w-full bg-neutral-800 p-2 rounded text-white" value={showRecordModal.size} onChange={e=>setShowRecordModal({...showRecordModal, size:e.target.value})} />
+                                <input placeholder="管理温度" className="w-full bg-neutral-800 p-2 rounded text-white" value={showRecordModal.temp} onChange={e=>setShowRecordModal({...showRecordModal, temp:e.target.value})} />
                                 <div className="flex gap-2 pt-2">
-                                    <button onClick={() => setShowModal(null)} className="w-full bg-neutral-700 py-2 rounded font-bold text-white">キャンセル</button>
-                                    <button onClick={() => saveRecord(showModal)} className="w-full bg-emerald-600 py-2 rounded font-bold text-white">保存</button>
+                                    <button onClick={() => setShowRecordModal(null)} className="w-full bg-neutral-700 py-2 rounded font-bold text-white">キャンセル</button>
+                                    <button onClick={() => saveRecord(showRecordModal)} className="w-full bg-emerald-600 py-2 rounded font-bold text-white">保存</button>
                                 </div>
                             </div>
                         </div>
