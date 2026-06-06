@@ -88,18 +88,18 @@
 
             const processedCreatures = [...creatures].sort((a, b) => (a[sort.key] < b[sort.key] ? -1 : 1) * (sort.direction === 'asc' ? 1 : -1));
 
-            // 詳細交配指標ロジック
+            // 交配シミュレーション：形状と色素の遺伝率を追加した詳細解析
             const sim = useMemo(() => {
                 const m = creatures.find(c => c.name === maleSelection);
                 const f = creatures.find(c => c.name === femaleSelection);
                 if (!m || !f) return null;
-                const genCount = parseInt(m.generation.replace('F', '')) || 1;
-                const isSameLine = m.alias === f.alias;
+                
+                const isSame = m.alias === f.alias;
                 return {
                     metrics: [
-                        { label: "近親交配係数", val: isSameLine ? "25.0%" : "6.25%", desc: isSameLine ? "純血統を維持していますが、累代が進むと障害リスクが高まります。" : "異系統交配のため、遺伝的健康度が高い状態です。" },
-                        { label: "期待成長ポテンシャル", val: isSameLine ? "92点" : "98点", desc: isSameLine ? "特定の良質な形質が継承されやすい安定したスコアです。" : "強勢効果により、次世代での大型化が強く期待されます。" },
-                        { label: "累代障害発生率", val: isSameLine ? (genCount * 4.5).toFixed(1) + "%" : (genCount * 1.2).toFixed(1) + "%", desc: isSameLine ? "近親係数の蓄積により、羽化不全等のリスクが統計的に上昇しています。" : "系統の交差により、障害リスクが最小限に抑制されています。" }
+                        { label: "顎形状遺伝率", val: isSame ? "85%" : "40%", desc: isSame ? "親の顎形状が極めて強く発現しやすく、ラインの特徴が安定します。" : "親系統の混交により、顎の形状に多様性（変異）が現れやすい状態です。" },
+                        { label: "色素遺伝率", val: isSame ? "92%" : "55%", desc: isSame ? "体色や光沢の質感が固定化されており、高い確率で親の見た目を継承します。" : "両親の持つ色素形質が組み合わさり、新たな体色バリエーションが生まれる可能性があります。" },
+                        { label: "近親交配係数", val: isSame ? "25.0%" : "6.25%", desc: isSame ? "純血統維持のための交配です。羽化不全に注意してください。" : "異系統のためリスクが低く、健康度の高い個体が期待できます。" }
                     ]
                 };
             }, [maleSelection, femaleSelection, creatures]);
@@ -193,7 +193,7 @@
                             {sim && (
                                 <div className="space-y-4 pt-4">
                                     {sim.metrics.map((m, i) => (
-                                        <div key={i} className="p-4 bg-neutral-800 border border-neutral-700 rounded">
+                                        <div key={i} className="p-4 border border-neutral-700 rounded bg-neutral-800">
                                             <p className="font-bold text-emerald-400">{m.label}: <span className="text-white">{m.val}</span></p>
                                             <p className="text-xs text-neutral-400 mt-1">{m.desc}</p>
                                         </div>
