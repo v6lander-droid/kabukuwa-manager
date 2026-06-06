@@ -45,13 +45,31 @@
                 const saved = localStorage.getItem('beetle_data');
                 if (saved) return JSON.parse(saved);
                 
-                return [
-                    {id: '1', name: 'A-1', alias: 'Aライン', origin: '福岡', generation: 'F1', maleParent: '-', femaleParent: '-', stage: '成虫', saleStatus: '非売', hatchDate: '2026-01-01', emergenceDate: '2026-02-01', history: []},
-                    {id: '2', name: 'A-2', alias: 'Aライン', origin: '福岡', generation: 'F2', maleParent: 'A-1', femaleParent: '-', stage: '成虫', saleStatus: '非売', hatchDate: '2026-03-01', emergenceDate: '2026-04-01', history: []},
-                    {id: '3', name: 'A-3', alias: 'Aライン', origin: '福岡', generation: 'F3', maleParent: 'A-2', femaleParent: '-', stage: '幼虫', saleStatus: '非売', hatchDate: '2026-05-01', emergenceDate: '-', history: []},
-                    {id: '4', name: 'B-1', alias: 'Bライン', origin: '兵庫', generation: 'F1', maleParent: '-', femaleParent: '-', stage: '成虫', saleStatus: '非売', hatchDate: '2026-01-01', emergenceDate: '2026-02-01', history: []},
-                    {id: '5', name: 'B-2', alias: 'Bライン', origin: '兵庫', generation: 'F2', maleParent: 'B-1', femaleParent: '-', stage: '成虫', saleStatus: '非売', hatchDate: '2026-03-01', emergenceDate: '2026-04-01', history: []}
-                ];
+                const sampleStages = ['孵化', '1令', '2令', '3令', '蛹', '成虫'];
+                // 個体ごとにバラバラな履歴データを作成
+                return Array.from({ length: 10 }, (_, i) => {
+                    const historyLength = 2 + Math.floor(Math.random() * 4); // 2～5件のランダムな履歴
+                    const history = Array.from({ length: historyLength }, (_, j) => ({
+                        item: sampleStages[j] || '経過',
+                        date: `2026-04-${10 + j}`,
+                        size: `${1 + j * 5}g`,
+                        temp: `${22 + (i % 5)}℃`
+                    }));
+                    return {
+                        id: (i + 1).toString(), 
+                        name: `個体 ${i + 1}号`, 
+                        alias: i < 5 ? 'Aライン' : 'Bライン', 
+                        origin: '福岡県久留米市', 
+                        generation: `F${(i % 5) + 1}`, 
+                        maleParent: 'M-1', 
+                        femaleParent: 'F-1', 
+                        stage: history[history.length - 1].item, 
+                        saleStatus: '非売', 
+                        hatchDate: '2026-04-01', 
+                        emergenceDate: '-', 
+                        history: history
+                    };
+                });
             });
             const [sort, setSort] = useState({ key: 'id', direction: 'asc' });
 
