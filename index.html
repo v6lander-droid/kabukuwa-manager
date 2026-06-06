@@ -8,7 +8,7 @@
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/recharts/umd/Recharts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         .sticky-col-1 { position: sticky; left: 0; z-index: 20; background-color: #171717; }
         .sticky-col-2 { position: sticky; left: 60px; z-index: 20; background-color: #171717; }
@@ -23,22 +23,14 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
-        const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } = Recharts;
-
-        // 孵化日からの経過日数を算出
-        const getDaysFromHatch = (hatchDate, recordDate) => {
-            const h = new Date(hatchDate);
-            const r = new Date(recordDate);
-            return Math.floor((r - h) / (1000 * 60 * 60 * 24));
-        };
+        const { useState, useEffect, useMemo, useRef } = React;
 
         function App() {
             const [selectedCreature, setSelectedCreature] = useState(null);
             const [activeTab, setActiveTab] = useState('一覧');
             const [highlightId, setHighlightId] = useState(null);
             const [showAddModal, setShowAddModal] = useState(false);
-            const [newCreatureData, setNewCreatureData] = useState({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '2026-04-01', emergenceDate: '-', maleParent: '-', femaleParent: '-', stage: '幼虫', saleStatus: '非売', sex: 'オス' });
+            const [newCreatureData, setNewCreatureData] = useState({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '-', femaleParent: '-', stage: '幼虫', saleStatus: '非売', sex: 'オス' });
             
             const [maleSelection, setMaleSelection] = useState('');
             const [femaleSelection, setFemaleSelection] = useState('');
@@ -52,7 +44,7 @@
                     const historyLength = 2 + Math.floor(Math.random() * 4);
                     const history = Array.from({ length: historyLength }, (_, j) => ({
                         item: sampleStages[j] || '経過',
-                        date: `2026-04-${10 + j*3}`,
+                        date: `2026-04-${10 + j}`,
                         size: `${1 + j * 5}g`,
                         temp: `${22 + (i % 5)}℃`
                     }));
@@ -87,7 +79,7 @@
                 const newCreature = { ...newCreatureData, id: Date.now().toString(), history: [] };
                 setCreatures([newCreature, ...creatures]);
                 setShowAddModal(false);
-                setNewCreatureData({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '2026-04-01', emergenceDate: '-', maleParent: '-', femaleParent: '-', stage: '幼虫', saleStatus: '非売', sex: 'オス' });
+                setNewCreatureData({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '-', femaleParent: '-', stage: '幼虫', saleStatus: '非売', sex: 'オス' });
             };
 
             const updateCreature = (updated) => {
@@ -115,7 +107,7 @@
                 return getSimData(m, f);
             }, [maleSelection, femaleSelection, creatures]);
 
-            if (selectedCreature) return <DetailView allCreatures={creatures} creature={selectedCreature} onBack={() => setSelectedCreature(null)} onUpdate={updateCreature} onGoToTree={(id) => { setHighlightId(id); setActiveTab('血統図'); setSelectedCreature(null); }} getSimData={getSimData} />;
+            if (selectedCreature) return <DetailView creature={selectedCreature} onBack={() => setSelectedCreature(null)} onUpdate={updateCreature} onGoToTree={(id) => { setHighlightId(id); setActiveTab('血統図'); setSelectedCreature(null); }} getSimData={getSimData} />;
 
             const tableHeaders = [
                 {k:'saleStatus',l:'販売'}, {k:'name',l:'個体名'}, {k:'sex',l:'性別'}, {k:'alias',l:'名称'}, {k:'origin',l:'産地'}, 
@@ -216,33 +208,16 @@
             );
         }
 
-        function DetailView({ allCreatures, creature, onBack, onUpdate, onGoToTree, getSimData }) {
+        function DetailView({ creature, onBack, onUpdate, onGoToTree, getSimData }) {
             const [form, setForm] = useState(creature);
             const [showEditModal, setShowEditModal] = useState(false);
             const [editForm, setEditForm] = useState(creature);
             const [showRecordModal, setShowRecordModal] = useState(null);
-            const [compareId, setCompareId] = useState('');
+            const chartRef = useRef(null);
+            const chartInstance = useRef(null);
             
             const fields = [{key:'name', label:'個体名'}, {key:'sex', label:'性別'}, {key:'alias', label:'名称'}, {key:'origin', label:'産地'}, {key:'generation', label:'累代'}, {key:'hatchDate', label:'孵化日'}, {key:'emergenceDate', label:'羽化日'}, {key:'maleParent', label:'オス親'}, {key:'femaleParent', label:'メス親'}, {key:'stage', label:'ステージ'}];
             
-            // グラフ用データ生成
-            const chartData = useMemo(() => {
-                const targetList = [form];
-                const compare = allCreatures.find(c => c.id === compareId);
-                if (compare) targetList.push(compare);
-                
-                const allDates = [...new Set(targetList.flatMap(c => c.history.map(h => h.date)))].sort();
-                return allDates.map(date => {
-                    const obj = { dateLabel: date };
-                    targetList.forEach(c => {
-                        const rec = c.history.find(h => h.date === date);
-                        obj[c.name + "_days"] = getDaysFromHatch(c.hatchDate, date);
-                        obj[c.name] = rec ? parseFloat(rec.size) : null;
-                    });
-                    return obj;
-                });
-            }, [form, compareId, allCreatures]);
-
             const saveEdit = () => { setForm(editForm); onUpdate(editForm); setShowEditModal(false); };
             const saveRecord = (record) => {
                 let h = [...form.history];
@@ -254,40 +229,130 @@
                 setShowRecordModal(null);
             };
 
+            // グラフ描画のロジック
+            useEffect(() => {
+                if (chartRef.current) {
+                    if (chartInstance.current) chartInstance.current.destroy();
+
+                    // 数値データのみを抽出
+                    const labels = form.history.map(h => h.date);
+                    const data = form.history.map(h => {
+                        const val = parseFloat(h.size.replace(/[^0-9.]/g, ''));
+                        return isNaN(val) ? null : val;
+                    });
+
+                    chartInstance.current = new Chart(chartRef.current, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'サイズ推移',
+                                data: data,
+                                borderColor: '#10b981',
+                                backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                                tension: 0.3,
+                                fill: true,
+                                pointBackgroundColor: '#fff',
+                                pointRadius: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    grid: { color: '#333' },
+                                    ticks: { color: '#999' }
+                                },
+                                x: {
+                                    grid: { color: '#333' },
+                                    ticks: { color: '#999' }
+                                }
+                            }
+                        }
+                    });
+                }
+            }, [form.history]);
+
             return (
-                <div className="p-6 max-w-2xl mx-auto">
+                <div className="p-6 max-w-lg mx-auto">
                     <div className="flex justify-between items-center mb-4"><button onClick={onBack} className="text-emerald-400 font-bold">← 一覧に戻る</button><div className="flex gap-2"><button onClick={() => onGoToTree(creature.id)} className="bg-neutral-700 px-4 py-1 rounded text-sm font-bold">血統図へ</button><button onClick={() => { setEditForm(form); setShowEditModal(true); }} className="bg-emerald-600 px-4 py-1 rounded text-sm font-bold">編集</button></div></div>
                     
-                    {/* 成長グラフエリア */}
-                    <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 mb-6">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="font-bold">成長ポテンシャル推移 (孵化後日数)</h3>
-                            <select className="bg-neutral-800 text-xs p-1 rounded" onChange={e => setCompareId(e.target.value)}>
-                                <option value="">比較対象を選択</option>
-                                {allCreatures.filter(c => c.id !== form.id).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                            </select>
-                        </div>
-                        <div className="h-64 w-full">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={chartData}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                                    <XAxis dataKey={form.name + "_days"} stroke="#888" fontSize={12} />
-                                    <YAxis stroke="#888" fontSize={12} />
-                                    <Tooltip contentStyle={{backgroundColor: '#000', borderColor: '#444'}} />
-                                    <Legend />
-                                    <Line type="monotone" dataKey={form.name} stroke="#10b981" strokeWidth={2} />
-                                    {compareId && <Line type="monotone" dataKey={allCreatures.find(c=>c.id===compareId).name} stroke="#f59e0b" strokeWidth={2} />}
-                                </LineChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
-
                     {showEditModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50"><div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4"><h3 className="font-bold text-white">詳細情報の編集</h3>{fields.map(f => (<div key={f.key}><p className="text-[10px] text-neutral-400">{f.label}</p><input className="w-full bg-neutral-800 p-2 rounded text-white text-sm" value={editForm[f.key] || ''} onChange={e => setEditForm({...editForm, [f.key]: e.target.value})} /></div>))}<div className="flex gap-2"><button onClick={() => setShowEditModal(false)} className="w-full bg-neutral-700 py-2 rounded font-bold text-white">キャンセル</button><button onClick={saveEdit} className="w-full bg-emerald-600 py-2 rounded font-bold text-white">保存</button></div></div></div>
                     )}
-                    <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 space-y-4 text-white"><h2 className="text-xl font-bold border-b border-neutral-700 pb-2">詳細情報</h2><div className="grid grid-cols-[100px,1fr] gap-x-2 gap-y-2 text-sm items-center">{fields.map(f => (<React.Fragment key={f.key}><p className="text-white text-left">{f.label}:</p><p className="p-2 bg-neutral-800 rounded text-white w-full">{form[f.key] || '-'}</p></React.Fragment>))}</div><div className="border-t border-neutral-700 pt-4"><div className="flex justify-between items-center mb-3"><h3 className="font-bold">飼育記録</h3><button onClick={() => setShowRecordModal({item: form.stage, size:'', temp:'', date:new Date().toISOString().split('T')[0], index:null})} className="bg-emerald-600 px-2 py-1 rounded text-xs text-white">追加</button></div><table className="w-full text-xs"><thead><tr className="text-white border-b border-neutral-700 text-left"><th>日付</th><th>ステージ</th><th>サイズ</th><th>温度</th><th>操作</th></tr></thead><tbody>{form.history.map((h,i) => <tr key={i} className="border-b border-neutral-800"><td>{h.date}</td><td>{h.item}</td><td>{h.size}</td><td>{h.temp}</td><td><button onClick={() => setShowRecordModal({item:h.item, size:h.size, temp:h.temp, date:h.date, index:i})} className="bg-emerald-600 px-1 rounded text-white">訂正</button></td></tr>)}</tbody></table></div></div>
-                    <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 mt-4 space-y-4 text-white"><h3 className="font-bold border-b border-neutral-700 pb-2">遺伝ポテンシャル指標</h3>{getSimData(creature, creature).map((m,i)=>(<div key={i} className="text-xs p-2 bg-neutral-800 rounded"><p className="text-emerald-400 font-bold">{m.label}: <span className="text-white">{m.val}</span></p><p className="text-neutral-400 mt-1">{m.desc}</p></div>))}</div>
-                    {showRecordModal && (<div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50"><div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4"><h3 className="font-bold text-white">飼育記録の編集</h3><input className="w-full bg-neutral-800 p-2 rounded text-white text-sm" placeholder="日付" value={showRecordModal.date} onChange={e=>setShowRecordModal({...showRecordModal, date:e.target.value})} /><input className="w-full bg-neutral-800 p-2 rounded text-white text-sm" placeholder="ステージ" value={showRecordModal.item} onChange={e=>setShowRecordModal({...showRecordModal, item:e.target.value})} /><input className="w-full bg-neutral-800 p-2 rounded text-white text-sm" placeholder="サイズ" value={showRecordModal.size} onChange={e=>setShowRecordModal({...showRecordModal, size:e.target.value})} /><input className="w-full bg-neutral-800 p-2 rounded text-white text-sm" placeholder="温度" value={showRecordModal.temp} onChange={e=>setShowRecordModal({...showRecordModal, temp:e.target.value})} /><div className="flex gap-2"><button onClick={() => setShowRecordModal(null)} className="w-full bg-neutral-700 py-2 rounded font-bold text-white">キャンセル</button><button onClick={() => saveRecord(showRecordModal)} className="w-full bg-emerald-600 py-2 rounded font-bold text-white">保存</button></div></div></div>)}
+
+                    <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 space-y-4 text-white">
+                        <h2 className="text-xl font-bold border-b border-neutral-700 pb-2">詳細情報</h2>
+                        <div className="grid grid-cols-[100px,1fr] gap-x-2 gap-y-2 text-sm items-center">
+                            {fields.map(f => (
+                                <React.Fragment key={f.key}>
+                                    <p className="text-white text-left">{f.label}:</p>
+                                    <p className="p-2 bg-neutral-800 rounded text-white w-full">{form[f.key] || '-'}</p>
+                                </React.Fragment>
+                            ))}
+                        </div>
+                        
+                        <div className="border-t border-neutral-700 pt-4">
+                            <div className="flex justify-between items-center mb-3">
+                                <h3 className="font-bold">飼育記録</h3>
+                                <button onClick={() => setShowRecordModal({item: form.stage, size:'', temp:'', date:new Date().toISOString().split('T')[0], index:null})} className="bg-emerald-600 px-2 py-1 rounded text-xs text-white">追加</button>
+                            </div>
+                            <table className="w-full text-xs">
+                                <thead>
+                                    <tr className="text-white border-b border-neutral-700 text-left">
+                                        <th>日付</th><th>ステージ</th><th>サイズ</th><th>温度</th><th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {form.history.map((h,i) => (
+                                        <tr key={i} className="border-b border-neutral-800">
+                                            <td>{h.date}</td><td>{h.item}</td><td>{h.size}</td><td>{h.temp}</td>
+                                            <td><button onClick={() => setShowRecordModal({item:h.item, size:h.size, temp:h.temp, date:h.date, index:i})} className="bg-emerald-600 px-1 rounded text-white">訂正</button></td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* グラフ表示セクション */}
+                    <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 mt-4 text-white">
+                        <h3 className="font-bold border-b border-neutral-700 pb-2 mb-3">成長グラフ（サイズ推移）</h3>
+                        <div className="h-48 w-full">
+                            <canvas ref={chartRef}></canvas>
+                        </div>
+                    </div>
+
+                    <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 mt-4 space-y-4 text-white">
+                        <h3 className="font-bold border-b border-neutral-700 pb-2">遺伝ポテンシャル指標</h3>
+                        {getSimData(creature, creature).map((m,i)=>(
+                            <div key={i} className="text-xs p-2 bg-neutral-800 rounded">
+                                <p className="text-emerald-400 font-bold">{m.label}: <span className="text-white">{m.val}</span></p>
+                                <p className="text-neutral-400 mt-1">{m.desc}</p>
+                            </div>
+                        ))}
+                    </div>
+
+                    {showRecordModal && (
+                        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+                            <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4">
+                                <h3 className="font-bold text-white">飼育記録の編集</h3>
+                                <input className="w-full bg-neutral-800 p-2 rounded text-white text-sm" placeholder="日付" value={showRecordModal.date} onChange={e=>setShowRecordModal({...showRecordModal, date:e.target.value})} />
+                                <input className="w-full bg-neutral-800 p-2 rounded text-white text-sm" placeholder="ステージ" value={showRecordModal.item} onChange={e=>setShowRecordModal({...showRecordModal, item:e.target.value})} />
+                                <input className="w-full bg-neutral-800 p-2 rounded text-white text-sm" placeholder="サイズ" value={showRecordModal.size} onChange={e=>setShowRecordModal({...showRecordModal, size:e.target.value})} />
+                                <input className="w-full bg-neutral-800 p-2 rounded text-white text-sm" placeholder="温度" value={showRecordModal.temp} onChange={e=>setShowRecordModal({...showRecordModal, temp:e.target.value})} />
+                                <div className="flex gap-2">
+                                    <button onClick={() => setShowRecordModal(null)} className="w-full bg-neutral-700 py-2 rounded font-bold text-white">キャンセル</button>
+                                    <button onClick={() => saveRecord(showRecordModal)} className="w-full bg-emerald-600 py-2 rounded font-bold text-white">保存</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         }
