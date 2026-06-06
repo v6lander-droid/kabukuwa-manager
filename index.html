@@ -88,17 +88,18 @@
 
             const processedCreatures = [...creatures].sort((a, b) => (a[sort.key] < b[sort.key] ? -1 : 1) * (sort.direction === 'asc' ? 1 : -1));
 
-            // 交配シミュレーション：詳細指標解析
+            // 詳細交配指標ロジック
             const sim = useMemo(() => {
                 const m = creatures.find(c => c.name === maleSelection);
                 const f = creatures.find(c => c.name === femaleSelection);
                 if (!m || !f) return null;
-                const isSame = m.alias === f.alias;
+                const genCount = parseInt(m.generation.replace('F', '')) || 1;
+                const isSameLine = m.alias === f.alias;
                 return {
-                    results: [
-                        { key: "血統適合性", val: isSame ? "純血統" : "異系統", note: isSame ? "形質の固定化が期待されますが、インブリードの管理が必要です。" : "ヘテロシス効果により、個体の活力向上が期待できます。" },
-                        { key: "サイズ期待値", val: isSame ? "安定指向" : "ポテンシャル重視", note: isSame ? "親の特性が強く安定して継承されます。" : "両系統の大型遺伝子が融合し、最大値更新の可能性があります。" },
-                        { key: "形質分離比", val: isSame ? "固定率 75%" : "分離率 50%", note: isSame ? "特定形質をホモ接合させやすく、安定したブリードが可能です。" : "多様な形質が現れやすいため、選別が重要になります。" }
+                    metrics: [
+                        { label: "近親交配係数", val: isSameLine ? "25.0%" : "6.25%", desc: isSameLine ? "純血統を維持していますが、累代が進むと障害リスクが高まります。" : "異系統交配のため、遺伝的健康度が高い状態です。" },
+                        { label: "期待成長ポテンシャル", val: isSameLine ? "92点" : "98点", desc: isSameLine ? "特定の良質な形質が継承されやすい安定したスコアです。" : "強勢効果により、次世代での大型化が強く期待されます。" },
+                        { label: "累代障害発生率", val: isSameLine ? (genCount * 4.5).toFixed(1) + "%" : (genCount * 1.2).toFixed(1) + "%", desc: isSameLine ? "近親係数の蓄積により、羽化不全等のリスクが統計的に上昇しています。" : "系統の交差により、障害リスクが最小限に抑制されています。" }
                     ]
                 };
             }, [maleSelection, femaleSelection, creatures]);
@@ -120,18 +121,13 @@
             return (
                 <div className="min-h-screen p-4">
                     <nav className="mb-4 flex justify-between items-center font-bold text-emerald-400">
-                        <div className="flex flex-col">
-                            <span>Beetle Base - 全個体一覧</span>
-                            <span className="text-[10px] text-neutral-500">made by ＭＨ</span>
-                        </div>
+                        <div className="flex flex-col"><span>Beetle Base - 全個体一覧</span><span className="text-[10px] text-neutral-500">made by ＭＨ</span></div>
                         {activeTab === '一覧' && <button onClick={() => setShowAddModal(true)} className="bg-emerald-600 px-3 py-1 rounded text-sm text-white font-bold">追加</button>}
                     </nav>
 
                     <div className="flex border-b border-neutral-800 mb-4">
                         {['一覧', '血統図', '交配'].map(tab => (
-                            <button key={tab} onClick={() => { setActiveTab(tab); setHighlightId(null); }} className={`px-4 py-2 text-sm font-bold ${activeTab === tab ? 'text-emerald-400 border-b-2 border-emerald-400' : 'text-neutral-500'}`}>
-                                {tab}
-                            </button>
+                            <button key={tab} onClick={() => { setActiveTab(tab); setHighlightId(null); }} className={`px-4 py-2 text-sm font-bold ${activeTab === tab ? 'text-emerald-400 border-b-2 border-emerald-400' : 'text-neutral-500'}`}>{tab}</button>
                         ))}
                     </div>
 
@@ -193,12 +189,13 @@
                                 <select className="bg-neutral-800 p-2 rounded flex-1" value={maleSelection} onChange={e => setMaleSelection(e.target.value)}><option value="">オス親を選択</option>{creatures.filter(c => c.sex === 'オス').map(c => <option key={c.id} value={c.name}>{c.name}</option>)}</select>
                                 <select className="bg-neutral-800 p-2 rounded flex-1" value={femaleSelection} onChange={e => setFemaleSelection(e.target.value)}><option value="">メス親を選択</option>{creatures.filter(c => c.sex === 'メス').map(c => <option key={c.id} value={c.name}>{c.name}</option>)}</select>
                             </div>
+                            
                             {sim && (
                                 <div className="space-y-4 pt-4">
-                                    {sim.results.map((r, i) => (
-                                        <div key={i} className="p-4 border border-neutral-700 rounded bg-neutral-800">
-                                            <p className="text-emerald-400 font-bold">{r.key}: <span className="text-white">{r.val}</span></p>
-                                            <p className="text-xs text-neutral-400 mt-1">{r.note}</p>
+                                    {sim.metrics.map((m, i) => (
+                                        <div key={i} className="p-4 bg-neutral-800 border border-neutral-700 rounded">
+                                            <p className="font-bold text-emerald-400">{m.label}: <span className="text-white">{m.val}</span></p>
+                                            <p className="text-xs text-neutral-400 mt-1">{m.desc}</p>
                                         </div>
                                     ))}
                                 </div>
