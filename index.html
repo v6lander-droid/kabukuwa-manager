@@ -42,10 +42,18 @@
             
             const [creatures, setCreatures] = useState(() => {
                 const saved = localStorage.getItem('beetle_data');
-                return saved ? JSON.parse(saved) : Array.from({ length: 50 }, (_, i) => ({
-                    id: (i + 1).toString(), name: `個体 ${i + 1}号`, alias: '極太血統',
-                    origin: '福岡県久留米市', generation: 'F5', maleParent: 'M-1', femaleParent: 'F-1',
-                    stage: '幼虫', saleStatus: '非売', hatchDate: '2026-04-01', emergenceDate: '2026-05-01', history: [{item: '孵化', date: '2026-04-01', size: '1g', temp: '25℃'}]
+                return saved ? JSON.parse(saved) : Array.from({ length: 10 }, (_, i) => ({
+                    id: (i + 1).toString(), 
+                    name: `個体 ${i + 1}号`, alias: '極太血統', origin: '福岡県久留米市', generation: 'F5', 
+                    maleParent: 'M-1', femaleParent: 'F-1', stage: '成虫', saleStatus: '非売', 
+                    hatchDate: '2026-04-01', emergenceDate: '2026-05-01', 
+                    history: [
+                        {item: '孵化', date: '2026-04-01', size: '1g', temp: '25℃'},
+                        {item: '1令', date: '2026-04-10', size: '3g', temp: '25℃'},
+                        {item: '2令', date: '2026-04-20', size: '8g', temp: '24℃'},
+                        {item: '3令', date: '2026-05-15', size: '20g', temp: '23℃'},
+                        {item: '羽化', date: '2026-06-01', size: '80mm', temp: '22℃'}
+                    ]
                 }));
             });
             const [sort, setSort] = useState({ key: 'id', direction: 'asc' });
@@ -162,10 +170,10 @@
                         </>
                     ) : (
                         <div className="bg-neutral-900 p-6 rounded-lg space-y-4">
-                            {creatures.map(c => (
-                                <div key={c.id} className="border-l-2 border-emerald-600 pl-4 py-2">
-                                    <p className="font-bold">{c.name}</p>
-                                    <p className="text-xs text-neutral-400">親: {c.maleParent} × {c.femaleParent}</p>
+                            {creatures.map((c, idx) => (
+                                <div key={c.id} style={{marginLeft: `${idx * 20}px`}} className="border-l-2 border-emerald-600 pl-4 py-2">
+                                    <p className="font-bold">{c.name} ({c.generation})</p>
+                                    <p className="text-xs text-neutral-400">親: {c.maleParent}</p>
                                 </div>
                             ))}
                         </div>
