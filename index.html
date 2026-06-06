@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Beetle Base - 統合管理</title>
+    <title>Beetle Base - 統合管理 (Visual Pedigree)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         .sticky-col-1 { position: sticky; left: 0; z-index: 20; background-color: #171717; }
         .sticky-col-2 { position: sticky; left: 60px; z-index: 20; background-color: #171717; }
@@ -17,6 +18,18 @@
         ::-webkit-scrollbar-track { background: #0a0a0a; }
         ::-webkit-scrollbar-thumb { background: #404040; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #525252; }
+        
+        /* 血統図用の補助線スタイル */
+        .pedigree-line {
+            position: absolute;
+            left: -20px;
+            top: -10px;
+            bottom: 50%;
+            width: 20px;
+            border-left: 2px solid #404040;
+            border-bottom: 2px solid #404040;
+            border-bottom-left-radius: 8px;
+        }
     </style>
 </head>
 <body class="bg-neutral-950 text-white font-sans">
@@ -124,7 +137,7 @@
             return (
                 <div className="min-h-screen p-4">
                     <nav className="mb-4 flex justify-between items-center font-bold text-emerald-400">
-                        <div className="flex flex-col"><span>Beetle Base - 全個体一覧</span><span className="text-[10px] text-neutral-500">made by ＭＨ</span></div>
+                        <div className="flex flex-col"><span>Beetle Base - 統合管理</span><span className="text-[10px] text-neutral-500">made by ＭＨ</span></div>
                         {activeTab === '一覧' && <button onClick={() => setShowAddModal(true)} className="bg-emerald-600 px-3 py-1 rounded text-sm text-white font-bold">追加</button>}
                     </nav>
 
@@ -180,9 +193,59 @@
                             </div>
                         </>
                     ) : activeTab === '血統図' ? (
-                        <div className="bg-neutral-900 p-6 rounded-lg space-y-6">
-                            {['Aライン', 'Bライン'].map(line => (
-                                <div key={line} className="space-y-2"><h3 className="font-bold text-emerald-400 border-b border-neutral-700">{line}</h3>{creatures.filter(c => c.alias === line).map((c, idx) => (<div key={c.id} style={{marginLeft: `${idx * 20}px`}} className={`pl-4 py-1 text-sm rounded ${highlightId === c.id ? 'bg-emerald-900 border-l-4 border-emerald-400' : 'border-l-2 border-neutral-600'}`}>{c.name} ({c.generation}) <span className="text-neutral-500 text-xs">親: {c.maleParent}</span></div>))}</div>
+                        <div className="bg-neutral-900 p-6 rounded-lg space-y-12">
+                            {/* ライン(Alias)ごとにグループ化 */}
+                            {Array.from(new Set(creatures.map(c => c.alias))).map(line => (
+                                <div key={line} className="space-y-4">
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="font-bold text-emerald-400 border-l-4 border-emerald-400 pl-2">{line || "未設定ライン"}</h3>
+                                        <div className="h-[1px] bg-neutral-800 flex-1"></div>
+                                    </div>
+                                    <div className="grid gap-y-4">
+                                        {creatures.filter(c => c.alias === line).map((c, idx) => (
+                                            <div key={c.id} 
+                                                 style={{marginLeft: `${idx * 24}px`}} 
+                                                 className="relative group"
+                                                 onClick={() => setSelectedCreature(c)}>
+                                                
+                                                {/* 補助線 (最初の要素以外) */}
+                                                {idx > 0 && <div className="pedigree-line"></div>}
+                                                
+                                                {/* 個体カード */}
+                                                <div className={`flex items-center gap-4 p-3 rounded-lg border cursor-pointer transition-all hover:scale-[1.01] 
+                                                    ${highlightId === c.id ? 'bg-emerald-900 border-emerald-400' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-500'}
+                                                    ${c.sex === 'オス' ? 'border-l-4 border-l-emerald-500' : 'border-l-4 border-l-rose-500'}`}>
+                                                    
+                                                    {/* 性別アイコン */}
+                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs shadow-inner
+                                                        ${c.sex === 'オス' ? 'bg-emerald-900 text-emerald-400' : 'bg-rose-900 text-rose-400'}`}>
+                                                        <i className={`fa-solid ${c.sex === 'オス' ? 'fa-mars' : 'fa-venus'}`}></i>
+                                                    </div>
+
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-bold text-sm truncate">{c.name}</span>
+                                                            <span className="bg-neutral-700 text-[10px] px-1.5 py-0.5 rounded text-neutral-300 font-mono">{c.generation}</span>
+                                                        </div>
+                                                        <div className="flex gap-4 mt-1">
+                                                            <div className="text-[10px] text-neutral-500 flex items-center gap-1">
+                                                                <span className="text-emerald-600">♂</span> {c.maleParent}
+                                                            </div>
+                                                            <div className="text-[10px] text-neutral-500 flex items-center gap-1">
+                                                                <span className="text-rose-600">♀</span> {c.femaleParent}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="text-right">
+                                                        <p className="text-[10px] text-neutral-500 uppercase tracking-tighter">Current Stage</p>
+                                                        <p className="text-xs font-bold text-emerald-400">{c.stage}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
                             ))}
                         </div>
                     ) : (
@@ -229,18 +292,14 @@
                 setShowRecordModal(null);
             };
 
-            // グラフ描画のロジック
             useEffect(() => {
                 if (chartRef.current) {
                     if (chartInstance.current) chartInstance.current.destroy();
-
-                    // 数値データのみを抽出
                     const labels = form.history.map(h => h.date);
                     const data = form.history.map(h => {
                         const val = parseFloat(h.size.replace(/[^0-9.]/g, ''));
                         return isNaN(val) ? null : val;
                     });
-
                     chartInstance.current = new Chart(chartRef.current, {
                         type: 'line',
                         data: {
@@ -259,19 +318,10 @@
                         options: {
                             responsive: true,
                             maintainAspectRatio: false,
-                            plugins: {
-                                legend: { display: false }
-                            },
+                            plugins: { legend: { display: false } },
                             scales: {
-                                y: {
-                                    beginAtZero: true,
-                                    grid: { color: '#333' },
-                                    ticks: { color: '#999' }
-                                },
-                                x: {
-                                    grid: { color: '#333' },
-                                    ticks: { color: '#999' }
-                                }
+                                y: { beginAtZero: true, grid: { color: '#333' }, ticks: { color: '#999' } },
+                                x: { grid: { color: '#333' }, ticks: { color: '#999' } }
                             }
                         }
                     });
@@ -286,69 +336,79 @@
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50"><div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4"><h3 className="font-bold text-white">詳細情報の編集</h3>{fields.map(f => (<div key={f.key}><p className="text-[10px] text-neutral-400">{f.label}</p><input className="w-full bg-neutral-800 p-2 rounded text-white text-sm" value={editForm[f.key] || ''} onChange={e => setEditForm({...editForm, [f.key]: e.target.value})} /></div>))}<div className="flex gap-2"><button onClick={() => setShowEditModal(false)} className="w-full bg-neutral-700 py-2 rounded font-bold text-white">キャンセル</button><button onClick={saveEdit} className="w-full bg-emerald-600 py-2 rounded font-bold text-white">保存</button></div></div></div>
                     )}
 
-                    <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 space-y-4 text-white">
-                        <h2 className="text-xl font-bold border-b border-neutral-700 pb-2">詳細情報</h2>
+                    <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 space-y-4 text-white shadow-2xl">
+                        <h2 className="text-xl font-bold border-b border-neutral-700 pb-2 flex items-center gap-3">
+                            <span className={form.sex === 'オス' ? 'text-emerald-400' : 'text-rose-400'}>
+                                <i className={`fa-solid ${form.sex === 'オス' ? 'fa-mars' : 'fa-venus'}`}></i>
+                            </span>
+                            詳細情報
+                        </h2>
                         <div className="grid grid-cols-[100px,1fr] gap-x-2 gap-y-2 text-sm items-center">
                             {fields.map(f => (
                                 <React.Fragment key={f.key}>
-                                    <p className="text-white text-left">{f.label}:</p>
-                                    <p className="p-2 bg-neutral-800 rounded text-white w-full">{form[f.key] || '-'}</p>
+                                    <p className="text-neutral-500 text-left text-[11px] uppercase">{f.label}</p>
+                                    <p className="p-2 bg-neutral-800 rounded text-white w-full border border-neutral-700/50">{form[f.key] || '-'}</p>
                                 </React.Fragment>
                             ))}
                         </div>
                         
                         <div className="border-t border-neutral-700 pt-4">
                             <div className="flex justify-between items-center mb-3">
-                                <h3 className="font-bold">飼育記録</h3>
-                                <button onClick={() => setShowRecordModal({item: form.stage, size:'', temp:'', date:new Date().toISOString().split('T')[0], index:null})} className="bg-emerald-600 px-2 py-1 rounded text-xs text-white">追加</button>
+                                <h3 className="font-bold text-sm">飼育記録</h3>
+                                <button onClick={() => setShowRecordModal({item: form.stage, size:'', temp:'', date:new Date().toISOString().split('T')[0], index:null})} className="bg-emerald-600 px-2 py-1 rounded text-[10px] text-white">追加</button>
                             </div>
-                            <table className="w-full text-xs">
-                                <thead>
-                                    <tr className="text-white border-b border-neutral-700 text-left">
-                                        <th>日付</th><th>ステージ</th><th>サイズ</th><th>温度</th><th>操作</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {form.history.map((h,i) => (
-                                        <tr key={i} className="border-b border-neutral-800">
-                                            <td>{h.date}</td><td>{h.item}</td><td>{h.size}</td><td>{h.temp}</td>
-                                            <td><button onClick={() => setShowRecordModal({item:h.item, size:h.size, temp:h.temp, date:h.date, index:i})} className="bg-emerald-600 px-1 rounded text-white">訂正</button></td>
+                            <div className="overflow-hidden rounded border border-neutral-800">
+                                <table className="w-full text-[10px]">
+                                    <thead className="bg-neutral-800">
+                                        <tr className="text-neutral-400 text-left">
+                                            <th className="p-2">日付</th><th className="p-2">ステージ</th><th className="p-2">サイズ</th><th className="p-2">温度</th><th className="p-2">操作</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody>
+                                        {form.history.map((h,i) => (
+                                            <tr key={i} className="border-b border-neutral-800 hover:bg-neutral-800/50 transition-colors">
+                                                <td className="p-2">{h.date}</td><td className="p-2">{h.item}</td><td className="p-2">{h.size}</td><td className="p-2">{h.temp}</td>
+                                                <td className="p-2"><button onClick={() => setShowRecordModal({item:h.item, size:h.size, temp:h.temp, date:h.date, index:i})} className="text-emerald-500 hover:underline">訂正</button></td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
 
-                    {/* グラフ表示セクション */}
-                    <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 mt-4 text-white">
-                        <h3 className="font-bold border-b border-neutral-700 pb-2 mb-3">成長グラフ（サイズ推移）</h3>
-                        <div className="h-48 w-full">
+                    <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 mt-4 text-white shadow-2xl">
+                        <h3 className="font-bold border-b border-neutral-700 pb-2 mb-3 text-sm">成長グラフ</h3>
+                        <div className="h-40 w-full">
                             <canvas ref={chartRef}></canvas>
                         </div>
                     </div>
 
-                    <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 mt-4 space-y-4 text-white">
-                        <h3 className="font-bold border-b border-neutral-700 pb-2">遺伝ポテンシャル指標</h3>
-                        {getSimData(creature, creature).map((m,i)=>(
-                            <div key={i} className="text-xs p-2 bg-neutral-800 rounded">
-                                <p className="text-emerald-400 font-bold">{m.label}: <span className="text-white">{m.val}</span></p>
-                                <p className="text-neutral-400 mt-1">{m.desc}</p>
-                            </div>
-                        ))}
+                    <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 mt-4 space-y-4 text-white shadow-2xl">
+                        <h3 className="font-bold border-b border-neutral-700 pb-2 text-sm">遺伝ポテンシャル</h3>
+                        <div className="grid gap-2">
+                            {getSimData(creature, creature).map((m,i)=>(
+                                <div key={i} className="text-[10px] p-2 bg-neutral-800 rounded border-l-2 border-emerald-500">
+                                    <p className="text-emerald-400 font-bold">{m.label}: <span className="text-white text-xs">{m.val}</span></p>
+                                    <p className="text-neutral-400 mt-0.5 leading-tight">{m.desc}</p>
+                                </div>
+                            ))}
+                        </div>
                     </div>
 
                     {showRecordModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-                            <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4">
+                            <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4 shadow-2xl">
                                 <h3 className="font-bold text-white">飼育記録の編集</h3>
-                                <input className="w-full bg-neutral-800 p-2 rounded text-white text-sm" placeholder="日付" value={showRecordModal.date} onChange={e=>setShowRecordModal({...showRecordModal, date:e.target.value})} />
-                                <input className="w-full bg-neutral-800 p-2 rounded text-white text-sm" placeholder="ステージ" value={showRecordModal.item} onChange={e=>setShowRecordModal({...showRecordModal, item:e.target.value})} />
-                                <input className="w-full bg-neutral-800 p-2 rounded text-white text-sm" placeholder="サイズ" value={showRecordModal.size} onChange={e=>setShowRecordModal({...showRecordModal, size:e.target.value})} />
-                                <input className="w-full bg-neutral-800 p-2 rounded text-white text-sm" placeholder="温度" value={showRecordModal.temp} onChange={e=>setShowRecordModal({...showRecordModal, temp:e.target.value})} />
+                                <div className="space-y-3">
+                                    <input className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" placeholder="日付" value={showRecordModal.date} onChange={e=>setShowRecordModal({...showRecordModal, date:e.target.value})} />
+                                    <input className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" placeholder="ステージ" value={showRecordModal.item} onChange={e=>setShowRecordModal({...showRecordModal, item:e.target.value})} />
+                                    <input className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" placeholder="サイズ" value={showRecordModal.size} onChange={e=>setShowRecordModal({...showRecordModal, size:e.target.value})} />
+                                    <input className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" placeholder="温度" value={showRecordModal.temp} onChange={e=>setShowRecordModal({...showRecordModal, temp:e.target.value})} />
+                                </div>
                                 <div className="flex gap-2">
-                                    <button onClick={() => setShowRecordModal(null)} className="w-full bg-neutral-700 py-2 rounded font-bold text-white">キャンセル</button>
-                                    <button onClick={() => saveRecord(showRecordModal)} className="w-full bg-emerald-600 py-2 rounded font-bold text-white">保存</button>
+                                    <button onClick={() => setShowRecordModal(null)} className="w-full bg-neutral-700 py-2 rounded font-bold text-white text-sm">キャンセル</button>
+                                    <button onClick={() => saveRecord(showRecordModal)} className="w-full bg-emerald-600 py-2 rounded font-bold text-white text-sm">保存</button>
                                 </div>
                             </div>
                         </div>
