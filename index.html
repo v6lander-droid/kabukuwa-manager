@@ -88,20 +88,22 @@
 
             const processedCreatures = [...creatures].sort((a, b) => (a[sort.key] < b[sort.key] ? -1 : 1) * (sort.direction === 'asc' ? 1 : -1));
 
-            // すべての交配シミュレーション指標を統合
+            // 交配シミュレーション：修正版解析ロジック
             const sim = useMemo(() => {
-                const m = creatures.find(c => c.name === maleSelection);
-                const f = creatures.find(c => c.name === femaleSelection);
+                const m = creatures.find(c => c.id === maleSelection);
+                const f = creatures.find(c => c.id === femaleSelection);
                 if (!m || !f) return null;
                 
                 const isSame = m.alias === f.alias;
-                return [
-                    { label: "近親交配係数 (COI)", val: isSame ? "25.0%" : "6.25%", desc: isSame ? "純血統を維持していますが、累代が進むと障害リスクが高まります。" : "異系統交配のため、遺伝的健康度が高い状態です。" },
-                    { label: "成長ポテンシャル", val: isSame ? "92点" : "98点", desc: isSame ? "特定の良質な形質が継承されやすく安定しています。" : "強勢効果により、次世代での大型化が強く期待されます。" },
-                    { label: "累代障害発生率", val: isSame ? "4.5%" : "1.2%", desc: isSame ? "近親係数の蓄積によりリスクが上昇します。" : "系統交差により、障害リスクが最小限に抑制されています。" },
-                    { label: "顎形状遺伝率", val: isSame ? "85%" : "40%", desc: isSame ? "親の顎形状が極めて強く発現しやすく、特徴が安定します。" : "多様な変異が現れやすく、新しい形質の獲得が期待できます。" },
-                    { label: "色素遺伝率", val: isSame ? "92%" : "55%", desc: isSame ? "体色の質感が固定化されており、親の見た目を継承します。" : "親の色素形質が混ざり合い、新たな色調が生まれる可能性があります。" }
-                ];
+                return {
+                    metrics: [
+                        { label: "近親交配係数", val: isSame ? "25.0%" : "6.25%", desc: isSame ? "純血統を維持していますが、累代が進むと障害リスクが高まります。" : "異系統交配のため、遺伝的健康度が高い状態です。" },
+                        { label: "成長ポテンシャル", val: isSame ? "92点" : "98点", desc: isSame ? "特定の良質な形質が継承されやすく安定しています。" : "強勢効果により、次世代での大型化が強く期待されます。" },
+                        { label: "累代障害発生率", val: isSame ? "4.5%" : "1.2%", desc: isSame ? "近親係数の蓄積によりリスクが上昇します。" : "系統交差により、障害リスクが最小限に抑制されています。" },
+                        { label: "顎形状遺伝率", val: isSame ? "85%" : "40%", desc: isSame ? "親の顎形状が極めて強く発現しやすく、特徴が安定します。" : "多様な変異が現れやすく、新しい形質の獲得が期待できます。" },
+                        { label: "色素遺伝率", val: isSame ? "92%" : "55%", desc: isSame ? "体色の質感が固定化されており、親の見た目を継承します。" : "親の色素形質が混ざり合い、新たな色調が生まれる可能性があります。" }
+                    ]
+                };
             }, [maleSelection, femaleSelection, creatures]);
 
             if (selectedCreature) return <DetailView creature={selectedCreature} onBack={() => setSelectedCreature(null)} onUpdate={updateCreature} onGoToTree={(id) => { setHighlightId(id); setActiveTab('血統図'); setSelectedCreature(null); }} />;
@@ -186,17 +188,16 @@
                         <div className="bg-neutral-900 p-6 rounded-lg space-y-6 text-white text-sm">
                             <h3 className="font-bold text-emerald-400 text-lg border-b border-neutral-700 pb-2">交配シミュレーション</h3>
                             <div className="flex gap-4">
-                                <select className="bg-neutral-800 p-2 rounded flex-1" value={maleSelection} onChange={e => setMaleSelection(e.target.value)}><option value="">オス親を選択</option>{creatures.filter(c => c.sex === 'オス').map(c => <option key={c.id} value={c.name}>{c.name}</option>)}</select>
-                                <select className="bg-neutral-800 p-2 rounded flex-1" value={femaleSelection} onChange={e => setFemaleSelection(e.target.value)}><option value="">メス親を選択</option>{creatures.filter(c => c.sex === 'メス').map(c => <option key={c.id} value={c.name}>{c.name}</option>)}</select>
+                                <select className="bg-neutral-800 p-2 rounded flex-1" value={maleSelection} onChange={e => setMaleSelection(e.target.value)}><option value="">オス親を選択</option>{creatures.filter(c => c.sex === 'オス').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+                                <select className="bg-neutral-800 p-2 rounded flex-1" value={femaleSelection} onChange={e => setFemaleSelection(e.target.value)}><option value="">メス親を選択</option>{creatures.filter(c => c.sex === 'メス').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
                             </div>
                             
                             {sim && (
-                                <div className="mt-6 space-y-4">
-                                    <h4 className="font-bold text-emerald-400 border-b border-neutral-700 pb-2">【詳細遺伝解析指標】</h4>
+                                <div className="space-y-4 pt-4">
                                     {sim.metrics.map((m, i) => (
                                         <div key={i} className="p-4 border border-neutral-700 rounded bg-neutral-800">
-                                            <p className="font-bold text-white">{m.label}: <span className="text-emerald-400 text-xl">{m.val}</span></p>
-                                            <p className="text-xs text-neutral-400 mt-2">{m.desc}</p>
+                                            <p className="font-bold text-emerald-400">{m.label}: <span className="text-white">{m.val}</span></p>
+                                            <p className="text-xs text-neutral-400 mt-1">{m.desc}</p>
                                         </div>
                                     ))}
                                 </div>
