@@ -27,20 +27,27 @@
         function GrowthChart({ creatures }) {
             const canvasRef = useRef(null);
             const chartRef = useRef(null);
-            const colors = ['#10b981', '#f59e0b']; // 比較用カラーパレット
+            const colors = ['#10b981', '#f59e0b'];
 
             useEffect(() => {
                 if (chartRef.current) chartRef.current.destroy();
                 const ctx = canvasRef.current.getContext('2d');
                 
-                const datasets = creatures.map((c, i) => ({
-                    label: c.name,
-                    data: c.history.map(h => ({ x: h.date, y: parseFloat(h.size) })),
-                    borderColor: colors[i % colors.length],
-                    backgroundColor: colors[i % colors.length],
-                    tension: 0.1,
-                    pointRadius: 4
-                }));
+                const datasets = creatures.map((c, i) => {
+                    const hatchTime = new Date(c.hatchDate).getTime();
+                    return {
+                        label: c.name,
+                        data: c.history.map(h => {
+                            const recordTime = new Date(h.date).getTime();
+                            const diffDays = Math.floor((recordTime - hatchTime) / (1000 * 60 * 60 * 24));
+                            return { x: diffDays >= 0 ? diffDays : 0, y: parseFloat(h.size) };
+                        }),
+                        borderColor: colors[i % colors.length],
+                        backgroundColor: colors[i % colors.length],
+                        tension: 0.1,
+                        pointRadius: 4
+                    };
+                });
 
                 chartRef.current = new Chart(ctx, {
                     type: 'line',
@@ -49,7 +56,10 @@
                         responsive: true, 
                         maintainAspectRatio: false,
                         scales: { 
-                            x: { title: { display: true, text: '日付' } }, 
+                            x: { 
+                                title: { display: true, text: '孵化日からの経過日数' },
+                                ticks: { stepSize: 1 }
+                            }, 
                             y: { title: { display: true, text: '重量 (g)' }, beginAtZero: true } 
                         } 
                     }
@@ -64,7 +74,7 @@
             const [activeTab, setActiveTab] = useState('一覧');
             const [highlightId, setHighlightId] = useState(null);
             const [showAddModal, setShowAddModal] = useState(false);
-            const [newCreatureData, setNewCreatureData] = useState({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '-', femaleParent: '-', stage: '幼虫', saleStatus: '非売', sex: 'オス' });
+            const [newCreatureData, setNewCreatureData] = useState({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '2026-04-01', emergenceDate: '-', maleParent: '-', femaleParent: '-', stage: '幼虫', saleStatus: '非売', sex: 'オス' });
             
             const [maleSelection, setMaleSelection] = useState('');
             const [femaleSelection, setFemaleSelection] = useState('');
@@ -113,7 +123,7 @@
                 const newCreature = { ...newCreatureData, id: Date.now().toString(), history: [] };
                 setCreatures([newCreature, ...creatures]);
                 setShowAddModal(false);
-                setNewCreatureData({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '-', femaleParent: '-', stage: '幼虫', saleStatus: '非売', sex: 'オス' });
+                setNewCreatureData({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '2026-04-01', emergenceDate: '-', maleParent: '-', femaleParent: '-', stage: '幼虫', saleStatus: '非売', sex: 'オス' });
             };
 
             const updateCreature = (updated) => {
