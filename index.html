@@ -88,20 +88,18 @@
 
             const processedCreatures = [...creatures].sort((a, b) => (a[sort.key] < b[sort.key] ? -1 : 1) * (sort.direction === 'asc' ? 1 : -1));
 
-            // 詳細な遺伝指標計算ロジック
-            const bioIndicators = useMemo(() => {
-                const male = creatures.find(c => c.name === maleSelection);
-                const female = creatures.find(c => c.name === femaleSelection);
-                if (!male || !female) return null;
-                
-                const isSameLine = male.alias === female.alias;
+            // 交配シミュレーション：詳細指標解析
+            const sim = useMemo(() => {
+                const m = creatures.find(c => c.name === maleSelection);
+                const f = creatures.find(c => c.name === femaleSelection);
+                if (!m || !f) return null;
+                const isSame = m.alias === f.alias;
                 return {
-                    coi: isSameLine ? 25.0 : 6.25, // 近親交配係数(%)
-                    growthRate: isSameLine ? 1.05 : 1.18, // 期待成長倍率
-                    vitalityScore: isSameLine ? 65 : 92, // 活力係数(0-100)
-                    desc: isSameLine 
-                        ? "純血統ライン維持のため形質が安定します。COIが高いため、次々世代での異系導入を推奨します。" 
-                        : "強勢効果(ヘテロシス)が期待できます。血統の多様性が確保され、病気への耐性やサイズアップが数値的に有利です。"
+                    results: [
+                        { key: "血統適合性", val: isSame ? "純血統" : "異系統", note: isSame ? "形質の固定化が期待されますが、インブリードの管理が必要です。" : "ヘテロシス効果により、個体の活力向上が期待できます。" },
+                        { key: "サイズ期待値", val: isSame ? "安定指向" : "ポテンシャル重視", note: isSame ? "親の特性が強く安定して継承されます。" : "両系統の大型遺伝子が融合し、最大値更新の可能性があります。" },
+                        { key: "形質分離比", val: isSame ? "固定率 75%" : "分離率 50%", note: isSame ? "特定形質をホモ接合させやすく、安定したブリードが可能です。" : "多様な形質が現れやすいため、選別が重要になります。" }
+                    ]
                 };
             }, [maleSelection, femaleSelection, creatures]);
 
@@ -122,13 +120,18 @@
             return (
                 <div className="min-h-screen p-4">
                     <nav className="mb-4 flex justify-between items-center font-bold text-emerald-400">
-                        <div className="flex flex-col"><span>Beetle Base - 全個体一覧</span><span className="text-[10px] text-neutral-500">made by ＭＨ</span></div>
+                        <div className="flex flex-col">
+                            <span>Beetle Base - 全個体一覧</span>
+                            <span className="text-[10px] text-neutral-500">made by ＭＨ</span>
+                        </div>
                         {activeTab === '一覧' && <button onClick={() => setShowAddModal(true)} className="bg-emerald-600 px-3 py-1 rounded text-sm text-white font-bold">追加</button>}
                     </nav>
 
                     <div className="flex border-b border-neutral-800 mb-4">
                         {['一覧', '血統図', '交配'].map(tab => (
-                            <button key={tab} onClick={() => { setActiveTab(tab); setHighlightId(null); }} className={`px-4 py-2 text-sm font-bold ${activeTab === tab ? 'text-emerald-400 border-b-2 border-emerald-400' : 'text-neutral-500'}`}>{tab}</button>
+                            <button key={tab} onClick={() => { setActiveTab(tab); setHighlightId(null); }} className={`px-4 py-2 text-sm font-bold ${activeTab === tab ? 'text-emerald-400 border-b-2 border-emerald-400' : 'text-neutral-500'}`}>
+                                {tab}
+                            </button>
                         ))}
                     </div>
 
@@ -190,27 +193,14 @@
                                 <select className="bg-neutral-800 p-2 rounded flex-1" value={maleSelection} onChange={e => setMaleSelection(e.target.value)}><option value="">オス親を選択</option>{creatures.filter(c => c.sex === 'オス').map(c => <option key={c.id} value={c.name}>{c.name}</option>)}</select>
                                 <select className="bg-neutral-800 p-2 rounded flex-1" value={femaleSelection} onChange={e => setFemaleSelection(e.target.value)}><option value="">メス親を選択</option>{creatures.filter(c => c.sex === 'メス').map(c => <option key={c.id} value={c.name}>{c.name}</option>)}</select>
                             </div>
-                            
-                            {bioIndicators && (
-                                <div className="mt-6 space-y-4">
-                                    <h4 className="font-bold text-emerald-400 border-b border-neutral-700 pb-2">【遺伝的交配指標】</h4>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div className="p-4 bg-neutral-800 rounded border border-neutral-700">
-                                            <p className="text-[10px] text-neutral-400 uppercase font-bold">近親交配係数 (COI)</p>
-                                            <p className="text-2xl font-black text-emerald-400">{bioIndicators.coi}%</p>
+                            {sim && (
+                                <div className="space-y-4 pt-4">
+                                    {sim.results.map((r, i) => (
+                                        <div key={i} className="p-4 border border-neutral-700 rounded bg-neutral-800">
+                                            <p className="text-emerald-400 font-bold">{r.key}: <span className="text-white">{r.val}</span></p>
+                                            <p className="text-xs text-neutral-400 mt-1">{r.note}</p>
                                         </div>
-                                        <div className="p-4 bg-neutral-800 rounded border border-neutral-700">
-                                            <p className="text-[10px] text-neutral-400 uppercase font-bold">成長倍率ポテンシャル</p>
-                                            <p className="text-2xl font-black text-emerald-400">x {bioIndicators.growthRate}</p>
-                                        </div>
-                                        <div className="p-4 bg-neutral-800 rounded border border-neutral-700">
-                                            <p className="text-[10px] text-neutral-400 uppercase font-bold">活力係数 (0-100)</p>
-                                            <p className="text-2xl font-black text-emerald-400">{bioIndicators.vitalityScore}</p>
-                                        </div>
-                                    </div>
-                                    <div className="p-4 bg-emerald-900/20 border border-emerald-500 rounded text-sm italic">
-                                        {bioIndicators.desc}
-                                    </div>
+                                    ))}
                                 </div>
                             )}
                         </div>
