@@ -9,23 +9,9 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
-        .sticky-col-1 {
-            position: sticky;
-            left: 0;
-            z-index: 20;
-            background-color: #171717; /* neutral-900 */
-        }
-        .sticky-col-2 {
-            position: sticky;
-            left: 60px; /* 最初の列の幅に合わせて調整 */
-            z-index: 20;
-            background-color: #171717;
-        }
-        /* ヘッダー固定用のスタイル */
-        thead th.sticky-col-1, thead th.sticky-col-2 {
-            background-color: #262626; /* neutral-800 */
-            z-index: 30;
-        }
+        .sticky-col-1 { position: sticky; left: 0; z-index: 20; background-color: #171717; }
+        .sticky-col-2 { position: sticky; left: 60px; z-index: 20; background-color: #171717; }
+        thead th.sticky-col-1, thead th.sticky-col-2 { background-color: #262626; z-index: 30; }
     </style>
 </head>
 <body class="bg-neutral-950 text-white font-sans">
@@ -39,7 +25,7 @@
             const [activeTab, setActiveTab] = useState('一覧');
             const [highlightId, setHighlightId] = useState(null);
             const [showAddModal, setShowAddModal] = useState(false);
-            const [newCreatureData, setNewCreatureData] = useState({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '-', femaleParent: '-', stage: '幼虫', saleStatus: '非売' });
+            const [newCreatureData, setNewCreatureData] = useState({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '-', femaleParent: '-', stage: '幼虫', saleStatus: '非売', sex: 'オス' });
             
             const [maleSelection, setMaleSelection] = useState('');
             const [femaleSelection, setFemaleSelection] = useState('');
@@ -49,9 +35,8 @@
                 if (saved) return JSON.parse(saved);
                 
                 const sampleStages = ['孵化', '1令', '2令', '3令', '蛹', '成虫'];
-                // 10体分のサンプルデータを復元
                 return Array.from({ length: 10 }, (_, i) => {
-                    const historyLength = 2 + Math.floor(Math.random() * 4); // 2～5件のランダムな履歴
+                    const historyLength = 2 + Math.floor(Math.random() * 4);
                     const history = Array.from({ length: historyLength }, (_, j) => ({
                         item: sampleStages[j] || '経過',
                         date: `2026-04-${10 + j}`,
@@ -70,15 +55,14 @@
                         saleStatus: '非売', 
                         hatchDate: '2026-04-01', 
                         emergenceDate: '-', 
-                        history: history
+                        history: history,
+                        sex: i % 2 === 0 ? 'オス' : 'メス' // 性別フラグを追加
                     };
                 });
             });
             const [sort, setSort] = useState({ key: 'id', direction: 'asc' });
 
-            useEffect(() => {
-                localStorage.setItem('beetle_data', JSON.stringify(creatures));
-            }, [creatures]);
+            useEffect(() => { localStorage.setItem('beetle_data', JSON.stringify(creatures)); }, [creatures]);
 
             const toggleSaleStatus = (id, e) => {
                 e.stopPropagation();
@@ -90,7 +74,7 @@
                 const newCreature = { ...newCreatureData, id: Date.now().toString(), history: [] };
                 setCreatures([newCreature, ...creatures]);
                 setShowAddModal(false);
-                setNewCreatureData({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '-', femaleParent: '-', stage: '幼虫', saleStatus: '非売' });
+                setNewCreatureData({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '-', femaleParent: '-', stage: '幼虫', saleStatus: '非売', sex: 'オス' });
             };
 
             const updateCreature = (updated) => {
@@ -100,10 +84,9 @@
 
             const processedCreatures = [...creatures].sort((a, b) => (a[sort.key] < b[sort.key] ? -1 : 1) * (sort.direction === 'asc' ? 1 : -1));
 
-            // 交配シミュレーションの結果を算出
             const simulationResult = (() => {
-                const male = creatures.find(c => c.name === maleSelection);
-                const female = creatures.find(c => c.name === femaleSelection);
+                const male = creatures.find(c => c.id === maleSelection);
+                const female = creatures.find(c => c.id === femaleSelection);
                 if (!male || !female) return null;
                 const genMale = parseInt(male.generation.replace('F', '')) || 0;
                 const genFemale = parseInt(female.generation.replace('F', '')) || 0;
@@ -117,13 +100,13 @@
             if (selectedCreature) return <DetailView creature={selectedCreature} onBack={() => setSelectedCreature(null)} onUpdate={updateCreature} onGoToTree={(id) => { setHighlightId(id); setActiveTab('血統図'); setSelectedCreature(null); }} />;
 
             const tableHeaders = [
-                {k:'saleStatus',l:'販売'}, {k:'name',l:'個体名'}, {k:'alias',l:'名称'}, {k:'origin',l:'産地'}, 
+                {k:'saleStatus',l:'販売'}, {k:'name',l:'個体名'}, {k:'sex',l:'性別'}, {k:'alias',l:'名称'}, {k:'origin',l:'産地'}, 
                 {k:'generation',l:'累代'}, {k:'size',l:'サイズ'}, {k:'hatchDate',l:'孵化日'}, {k:'stage',l:'ステージ'}, 
                 {k:'temp',l:'温度'}, {k:'emergenceDate',l:'羽化日'}, {k:'maleParent',l:'オス親'}, {k:'femaleParent',l:'メス親'}
             ];
 
             const formFields = [
-                {key:'name', label:'個体名'}, {key:'alias', label:'名称'}, {key:'origin', label:'産地'}, 
+                {key:'name', label:'個体名'}, {key:'sex', label:'性別'}, {key:'alias', label:'名称'}, {key:'origin', label:'産地'}, 
                 {key:'generation', label:'累代'}, {key:'hatchDate', label:'孵化日'}, {key:'emergenceDate', label:'羽化日'}, 
                 {key:'maleParent', label:'オス親'}, {key:'femaleParent', label:'メス親'}, {key:'stage', label:'ステージ'}
             ];
@@ -135,9 +118,7 @@
                             <span>Beetle Base - 全個体一覧</span>
                             <span className="text-[10px] text-neutral-500">made by ＭＨ</span>
                         </div>
-                        {activeTab === '一覧' && (
-                            <button onClick={() => setShowAddModal(true)} className="bg-emerald-600 px-3 py-1 rounded text-sm text-white font-bold">追加</button>
-                        )}
+                        {activeTab === '一覧' && <button onClick={() => setShowAddModal(true)} className="bg-emerald-600 px-3 py-1 rounded text-sm text-white font-bold">追加</button>}
                     </nav>
 
                     <div className="flex border-b border-neutral-800 mb-4">
@@ -185,6 +166,7 @@
                                             <tr key={c.id} className="border-t border-neutral-800 hover:bg-neutral-800 cursor-pointer" onClick={() => setSelectedCreature(c)}>
                                                 <td className="p-3 sticky-col-1"><button onClick={(e) => toggleSaleStatus(c.id, e)} className={`px-2 py-1 rounded text-[10px] font-bold ${c.saleStatus === '販売' ? 'bg-emerald-600' : c.saleStatus === '予備' ? 'bg-amber-600' : 'bg-neutral-600'}`}>{c.saleStatus}</button></td>
                                                 <td className="p-3 sticky-col-2 font-bold">{c.name}</td>
+                                                <td className="p-3">{c.sex}</td>
                                                 <td className="p-3">{c.alias}</td>
                                                 <td className="p-3">{c.origin}</td>
                                                 <td className="p-3">{c.generation}</td>
@@ -221,14 +203,13 @@
                             <div className="flex gap-4">
                                 <select className="bg-neutral-800 p-2 rounded flex-1" value={maleSelection} onChange={e => setMaleSelection(e.target.value)}>
                                     <option value="">オス親を選択</option>
-                                    {creatures.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                    {creatures.filter(c => c.sex === 'オス').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                 </select>
                                 <select className="bg-neutral-800 p-2 rounded flex-1" value={femaleSelection} onChange={e => setFemaleSelection(e.target.value)}>
                                     <option value="">メス親を選択</option>
-                                    {creatures.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                    {creatures.filter(c => c.sex === 'メス').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                 </select>
                             </div>
-                            
                             {simulationResult && (
                                 <div className="mt-6 p-4 bg-emerald-900/30 border border-emerald-500 rounded text-center">
                                     <h4 className="font-bold text-emerald-400 mb-2">シミュレーション結果</h4>
@@ -237,12 +218,6 @@
                                     <p>期待体長: <span className="font-bold">{simulationResult.expectedSize}</span></p>
                                 </div>
                             )}
-
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div className="bg-neutral-800 p-4 rounded"><h4 className="font-bold mb-2">血統背景</h4><p className="text-xs text-neutral-400">近親交配リスクを回避するための過去の累代データを照合します。</p></div>
-                                <div className="bg-neutral-800 p-4 rounded"><h4 className="font-bold mb-2">遺伝子解析</h4><p className="text-xs text-neutral-400">体長や顎幅の遺伝期待値を算出します。</p></div>
-                                <div className="bg-neutral-800 p-4 rounded"><h4 className="font-bold mb-2">メンデルの法則</h4><p className="text-xs text-neutral-400">次世代の形質発現確率を推定します。</p></div>
-                            </div>
                         </div>
                     )}
                 </div>
@@ -256,7 +231,7 @@
             const [showRecordModal, setShowRecordModal] = useState(null);
             
             const fields = [
-                {key:'name', label:'個体名'}, {key:'alias', label:'名称'}, {key:'origin', label:'産地'}, 
+                {key:'name', label:'個体名'}, {key:'sex', label:'性別'}, {key:'alias', label:'名称'}, {key:'origin', label:'産地'}, 
                 {key:'generation', label:'累代'}, {key:'hatchDate', label:'孵化日'}, {key:'emergenceDate', label:'羽化日'}, 
                 {key:'maleParent', label:'オス親'}, {key:'femaleParent', label:'メス親'}, {key:'stage', label:'ステージ'}
             ];
@@ -357,4 +332,3 @@
     </script>
 </body>
 </html>
-
