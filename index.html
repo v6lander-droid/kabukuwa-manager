@@ -51,7 +51,7 @@
                 const sampleStages = ['孵化', '1令', '2令', '3令', '蛹', '成虫'];
                 // 10体分のサンプルデータを復元
                 return Array.from({ length: 10 }, (_, i) => {
-                    const historyLength = 2 + Math.floor(Math.random() * 4);
+                    const historyLength = 2 + Math.floor(Math.random() * 4); // 2～5件のランダムな履歴
                     const history = Array.from({ length: historyLength }, (_, j) => ({
                         item: sampleStages[j] || '経過',
                         date: `2026-04-${10 + j}`,
@@ -64,8 +64,8 @@
                         alias: i < 5 ? 'Aライン' : 'Bライン', 
                         origin: '福岡県久留米市', 
                         generation: `F${(i % 5) + 1}`, 
-                        maleParent: i > 0 ? `個体 ${i}号` : '-', 
-                        femaleParent: '-', 
+                        maleParent: 'M-1', 
+                        femaleParent: 'F-1', 
                         stage: history[history.length - 1].item, 
                         saleStatus: '非売', 
                         hatchDate: '2026-04-01', 
@@ -99,6 +99,20 @@
             };
 
             const processedCreatures = [...creatures].sort((a, b) => (a[sort.key] < b[sort.key] ? -1 : 1) * (sort.direction === 'asc' ? 1 : -1));
+
+            // 交配シミュレーションの結果を算出
+            const simulationResult = (() => {
+                const male = creatures.find(c => c.name === maleSelection);
+                const female = creatures.find(c => c.name === femaleSelection);
+                if (!male || !female) return null;
+                const genMale = parseInt(male.generation.replace('F', '')) || 0;
+                const genFemale = parseInt(female.generation.replace('F', '')) || 0;
+                return {
+                    nextGen: `F${Math.max(genMale, genFemale) + 1}`,
+                    compatibility: '高',
+                    expectedSize: '80mm〜85mm'
+                };
+            })();
 
             if (selectedCreature) return <DetailView creature={selectedCreature} onBack={() => setSelectedCreature(null)} onUpdate={updateCreature} onGoToTree={(id) => { setHighlightId(id); setActiveTab('血統図'); setSelectedCreature(null); }} />;
 
@@ -214,10 +228,20 @@
                                     {creatures.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                                 </select>
                             </div>
+                            
+                            {simulationResult && (
+                                <div className="mt-6 p-4 bg-emerald-900/30 border border-emerald-500 rounded text-center">
+                                    <h4 className="font-bold text-emerald-400 mb-2">シミュレーション結果</h4>
+                                    <p>予測累代: <span className="font-bold">{simulationResult.nextGen}</span></p>
+                                    <p>親和性: <span className="font-bold">{simulationResult.compatibility}</span></p>
+                                    <p>期待体長: <span className="font-bold">{simulationResult.expectedSize}</span></p>
+                                </div>
+                            )}
+
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 <div className="bg-neutral-800 p-4 rounded"><h4 className="font-bold mb-2">血統背景</h4><p className="text-xs text-neutral-400">近親交配リスクを回避するための過去の累代データを照合します。</p></div>
-                                <div className="bg-neutral-800 p-4 rounded"><h4 className="font-bold mb-2">遺伝子解析</h4><p className="text-xs text-neutral-400">大型化・形状に関わる形質発現率を算出します。</p></div>
-                                <div className="bg-neutral-800 p-4 rounded"><h4 className="font-bold mb-2">メンデルの法則</h4><p className="text-xs text-neutral-400">次世代の形質比率（優性・劣性）をシミュレーションします。</p></div>
+                                <div className="bg-neutral-800 p-4 rounded"><h4 className="font-bold mb-2">遺伝子解析</h4><p className="text-xs text-neutral-400">体長や顎幅の遺伝期待値を算出します。</p></div>
+                                <div className="bg-neutral-800 p-4 rounded"><h4 className="font-bold mb-2">メンデルの法則</h4><p className="text-xs text-neutral-400">次世代の形質発現確率を推定します。</p></div>
                             </div>
                         </div>
                     )}
