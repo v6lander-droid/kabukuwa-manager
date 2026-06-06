@@ -37,24 +37,21 @@
         function App() {
             const [selectedCreature, setSelectedCreature] = useState(null);
             const [activeTab, setActiveTab] = useState('一覧');
+            const [highlightId, setHighlightId] = useState(null);
             const [showAddModal, setShowAddModal] = useState(false);
-            const [newCreatureData, setNewCreatureData] = useState({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '', femaleParent: '', stage: '幼虫', saleStatus: '非売' });
+            const [newCreatureData, setNewCreatureData] = useState({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '-', femaleParent: '-', stage: '幼虫', saleStatus: '非売' });
             
             const [creatures, setCreatures] = useState(() => {
                 const saved = localStorage.getItem('beetle_data');
-                return saved ? JSON.parse(saved) : Array.from({ length: 10 }, (_, i) => ({
-                    id: (i + 1).toString(), 
-                    name: `個体 ${i + 1}号`, alias: '極太血統', origin: '福岡県久留米市', generation: 'F5', 
-                    maleParent: 'M-1', femaleParent: 'F-1', stage: '成虫', saleStatus: '非売', 
-                    hatchDate: '2026-04-01', emergenceDate: '2026-05-01', 
-                    history: [
-                        {item: '孵化', date: '2026-04-01', size: '1g', temp: '25℃'},
-                        {item: '1令', date: '2026-04-10', size: '3g', temp: '25℃'},
-                        {item: '2令', date: '2026-04-20', size: '8g', temp: '24℃'},
-                        {item: '3令', date: '2026-05-15', size: '20g', temp: '23℃'},
-                        {item: '羽化', date: '2026-06-01', size: '80mm', temp: '22℃'}
-                    ]
-                }));
+                if (saved) return JSON.parse(saved);
+                
+                return [
+                    {id: '1', name: 'A-1', alias: 'Aライン', origin: '福岡', generation: 'F1', maleParent: '-', femaleParent: '-', stage: '成虫', saleStatus: '非売', hatchDate: '2026-01-01', emergenceDate: '2026-02-01', history: []},
+                    {id: '2', name: 'A-2', alias: 'Aライン', origin: '福岡', generation: 'F2', maleParent: 'A-1', femaleParent: '-', stage: '成虫', saleStatus: '非売', hatchDate: '2026-03-01', emergenceDate: '2026-04-01', history: []},
+                    {id: '3', name: 'A-3', alias: 'Aライン', origin: '福岡', generation: 'F3', maleParent: 'A-2', femaleParent: '-', stage: '幼虫', saleStatus: '非売', hatchDate: '2026-05-01', emergenceDate: '-', history: []},
+                    {id: '4', name: 'B-1', alias: 'Bライン', origin: '兵庫', generation: 'F1', maleParent: '-', femaleParent: '-', stage: '成虫', saleStatus: '非売', hatchDate: '2026-01-01', emergenceDate: '2026-02-01', history: []},
+                    {id: '5', name: 'B-2', alias: 'Bライン', origin: '兵庫', generation: 'F2', maleParent: 'B-1', femaleParent: '-', stage: '成虫', saleStatus: '非売', hatchDate: '2026-03-01', emergenceDate: '2026-04-01', history: []}
+                ];
             });
             const [sort, setSort] = useState({ key: 'id', direction: 'asc' });
 
@@ -72,7 +69,7 @@
                 const newCreature = { ...newCreatureData, id: Date.now().toString(), history: [] };
                 setCreatures([newCreature, ...creatures]);
                 setShowAddModal(false);
-                setNewCreatureData({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '', femaleParent: '', stage: '幼虫', saleStatus: '非売' });
+                setNewCreatureData({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '-', femaleParent: '-', stage: '幼虫', saleStatus: '非売' });
             };
 
             const updateCreature = (updated) => {
@@ -82,7 +79,7 @@
 
             const processedCreatures = [...creatures].sort((a, b) => (a[sort.key] < b[sort.key] ? -1 : 1) * (sort.direction === 'asc' ? 1 : -1));
 
-            if (selectedCreature) return <DetailView creature={selectedCreature} onBack={() => setSelectedCreature(null)} onUpdate={updateCreature} />;
+            if (selectedCreature) return <DetailView creature={selectedCreature} onBack={() => setSelectedCreature(null)} onUpdate={updateCreature} onGoToTree={(id) => { setHighlightId(id); setActiveTab('血統図'); setSelectedCreature(null); }} />;
 
             const tableHeaders = [
                 {k:'saleStatus',l:'販売'}, {k:'name',l:'個体名'}, {k:'alias',l:'名称'}, {k:'origin',l:'産地'}, 
@@ -108,7 +105,7 @@
 
                     <div className="flex border-b border-neutral-800 mb-4">
                         {['一覧', '血統図'].map(tab => (
-                            <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-2 text-sm font-bold ${activeTab === tab ? 'text-emerald-400 border-b-2 border-emerald-400' : 'text-neutral-500'}`}>
+                            <button key={tab} onClick={() => { setActiveTab(tab); setHighlightId(null); }} className={`px-4 py-2 text-sm font-bold ${activeTab === tab ? 'text-emerald-400 border-b-2 border-emerald-400' : 'text-neutral-500'}`}>
                                 {tab}
                             </button>
                         ))}
@@ -169,11 +166,15 @@
                             </div>
                         </>
                     ) : (
-                        <div className="bg-neutral-900 p-6 rounded-lg space-y-4">
-                            {creatures.map((c, idx) => (
-                                <div key={c.id} style={{marginLeft: `${idx * 20}px`}} className="border-l-2 border-emerald-600 pl-4 py-2">
-                                    <p className="font-bold">{c.name} ({c.generation})</p>
-                                    <p className="text-xs text-neutral-400">親: {c.maleParent}</p>
+                        <div className="bg-neutral-900 p-6 rounded-lg space-y-6">
+                            {['Aライン', 'Bライン'].map(line => (
+                                <div key={line} className="space-y-2">
+                                    <h3 className="font-bold text-emerald-400 border-b border-neutral-700">{line}</h3>
+                                    {creatures.filter(c => c.alias === line).map((c, idx) => (
+                                        <div key={c.id} style={{marginLeft: `${idx * 20}px`}} className={`pl-4 py-1 text-sm rounded ${highlightId === c.id ? 'bg-emerald-900 border-l-4 border-emerald-400' : 'border-l-2 border-neutral-600'}`}>
+                                            {c.name} ({c.generation}) <span className="text-neutral-500 text-xs">親: {c.maleParent}</span>
+                                        </div>
+                                    ))}
                                 </div>
                             ))}
                         </div>
@@ -182,7 +183,7 @@
             );
         }
 
-        function DetailView({ creature, onBack, onUpdate }) {
+        function DetailView({ creature, onBack, onUpdate, onGoToTree }) {
             const [form, setForm] = useState(creature);
             const [showEditModal, setShowEditModal] = useState(false);
             const [editForm, setEditForm] = useState(creature);
@@ -214,7 +215,10 @@
                 <div className="p-6 max-w-lg mx-auto">
                     <div className="flex justify-between items-center mb-4">
                         <button onClick={onBack} className="text-emerald-400 font-bold">← 一覧に戻る</button>
-                        <button onClick={() => { setEditForm(form); setShowEditModal(true); }} className="bg-emerald-600 px-4 py-1 rounded text-sm font-bold">編集</button>
+                        <div className="flex gap-2">
+                            <button onClick={() => onGoToTree(creature.id)} className="bg-neutral-700 px-4 py-1 rounded text-sm font-bold">血統図へ</button>
+                            <button onClick={() => { setEditForm(form); setShowEditModal(true); }} className="bg-emerald-600 px-4 py-1 rounded text-sm font-bold">編集</button>
+                        </div>
                     </div>
                     
                     {showEditModal && (
