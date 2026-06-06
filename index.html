@@ -45,31 +45,13 @@
                 const saved = localStorage.getItem('beetle_data');
                 if (saved) return JSON.parse(saved);
                 
-                const sampleStages = ['孵化', '1令', '2令', '3令', '蛹', '成虫'];
-                // 個体ごとにバラバラな履歴データを作成
-                return Array.from({ length: 10 }, (_, i) => {
-                    const historyLength = 2 + Math.floor(Math.random() * 4); // 2～5件のランダムな履歴
-                    const history = Array.from({ length: historyLength }, (_, j) => ({
-                        item: sampleStages[j] || '経過',
-                        date: `2026-04-${10 + j}`,
-                        size: `${1 + j * 5}g`,
-                        temp: `${22 + (i % 5)}℃`
-                    }));
-                    return {
-                        id: (i + 1).toString(), 
-                        name: `個体 ${i + 1}号`, 
-                        alias: i < 5 ? 'Aライン' : 'Bライン', 
-                        origin: '福岡県久留米市', 
-                        generation: `F${(i % 5) + 1}`, 
-                        maleParent: 'M-1', 
-                        femaleParent: 'F-1', 
-                        stage: history[history.length - 1].item, 
-                        saleStatus: '非売', 
-                        hatchDate: '2026-04-01', 
-                        emergenceDate: '-', 
-                        history: history
-                    };
-                });
+                return [
+                    {id: '1', name: 'A-1', alias: 'Aライン', origin: '福岡', generation: 'F1', maleParent: '-', femaleParent: '-', stage: '成虫', saleStatus: '非売', hatchDate: '2026-01-01', emergenceDate: '2026-02-01', history: []},
+                    {id: '2', name: 'A-2', alias: 'Aライン', origin: '福岡', generation: 'F2', maleParent: 'A-1', femaleParent: '-', stage: '成虫', saleStatus: '非売', hatchDate: '2026-03-01', emergenceDate: '2026-04-01', history: []},
+                    {id: '3', name: 'A-3', alias: 'Aライン', origin: '福岡', generation: 'F3', maleParent: 'A-2', femaleParent: '-', stage: '幼虫', saleStatus: '非売', hatchDate: '2026-05-01', emergenceDate: '-', history: []},
+                    {id: '4', name: 'B-1', alias: 'Bライン', origin: '兵庫', generation: 'F1', maleParent: '-', femaleParent: '-', stage: '成虫', saleStatus: '非売', hatchDate: '2026-01-01', emergenceDate: '2026-02-01', history: []},
+                    {id: '5', name: 'B-2', alias: 'Bライン', origin: '兵庫', generation: 'F2', maleParent: 'B-1', femaleParent: '-', stage: '成虫', saleStatus: '非売', hatchDate: '2026-03-01', emergenceDate: '2026-04-01', history: []}
+                ];
             });
             const [sort, setSort] = useState({ key: 'id', direction: 'asc' });
 
@@ -118,11 +100,13 @@
                             <span>Beetle Base - 全個体一覧</span>
                             <span className="text-[10px] text-neutral-500">made by ＭＨ</span>
                         </div>
-                        <button onClick={() => setShowAddModal(true)} className="bg-emerald-600 px-3 py-1 rounded text-sm text-white font-bold">追加</button>
+                        {activeTab === '一覧' && (
+                            <button onClick={() => setShowAddModal(true)} className="bg-emerald-600 px-3 py-1 rounded text-sm text-white font-bold">追加</button>
+                        )}
                     </nav>
 
                     <div className="flex border-b border-neutral-800 mb-4">
-                        {['一覧', '血統図'].map(tab => (
+                        {['一覧', '血統図', '交配'].map(tab => (
                             <button key={tab} onClick={() => { setActiveTab(tab); setHighlightId(null); }} className={`px-4 py-2 text-sm font-bold ${activeTab === tab ? 'text-emerald-400 border-b-2 border-emerald-400' : 'text-neutral-500'}`}>
                                 {tab}
                             </button>
@@ -183,7 +167,7 @@
                                 </table>
                             </div>
                         </>
-                    ) : (
+                    ) : activeTab === '血統図' ? (
                         <div className="bg-neutral-900 p-6 rounded-lg space-y-6">
                             {['Aライン', 'Bライン'].map(line => (
                                 <div key={line} className="space-y-2">
@@ -195,6 +179,24 @@
                                     ))}
                                 </div>
                             ))}
+                        </div>
+                    ) : (
+                        <div className="bg-neutral-900 p-6 rounded-lg space-y-6 text-white text-sm">
+                            <h3 className="font-bold text-emerald-400 text-lg border-b border-neutral-700 pb-2">交配シミュレーション・データ</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div className="bg-neutral-800 p-4 rounded">
+                                    <h4 className="font-bold mb-2">血統背景</h4>
+                                    <p className="text-xs text-neutral-400">個体ごとの累代数、産地情報、過去の羽化実績を統合し、近親交配のリスク管理と、目的の大型個体への血統浸透を評価します。</p>
+                                </div>
+                                <div className="bg-neutral-800 p-4 rounded">
+                                    <h4 className="font-bold mb-2">遺伝子解析</h4>
+                                    <p className="text-xs text-neutral-400">主要な形質（体長、顎幅、色調）の遺伝子発現パターンを推定し、期待値の高いペアリングを確率的に算出します。</p>
+                                </div>
+                                <div className="bg-neutral-800 p-4 rounded">
+                                    <h4 className="font-bold mb-2">メンデルの法則</h4>
+                                    <p className="text-xs text-neutral-400">形質の優劣関係に基づき、次世代で出現する表現型の比率をシミュレーションします（例：3:1の法則）。</p>
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>
