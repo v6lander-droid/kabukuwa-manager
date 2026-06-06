@@ -41,17 +41,38 @@
             const [showAddModal, setShowAddModal] = useState(false);
             const [newCreatureData, setNewCreatureData] = useState({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '-', femaleParent: '-', stage: '幼虫', saleStatus: '非売' });
             
+            const [maleSelection, setMaleSelection] = useState('');
+            const [femaleSelection, setFemaleSelection] = useState('');
+            
             const [creatures, setCreatures] = useState(() => {
                 const saved = localStorage.getItem('beetle_data');
                 if (saved) return JSON.parse(saved);
                 
-                return [
-                    {id: '1', name: 'A-1', alias: 'Aライン', origin: '福岡', generation: 'F1', maleParent: '-', femaleParent: '-', stage: '成虫', saleStatus: '非売', hatchDate: '2026-01-01', emergenceDate: '2026-02-01', history: []},
-                    {id: '2', name: 'A-2', alias: 'Aライン', origin: '福岡', generation: 'F2', maleParent: 'A-1', femaleParent: '-', stage: '成虫', saleStatus: '非売', hatchDate: '2026-03-01', emergenceDate: '2026-04-01', history: []},
-                    {id: '3', name: 'A-3', alias: 'Aライン', origin: '福岡', generation: 'F3', maleParent: 'A-2', femaleParent: '-', stage: '幼虫', saleStatus: '非売', hatchDate: '2026-05-01', emergenceDate: '-', history: []},
-                    {id: '4', name: 'B-1', alias: 'Bライン', origin: '兵庫', generation: 'F1', maleParent: '-', femaleParent: '-', stage: '成虫', saleStatus: '非売', hatchDate: '2026-01-01', emergenceDate: '2026-02-01', history: []},
-                    {id: '5', name: 'B-2', alias: 'Bライン', origin: '兵庫', generation: 'F2', maleParent: 'B-1', femaleParent: '-', stage: '成虫', saleStatus: '非売', hatchDate: '2026-03-01', emergenceDate: '2026-04-01', history: []}
-                ];
+                const sampleStages = ['孵化', '1令', '2令', '3令', '蛹', '成虫'];
+                // 10体分のサンプルデータを復元
+                return Array.from({ length: 10 }, (_, i) => {
+                    const historyLength = 2 + Math.floor(Math.random() * 4);
+                    const history = Array.from({ length: historyLength }, (_, j) => ({
+                        item: sampleStages[j] || '経過',
+                        date: `2026-04-${10 + j}`,
+                        size: `${1 + j * 5}g`,
+                        temp: `${22 + (i % 5)}℃`
+                    }));
+                    return {
+                        id: (i + 1).toString(), 
+                        name: `個体 ${i + 1}号`, 
+                        alias: i < 5 ? 'Aライン' : 'Bライン', 
+                        origin: '福岡県久留米市', 
+                        generation: `F${(i % 5) + 1}`, 
+                        maleParent: i > 0 ? `個体 ${i}号` : '-', 
+                        femaleParent: '-', 
+                        stage: history[history.length - 1].item, 
+                        saleStatus: '非売', 
+                        hatchDate: '2026-04-01', 
+                        emergenceDate: '-', 
+                        history: history
+                    };
+                });
             });
             const [sort, setSort] = useState({ key: 'id', direction: 'asc' });
 
@@ -182,20 +203,21 @@
                         </div>
                     ) : (
                         <div className="bg-neutral-900 p-6 rounded-lg space-y-6 text-white text-sm">
-                            <h3 className="font-bold text-emerald-400 text-lg border-b border-neutral-700 pb-2">交配シミュレーション・データ</h3>
+                            <h3 className="font-bold text-emerald-400 text-lg border-b border-neutral-700 pb-2">交配シミュレーション</h3>
+                            <div className="flex gap-4">
+                                <select className="bg-neutral-800 p-2 rounded flex-1" value={maleSelection} onChange={e => setMaleSelection(e.target.value)}>
+                                    <option value="">オス親を選択</option>
+                                    {creatures.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                </select>
+                                <select className="bg-neutral-800 p-2 rounded flex-1" value={femaleSelection} onChange={e => setFemaleSelection(e.target.value)}>
+                                    <option value="">メス親を選択</option>
+                                    {creatures.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                </select>
+                            </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div className="bg-neutral-800 p-4 rounded">
-                                    <h4 className="font-bold mb-2">血統背景</h4>
-                                    <p className="text-xs text-neutral-400">個体ごとの累代数、産地情報、過去の羽化実績を統合し、近親交配のリスク管理と、目的の大型個体への血統浸透を評価します。</p>
-                                </div>
-                                <div className="bg-neutral-800 p-4 rounded">
-                                    <h4 className="font-bold mb-2">遺伝子解析</h4>
-                                    <p className="text-xs text-neutral-400">主要な形質（体長、顎幅、色調）の遺伝子発現パターンを推定し、期待値の高いペアリングを確率的に算出します。</p>
-                                </div>
-                                <div className="bg-neutral-800 p-4 rounded">
-                                    <h4 className="font-bold mb-2">メンデルの法則</h4>
-                                    <p className="text-xs text-neutral-400">形質の優劣関係に基づき、次世代で出現する表現型の比率をシミュレーションします（例：3:1の法則）。</p>
-                                </div>
+                                <div className="bg-neutral-800 p-4 rounded"><h4 className="font-bold mb-2">血統背景</h4><p className="text-xs text-neutral-400">近親交配リスクを回避するための過去の累代データを照合します。</p></div>
+                                <div className="bg-neutral-800 p-4 rounded"><h4 className="font-bold mb-2">遺伝子解析</h4><p className="text-xs text-neutral-400">大型化・形状に関わる形質発現率を算出します。</p></div>
+                                <div className="bg-neutral-800 p-4 rounded"><h4 className="font-bold mb-2">メンデルの法則</h4><p className="text-xs text-neutral-400">次世代の形質比率（優性・劣性）をシミュレーションします。</p></div>
                             </div>
                         </div>
                     )}
