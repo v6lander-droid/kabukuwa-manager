@@ -88,20 +88,20 @@
 
             const processedCreatures = [...creatures].sort((a, b) => (a[sort.key] < b[sort.key] ? -1 : 1) * (sort.direction === 'asc' ? 1 : -1));
 
-            // 交配シミュレーション：形状と色素の遺伝率を追加した詳細解析
+            // すべての交配シミュレーション指標を統合
             const sim = useMemo(() => {
                 const m = creatures.find(c => c.name === maleSelection);
                 const f = creatures.find(c => c.name === femaleSelection);
                 if (!m || !f) return null;
                 
                 const isSame = m.alias === f.alias;
-                return {
-                    metrics: [
-                        { label: "顎形状遺伝率", val: isSame ? "85%" : "40%", desc: isSame ? "親の顎形状が極めて強く発現しやすく、ラインの特徴が安定します。" : "親系統の混交により、顎の形状に多様性（変異）が現れやすい状態です。" },
-                        { label: "色素遺伝率", val: isSame ? "92%" : "55%", desc: isSame ? "体色や光沢の質感が固定化されており、高い確率で親の見た目を継承します。" : "両親の持つ色素形質が組み合わさり、新たな体色バリエーションが生まれる可能性があります。" },
-                        { label: "近親交配係数", val: isSame ? "25.0%" : "6.25%", desc: isSame ? "純血統維持のための交配です。羽化不全に注意してください。" : "異系統のためリスクが低く、健康度の高い個体が期待できます。" }
-                    ]
-                };
+                return [
+                    { label: "近親交配係数 (COI)", val: isSame ? "25.0%" : "6.25%", desc: isSame ? "純血統を維持していますが、累代が進むと障害リスクが高まります。" : "異系統交配のため、遺伝的健康度が高い状態です。" },
+                    { label: "成長ポテンシャル", val: isSame ? "92点" : "98点", desc: isSame ? "特定の良質な形質が継承されやすく安定しています。" : "強勢効果により、次世代での大型化が強く期待されます。" },
+                    { label: "累代障害発生率", val: isSame ? "4.5%" : "1.2%", desc: isSame ? "近親係数の蓄積によりリスクが上昇します。" : "系統交差により、障害リスクが最小限に抑制されています。" },
+                    { label: "顎形状遺伝率", val: isSame ? "85%" : "40%", desc: isSame ? "親の顎形状が極めて強く発現しやすく、特徴が安定します。" : "多様な変異が現れやすく、新しい形質の獲得が期待できます。" },
+                    { label: "色素遺伝率", val: isSame ? "92%" : "55%", desc: isSame ? "体色の質感が固定化されており、親の見た目を継承します。" : "親の色素形質が混ざり合い、新たな色調が生まれる可能性があります。" }
+                ];
             }, [maleSelection, femaleSelection, creatures]);
 
             if (selectedCreature) return <DetailView creature={selectedCreature} onBack={() => setSelectedCreature(null)} onUpdate={updateCreature} onGoToTree={(id) => { setHighlightId(id); setActiveTab('血統図'); setSelectedCreature(null); }} />;
@@ -191,11 +191,12 @@
                             </div>
                             
                             {sim && (
-                                <div className="space-y-4 pt-4">
+                                <div className="mt-6 space-y-4">
+                                    <h4 className="font-bold text-emerald-400 border-b border-neutral-700 pb-2">【詳細遺伝解析指標】</h4>
                                     {sim.metrics.map((m, i) => (
                                         <div key={i} className="p-4 border border-neutral-700 rounded bg-neutral-800">
-                                            <p className="font-bold text-emerald-400">{m.label}: <span className="text-white">{m.val}</span></p>
-                                            <p className="text-xs text-neutral-400 mt-1">{m.desc}</p>
+                                            <p className="font-bold text-white">{m.label}: <span className="text-emerald-400 text-xl">{m.val}</span></p>
+                                            <p className="text-xs text-neutral-400 mt-2">{m.desc}</p>
                                         </div>
                                     ))}
                                 </div>
