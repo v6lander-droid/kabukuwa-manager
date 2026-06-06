@@ -94,11 +94,11 @@
                 if (!m || !f) return null;
                 const isSame = m.alias === f.alias;
                 return [
-                    { label: "近親交配係数", val: isSame ? "25.0%" : "6.25%", desc: isSame ? "純血統維持ですが累代障害リスクあり。" : "異系統交配のため遺伝的健康度が高い。" },
-                    { label: "成長ポテンシャル", val: isSame ? "92点" : "98点", desc: isSame ? "形質の安定した継承が期待できます。" : "強勢効果により最大サイズの更新を期待。" },
-                    { label: "累代障害発生率", val: isSame ? "4.5%" : "1.2%", desc: isSame ? "近親係数蓄積によりリスクが上昇傾向。" : "系統交差でリスクが最小限に抑制。" },
-                    { label: "顎形状遺伝率", val: isSame ? "85%" : "40%", desc: isSame ? "親の顎形状が極めて強く発現します。" : "形質の多様性が現れやすい状態です。" },
-                    { label: "色素遺伝率", val: isSame ? "92%" : "55%", desc: isSame ? "体色の質感が固定化されています。" : "新たな色調バリエーションの可能性。" }
+                    { label: "近親交配係数 (COI)", val: isSame ? "25.0%" : "6.25%", desc: isSame ? "純血統を維持しますが、累代が進むと障害リスクが高まります。" : "異系統交配のため、遺伝的健康度が高い状態です。" },
+                    { label: "成長ポテンシャル", val: isSame ? "92点" : "98点", desc: isSame ? "特定の良質な形質が継承されやすく安定しています。" : "強勢効果により、次世代での大型化が強く期待されます。" },
+                    { label: "累代障害発生率", val: isSame ? "4.5%" : "1.2%", desc: isSame ? "近親係数の蓄積によりリスクが上昇します。" : "系統交差により、障害リスクが最小限に抑制されています。" },
+                    { label: "顎形状遺伝率", val: isSame ? "85%" : "40%", desc: isSame ? "親の顎形状が極めて強く発現しやすく、特徴が安定します。" : "多様な変異が現れやすく、新しい形質の獲得が期待できます。" },
+                    { label: "色素遺伝率", val: isSame ? "92%" : "55%", desc: isSame ? "体色の質感が固定化されており、親の見た目を継承します。" : "親の色素形質が混ざり合い、新たな色調が生まれる可能性があります。" }
                 ];
             }, [maleSelection, femaleSelection, creatures]);
 
@@ -130,46 +130,67 @@
                     </div>
 
                     {activeTab === '一覧' ? (
-                        <div className="overflow-x-auto bg-neutral-900 rounded-lg shadow-xl">
-                            <table className="w-full text-sm border-collapse whitespace-nowrap">
-                                <thead className="bg-neutral-800">
-                                    <tr>
-                                        {tableHeaders.map((h, i) => (<th key={h.k} className={`p-3 cursor-pointer hover:bg-neutral-700 ${i < 2 ? `sticky-col-${i+1}` : ''}`} onClick={() => setSort({key:h.k, direction: sort.key===h.k && sort.direction==='asc'?'desc':'asc'})}>{h.l}</th>))}
-                                        <th className="p-3">操作</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {processedCreatures.map(c => (
-                                        <tr key={c.id} className="border-t border-neutral-800 hover:bg-neutral-800 cursor-pointer" onClick={() => setSelectedCreature(c)}>
-                                            <td className="p-3 sticky-col-1"><button onClick={(e) => toggleSaleStatus(c.id, e)} className={`px-2 py-1 rounded text-[10px] font-bold ${c.saleStatus === '販売' ? 'bg-emerald-600' : 'bg-neutral-600'}`}>{c.saleStatus}</button></td>
-                                            <td className="p-3 sticky-col-2 font-bold">{c.name}</td>
-                                            <td className="p-3">{c.sex}</td>
-                                            <td className="p-3">{c.alias}</td>
-                                            <td className="p-3">{c.origin}</td>
-                                            <td className="p-3">{c.generation}</td>
-                                            <td className="p-3">{c.history.length > 0 ? c.history[c.history.length - 1].size : '-'}</td>
-                                            <td className="p-3">{c.hatchDate}</td>
-                                            <td className="p-3">{c.stage}</td>
-                                            <td className="p-3">{c.history.length > 0 ? c.history[c.history.length - 1].temp : '-'}</td>
-                                            <td className="p-3">{c.emergenceDate}</td>
-                                            <td className="p-3">{c.maleParent}</td>
-                                            <td className="p-3">{c.femaleParent}</td>
-                                            <td className="p-3"><button onClick={(e) => { e.stopPropagation(); if(confirm('削除?')) setCreatures(creatures.filter(x=>x.id!==c.id)) }} className="bg-emerald-600 px-2 py-1 rounded text-xs text-white">削除</button></td>
+                        <>
+                            {showAddModal && (
+                                <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+                                    <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4">
+                                        <h3 className="font-bold text-white">新規個体追加</h3>
+                                        {formFields.map(f => (
+                                            <div key={f.key}><p className="text-[10px] text-neutral-400">{f.label}</p><input className="w-full bg-neutral-800 p-2 rounded text-white text-sm" value={newCreatureData[f.key]} onChange={e => setNewCreatureData({...newCreatureData, [f.key]: e.target.value})} /></div>
+                                        ))}
+                                        <div className="flex gap-2"><button onClick={() => setShowAddModal(false)} className="w-full bg-neutral-700 py-2 rounded font-bold text-white">キャンセル</button><button onClick={confirmAdd} className="w-full bg-emerald-600 py-2 rounded font-bold text-white">保存</button></div>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="overflow-x-auto bg-neutral-900 rounded-lg shadow-xl">
+                                <table className="w-full text-sm border-collapse whitespace-nowrap">
+                                    <thead className="bg-neutral-800">
+                                        <tr>
+                                            {tableHeaders.map((h, i) => (<th key={h.k} className={`p-3 cursor-pointer hover:bg-neutral-700 ${i < 2 ? `sticky-col-${i+1}` : ''}`} onClick={() => setSort({key:h.k, direction: sort.key===h.k && sort.direction==='asc'?'desc':'asc'})}>{h.l}</th>))}
+                                            <th className="p-3">操作</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody>
+                                        {processedCreatures.map(c => (
+                                            <tr key={c.id} className="border-t border-neutral-800 hover:bg-neutral-800 cursor-pointer" onClick={() => setSelectedCreature(c)}>
+                                                <td className="p-3 sticky-col-1"><button onClick={(e) => toggleSaleStatus(c.id, e)} className={`px-2 py-1 rounded text-[10px] font-bold ${c.saleStatus === '販売' ? 'bg-emerald-600' : 'bg-neutral-600'}`}>{c.saleStatus}</button></td>
+                                                <td className="p-3 sticky-col-2 font-bold">{c.name}</td>
+                                                <td className="p-3">{c.sex}</td>
+                                                <td className="p-3">{c.alias}</td>
+                                                <td className="p-3">{c.origin}</td>
+                                                <td className="p-3">{c.generation}</td>
+                                                <td className="p-3">{c.history.length > 0 ? c.history[c.history.length - 1].size : '-'}</td>
+                                                <td className="p-3">{c.hatchDate}</td>
+                                                <td className="p-3">{c.stage}</td>
+                                                <td className="p-3">{c.history.length > 0 ? c.history[c.history.length - 1].temp : '-'}</td>
+                                                <td className="p-3">{c.emergenceDate}</td>
+                                                <td className="p-3">{c.maleParent}</td>
+                                                <td className="p-3">{c.femaleParent}</td>
+                                                <td className="p-3"><button onClick={(e) => { e.stopPropagation(); if(confirm('削除?')) setCreatures(creatures.filter(x=>x.id!==c.id)) }} className="bg-emerald-600 px-2 py-1 rounded text-xs text-white">削除</button></td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </>
+                    ) : activeTab === '血統図' ? (
+                        <div className="bg-neutral-900 p-6 rounded-lg space-y-6">
+                            {['Aライン', 'Bライン'].map(line => (
+                                <div key={line} className="space-y-2"><h3 className="font-bold text-emerald-400 border-b border-neutral-700">{line}</h3>{creatures.filter(c => c.alias === line).map((c, idx) => (<div key={c.id} style={{marginLeft: `${idx * 20}px`}} className={`pl-4 py-1 text-sm rounded ${highlightId === c.id ? 'bg-emerald-900 border-l-4 border-emerald-400' : 'border-l-2 border-neutral-600'}`}>{c.name} ({c.generation}) <span className="text-neutral-500 text-xs">親: {c.maleParent}</span></div>))}</div>
+                            ))}
                         </div>
-                    ) : activeTab === '交配' ? (
+                    ) : (
                         <div className="bg-neutral-900 p-6 rounded-lg space-y-6 text-white text-sm">
                             <h3 className="font-bold text-emerald-400 text-lg border-b border-neutral-700 pb-2">交配シミュレーション</h3>
                             <div className="flex gap-4">
                                 <select className="bg-neutral-800 p-2 rounded flex-1" value={maleSelection} onChange={e => setMaleSelection(e.target.value)}><option value="">オス親を選択</option>{creatures.filter(c => c.sex === 'オス').map(c => <option key={c.id} value={c.name}>{c.name}</option>)}</select>
                                 <select className="bg-neutral-800 p-2 rounded flex-1" value={femaleSelection} onChange={e => setFemaleSelection(e.target.value)}><option value="">メス親を選択</option>{creatures.filter(c => c.sex === 'メス').map(c => <option key={c.id} value={c.name}>{c.name}</option>)}</select>
                             </div>
+                            
                             {sim && (
-                                <div className="space-y-4 pt-4">
-                                    {sim.metrics.map((m, i) => (
+                                <div className="mt-6 space-y-4">
+                                    {sim.map((m, i) => (
                                         <div key={i} className="p-4 border border-neutral-700 rounded bg-neutral-800">
                                             <p className="font-bold text-emerald-400">{m.label}: <span className="text-white">{m.val}</span></p>
                                             <p className="text-xs text-neutral-400 mt-1">{m.desc}</p>
@@ -178,7 +199,7 @@
                                 </div>
                             )}
                         </div>
-                    ) : null}
+                    )}
                 </div>
             );
         }
@@ -205,24 +226,11 @@
             return (
                 <div className="p-6 max-w-lg mx-auto">
                     <div className="flex justify-between items-center mb-4"><button onClick={onBack} className="text-emerald-400 font-bold">← 一覧に戻る</button><div className="flex gap-2"><button onClick={() => onGoToTree(creature.id)} className="bg-neutral-700 px-4 py-1 rounded text-sm font-bold">血統図へ</button><button onClick={() => { setEditForm(form); setShowEditModal(true); }} className="bg-emerald-600 px-4 py-1 rounded text-sm font-bold">編集</button></div></div>
-                    
-                    {/* 詳細情報に交配指標を追加 */}
-                    <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 space-y-4 text-white">
-                        <h2 className="text-xl font-bold border-b border-neutral-700 pb-2">詳細情報・遺伝ポテンシャル</h2>
-                        <div className="grid grid-cols-2 gap-4 text-xs bg-neutral-800 p-4 rounded">
-                            <p>推定血統安定度: <span className="text-emerald-400">88%</span></p>
-                            <p>成長加速係数: <span className="text-emerald-400">1.12x</span></p>
-                            <p>障害発生リスク: <span className="text-emerald-400">低</span></p>
-                            <p>形質発現率: <span className="text-emerald-400">良好</span></p>
-                        </div>
-                        <div className="grid grid-cols-[100px,1fr] gap-x-2 gap-y-2 text-sm items-center">
-                            {fields.map(f => (<React.Fragment key={f.key}><p className="text-white text-left">{f.label}:</p><p className="p-2 bg-neutral-800 rounded text-white w-full">{form[f.key] || '-'}</p></React.Fragment>))}
-                        </div>
-                    </div>
-
                     {showEditModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50"><div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4"><h3 className="font-bold text-white">詳細情報の編集</h3>{fields.map(f => (<div key={f.key}><p className="text-[10px] text-neutral-400">{f.label}</p><input className="w-full bg-neutral-800 p-2 rounded text-white text-sm" value={editForm[f.key] || ''} onChange={e => setEditForm({...editForm, [f.key]: e.target.value})} /></div>))}<div className="flex gap-2"><button onClick={() => setShowEditModal(false)} className="w-full bg-neutral-700 py-2 rounded font-bold text-white">キャンセル</button><button onClick={saveEdit} className="w-full bg-emerald-600 py-2 rounded font-bold text-white">保存</button></div></div></div>
                     )}
+                    <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 space-y-4 text-white"><h2 className="text-xl font-bold border-b border-neutral-700 pb-2">詳細情報</h2><div className="grid grid-cols-[100px,1fr] gap-x-2 gap-y-2 text-sm items-center">{fields.map(f => (<React.Fragment key={f.key}><p className="text-white text-left">{f.label}:</p><p className="p-2 bg-neutral-800 rounded text-white w-full">{form[f.key] || '-'}</p></React.Fragment>))}</div><div className="border-t border-neutral-700 pt-4"><div className="flex justify-between items-center mb-3"><h3 className="font-bold">飼育記録</h3><button onClick={() => setShowRecordModal({item: form.stage, size:'', temp:'', date:new Date().toISOString().split('T')[0], index:null})} className="bg-emerald-600 px-2 py-1 rounded text-xs text-white">追加</button></div><table className="w-full text-xs"><thead><tr className="text-white border-b border-neutral-700 text-left"><th>日付</th><th>ステージ</th><th>サイズ</th><th>温度</th><th>操作</th></tr></thead><tbody>{form.history.map((h,i) => <tr key={i} className="border-b border-neutral-800"><td>{h.date}</td><td>{h.item}</td><td>{h.size}</td><td>{h.temp}</td><td><button onClick={() => setShowRecordModal({item:h.item, size:h.size, temp:h.temp, date:h.date, index:i})} className="bg-emerald-600 px-1 rounded text-white">訂正</button></td></tr>)}</tbody></table></div></div>
+                    {showRecordModal && (<div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50"><div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4"><h3 className="font-bold text-white">飼育記録の編集</h3><input className="w-full bg-neutral-800 p-2 rounded text-white text-sm" placeholder="日付" value={showRecordModal.date} onChange={e=>setShowRecordModal({...showRecordModal, date:e.target.value})} /><input className="w-full bg-neutral-800 p-2 rounded text-white text-sm" placeholder="ステージ" value={showRecordModal.item} onChange={e=>setShowRecordModal({...showRecordModal, item:e.target.value})} /><input className="w-full bg-neutral-800 p-2 rounded text-white text-sm" placeholder="サイズ" value={showRecordModal.size} onChange={e=>setShowRecordModal({...showRecordModal, size:e.target.value})} /><input className="w-full bg-neutral-800 p-2 rounded text-white text-sm" placeholder="温度" value={showRecordModal.temp} onChange={e=>setShowRecordModal({...showRecordModal, temp:e.target.value})} /><div className="flex gap-2"><button onClick={() => setShowRecordModal(null)} className="w-full bg-neutral-700 py-2 rounded font-bold text-white">キャンセル</button><button onClick={() => saveRecord(showRecordModal)} className="w-full bg-emerald-600 py-2 rounded font-bold text-white">保存</button></div></div></div>)}
                 </div>
             );
         }
