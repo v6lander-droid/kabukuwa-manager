@@ -27,6 +27,7 @@
         function GrowthChart({ creatures }) {
             const canvasRef = useRef(null);
             const chartRef = useRef(null);
+            const colors = ['#10b981', '#f59e0b']; // 比較用カラーパレット
 
             useEffect(() => {
                 if (chartRef.current) chartRef.current.destroy();
@@ -35,18 +36,27 @@
                 const datasets = creatures.map((c, i) => ({
                     label: c.name,
                     data: c.history.map(h => ({ x: h.date, y: parseFloat(h.size) })),
-                    borderColor: i === 0 ? '#10b981' : '#737373',
-                    tension: 0.1
+                    borderColor: colors[i % colors.length],
+                    backgroundColor: colors[i % colors.length],
+                    tension: 0.1,
+                    pointRadius: 4
                 }));
 
                 chartRef.current = new Chart(ctx, {
                     type: 'line',
                     data: { datasets },
-                    options: { responsive: true, scales: { x: { type: 'category', title: { display: true, text: '日付' } }, y: { title: { display: true, text: '重量 (g)' } } } }
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false,
+                        scales: { 
+                            x: { title: { display: true, text: '日付' } }, 
+                            y: { title: { display: true, text: '重量 (g)' }, beginAtZero: true } 
+                        } 
+                    }
                 });
             }, [creatures]);
 
-            return <canvas ref={canvasRef} className="max-h-64"></canvas>;
+            return <div className="h-64"><canvas ref={canvasRef}></canvas></div>;
         }
 
         function App() {
