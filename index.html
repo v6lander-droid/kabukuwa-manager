@@ -63,7 +63,90 @@
             { border: '#84cc16', bg: 'rgba(132,204,22,0.15)', text: '#84cc16', label: 'lime' },
         ];
 
-        // ---- 血統図（世代横並び・日本家系図スタイル）----
+        // ========== 遺伝計算ユーティリティ ==========
+
+        // 祖先リストを深さ付きで列挙（最大6世代）
+        function getAncestors(name, nameMap, depth = 0, visited = new Map()) {
+            if (depth > 6) return visited;
+            const c = nameMap[name];
+            if (!c) return visited;
+            if (!visited.has(name)) visited.set(name, []);
+            visited.get(name).push(depth);
+            getAncestors(c.maleParent, nameMap, depth + 1, visited);
+            getAncestors(c.femaleParent, nameMap, depth + 1, visited);
+            return visited;
+        }
+
+        // ライト係数法：次世代のF値（両親間の血縁係数の半分）
+        // calcF(オス親名, メス親名, nameMap)
+        function calcF(maleParentName, femaleParentName, nameMap) {
+            if (!maleParentName || maleParentName === '-' || !femaleParentName || femaleParentName === '-') return 0;
+            const mAnc = getAncestors(maleParentName, nameMap);
+            const fAnc = getAncestors(femaleParentName, nameMap);
+            let F = 0;
+            mAnc.forEach((mDepths, name) => {
+                if (fAnc.has(name)) {
+                    fAnc.get(name).forEach(n2 => {
+                        mDepths.forEach(n1 => { F += Math.pow(0.5, n1 + n2 + 1); });
+                    });
+                }
+            });
+            return Math.min(F, 1);
+        }
+
+        // 個体自身の累積F値（自分の両親間のF値）
+        function calcSelfF(creature, nameMap) {
+            return calcF(creature.maleParent, creature.femaleParent, nameMap);
+        }
+
+        // 血縁係数 r(A,B)：2個体間の遺伝的類似度
+        // r = 2 * Σ (0.5)^(L) / sqrt((1+Fa)(1+Fb))
+        // 簡略化：Fa=Fb=0 として r = Σ_共通祖先 Σ_経路 (0.5)^L
+        // L = AからのパスステップとBからのパスステップの和
+        function calcR(nameA, nameB, nameMap) {
+            if (!nameA || !nameB || nameA === nameB) return nameA === nameB ? 1 : 0;
+            const ancA = getAncestors(nameA, nameMap, 0);
+            const ancB = getAncestors(nameB, nameMap, 0);
+            // A自身がBの祖先・BがAの祖先の場合も含む
+            ancA.set(nameA, [0]);
+            ancB.set(nameB, [0]);
+            let r = 0;
+            ancA.forEach((dA, name) => {
+                if (ancB.has(name)) {
+                    ancB.get(name).forEach(dB => {
+                        dA.forEach(dAv => { r += Math.pow(0.5, dAv + dB); });
+                    });
+                }
+            });
+            return Math.min(r, 1);
+        }
+
+        // F値・r値からリスクラベルを返す
+        function fRiskInfo(F) {
+            if (F === 0)       return { label: '血縁なし',                        color: 'text-emerald-400' };
+            if (F < 0.0625)    return { label: '低度',                            color: 'text-emerald-400' };
+            if (F < 0.125)     return { label: '中度（いとこ交配相当）',           color: 'text-amber-400'  };
+            if (F < 0.25)      return { label: '高度（半きょうだい交配相当）',     color: 'text-orange-400' };
+            return               { label: '非常に高度（きょうだい・親子交配相当）', color: 'text-red-400'    };
+        }
+
+        function fRiskDesc(F) {
+            if (F === 0)    return '登録されている血統情報の範囲内では共通祖先が確認されません。遺伝的多様性が高い交配です。';
+            if (F < 0.0625) return '近親交配係数は低く、遺伝的健康度は良好です。';
+            if (F < 0.125)  return 'いとこ交配（F=6.25%）に相当する近親度です。形質固定の効果はありますが、累代が進むにつれリスクが蓄積します。';
+            if (F < 0.25)   return '半きょうだい交配（F=12.5%）相当です。有害遺伝子が顕在化するリスクが高まります。累代には注意が必要です。';
+            return 'きょうだいまたは親子交配（F=25%以上）相当です。累代障害のリスクが非常に高く、系統外交配を強く推奨します。';
+        }
+
+        function barColor(v) {
+            if (v < 0.0625) return '#10b981';
+            if (v < 0.125)  return '#f59e0b';
+            if (v < 0.25)   return '#f97316';
+            return '#ef4444';
+        }
+
+        // =============================================
+
         function PedigreeView({ creatures, highlightId, onSelect }) {
             const allNames = creatures.map(c => c.name);
 
@@ -297,72 +380,28 @@
                 return m;
             }, [creatures]);
 
-            // 祖先リストを深さ付きで列挙（最大6世代）
-            const getAncestors = (creatureName, depth, visited = new Map()) => {
-                if (depth > 6) return visited;
-                const c = nameMap[creatureName];
-                if (!c) return visited;
-                if (!visited.has(creatureName)) visited.set(creatureName, []);
-                visited.get(creatureName).push(depth);
-                getAncestors(c.maleParent, depth + 1, visited);
-                getAncestors(c.femaleParent, depth + 1, visited);
-                return visited;
-            };
-
-            // ライト係数法：F = Σ (0.5)^(n1+n2+1) × (1+Fa) を共通祖先ごとに合算
-            // n1=オス親からの世代数、n2=メス親からの世代数、Fa=共通祖先自身のF値（簡略化のため0とする）
-            const calcF = (maleParentName, femaleParentName) => {
-                if (!maleParentName || maleParentName === '-' || !femaleParentName || femaleParentName === '-') return 0;
-                const mAncestors = getAncestors(maleParentName, 0);
-                const fAncestors = getAncestors(femaleParentName, 0);
-                let F = 0;
-                mAncestors.forEach((mDepths, name) => {
-                    if (fAncestors.has(name)) {
-                        const fDepths = fAncestors.get(name);
-                        mDepths.forEach(n1 => {
-                            fDepths.forEach(n2 => {
-                                F += Math.pow(0.5, n1 + n2 + 1);
-                            });
-                        });
-                    }
-                });
-                return Math.min(F, 1);
-            };
-
             const sim = useMemo(() => {
                 const m = creatures.find(c => c.id === maleSelection);
                 const f = creatures.find(c => c.id === femaleSelection);
                 if (!m || !f) return null;
-                const F = calcF(m.name, f.name);
+                const F = calcF(m.name, f.name, nameMap);
+                const r = calcR(m.name, f.name, nameMap);
                 const Fpct = (F * 100).toFixed(2);
-                let riskLabel, riskColor, desc;
-                if (F === 0) {
-                    riskLabel = '血縁なし'; riskColor = 'text-emerald-400';
-                    desc = '登録されている血統情報の範囲内では共通祖先が確認されません。遺伝的多様性が高い交配です。';
-                } else if (F < 0.0625) {
-                    riskLabel = '低度'; riskColor = 'text-emerald-400';
-                    desc = '近親交配係数は低く、遺伝的健康度は良好です。';
-                } else if (F < 0.125) {
-                    riskLabel = '中度（いとこ交配相当）'; riskColor = 'text-amber-400';
-                    desc = 'いとこ交配（F=6.25%）に相当する近親度です。形質固定の効果はありますが、累代が進むにつれリスクが蓄積します。';
-                } else if (F < 0.25) {
-                    riskLabel = '高度（半きょうだい交配相当）'; riskColor = 'text-orange-400';
-                    desc = '半きょうだい交配（F=12.5%）相当です。有害遺伝子が顕在化するリスクが高まります。累代には注意が必要です。';
-                } else {
-                    riskLabel = '非常に高度（きょうだい・親子交配相当）'; riskColor = 'text-red-400';
-                    desc = 'きょうだいまたは親子交配（F=25%以上）相当です。累代障害のリスクが非常に高く、系統外交配を強く推奨します。';
-                }
+                const Rpct = (r * 100).toFixed(2);
+                const risk = fRiskInfo(F);
+                const desc = fRiskDesc(F);
+                const mAnc = getAncestors(m.name, nameMap);
+                const fAnc = getAncestors(f.name, nameMap);
                 const commonAncestors = [];
-                const mAncestors = getAncestors(m.name, 0);
-                const fAncestors = getAncestors(f.name, 0);
-                mAncestors.forEach((_, name) => { if (fAncestors.has(name)) commonAncestors.push(name); });
-                return { F, Fpct, riskLabel, riskColor, desc, commonAncestors };
+                mAnc.forEach((_, name) => { if (fAnc.has(name)) commonAncestors.push(name); });
+                return { F, Fpct, r, Rpct, riskLabel: risk.label, riskColor: risk.color, desc, commonAncestors };
             }, [maleSelection, femaleSelection, creatures, nameMap]);
 
             if (selectedCreature) return (
                 <DetailView
                     creature={selectedCreature}
                     allCreatures={creatures}
+                    nameMap={nameMap}
                     onBack={() => setSelectedCreature(null)}
                     onUpdate={updateCreature}
                     onGoToTree={(id) => { setHighlightId(id); setActiveTab('血統図'); setSelectedCreature(null); }}
@@ -372,7 +411,8 @@
             const tableHeaders = [
                 {k:'saleStatus',l:'計画'}, {k:'name',l:'個体名'}, {k:'sex',l:'性別'}, {k:'alias',l:'名称'}, {k:'origin',l:'産地'},
                 {k:'generation',l:'累代'}, {k:'size',l:'サイズ'}, {k:'hatchDate',l:'孵化日'}, {k:'stage',l:'ステージ'},
-                {k:'temp',l:'温度'}, {k:'emergenceDate',l:'羽化日'}, {k:'maleParent',l:'オス親'}, {k:'femaleParent',l:'メス親'}
+                {k:'temp',l:'温度'}, {k:'emergenceDate',l:'羽化日'}, {k:'maleParent',l:'オス親'}, {k:'femaleParent',l:'メス親'},
+                {k:'selfF',l:'累積F値'}
             ];
             const formFields = [
                 {key:'name', label:'個体名'}, {key:'sex', label:'性別'}, {key:'alias', label:'名称'}, {key:'origin', label:'産地'},
@@ -430,6 +470,9 @@
                                                 <td className="p-3">{c.emergenceDate}</td>
                                                 <td className="p-3">{c.maleParent}</td>
                                                 <td className="p-3">{c.femaleParent}</td>
+                                                <td className="p-3">
+                                                    {(() => { const f = calcSelfF(c, nameMap); const info = fRiskInfo(f); return <span className={`font-bold text-xs ${info.color}`}>{(f*100).toFixed(2)}%</span>; })()}
+                                                </td>
                                                 <td className="p-3"><button onClick={(e) => { e.stopPropagation(); if(confirm('削除?')) setCreatures(creatures.filter(x=>x.id!==c.id)) }} className="bg-emerald-600 px-2 py-1 rounded text-xs text-white">削除</button></td>
                                             </tr>
                                         ))}
@@ -450,14 +493,26 @@
                                 <div className="space-y-4">
                                     <div className="p-4 border border-neutral-700 rounded bg-neutral-800 space-y-2">
                                         <div className="flex items-center justify-between">
-                                            <p className="font-bold text-white">近親交配係数（F値）</p>
+                                            <p className="font-bold text-white">次世代の近親交配係数（F値）</p>
                                             <p className="text-2xl font-bold text-emerald-400">{sim.Fpct}%</p>
                                         </div>
                                         <div className="w-full bg-neutral-700 rounded-full h-2">
-                                            <div className="h-2 rounded-full transition-all" style={{ width: `${Math.min(sim.F * 100 / 25 * 100, 100)}%`, backgroundColor: sim.F < 0.0625 ? '#10b981' : sim.F < 0.125 ? '#f59e0b' : sim.F < 0.25 ? '#f97316' : '#ef4444' }}></div>
+                                            <div className="h-2 rounded-full transition-all" style={{ width: `${Math.min(sim.F / 0.25 * 100, 100)}%`, backgroundColor: barColor(sim.F) }}></div>
                                         </div>
                                         <p className="text-xs">リスク評価: <span className={`font-bold ${sim.riskColor}`}>{sim.riskLabel}</span></p>
                                         <p className="text-xs text-neutral-300 leading-relaxed">{sim.desc}</p>
+                                    </div>
+                                    <div className="p-4 border border-neutral-700 rounded bg-neutral-800 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <p className="font-bold text-white">血縁係数（r値）</p>
+                                            <p className="text-2xl font-bold text-emerald-400">{sim.Rpct}%</p>
+                                        </div>
+                                        <div className="w-full bg-neutral-700 rounded-full h-2">
+                                            <div className="h-2 rounded-full transition-all" style={{ width: `${Math.min(sim.r / 0.5 * 100, 100)}%`, backgroundColor: barColor(sim.r * 0.5) }}></div>
+                                        </div>
+                                        <p className="text-xs text-neutral-300 leading-relaxed">
+                                            2個体間の遺伝的類似度を示します。親子≒50%、きょうだい≒50%、いとこ≒12.5%が理論値です。値が高いほど遺伝的に近い関係です。
+                                        </p>
                                     </div>
                                     {sim.commonAncestors.length > 0 && (
                                         <div className="p-4 border border-neutral-700 rounded bg-neutral-800">
@@ -659,7 +714,7 @@
         }
 
         // ---- 詳細画面 ----
-        function DetailView({ creature, allCreatures, onBack, onUpdate, onGoToTree }) {
+        function DetailView({ creature, allCreatures, nameMap, onBack, onUpdate, onGoToTree }) {
             const [form, setForm] = useState(creature);
             const [showEditModal, setShowEditModal] = useState(false);
             const [editForm, setEditForm] = useState(creature);
@@ -684,6 +739,18 @@
             };
 
             const allForChart = allCreatures.map(c => c.id === form.id ? form : c);
+
+            // 累積F値（この個体自身）
+            const selfF = useMemo(() => calcSelfF(form, nameMap), [form, nameMap]);
+            const selfFInfo = fRiskInfo(selfF);
+
+            // 他全個体との血縁係数
+            const relatedList = useMemo(() => {
+                return allCreatures
+                    .filter(c => c.id !== form.id)
+                    .map(c => ({ creature: c, r: calcR(form.name, c.name, nameMap) }))
+                    .sort((a, b) => b.r - a.r);
+            }, [form, allCreatures, nameMap]);
 
             return (
                 <div className="p-6 max-w-lg mx-auto">
@@ -766,6 +833,42 @@
                     </div>
 
                     <CompareGrowthChart mainCreature={form} allCreatures={allForChart} />
+
+                    {/* 累積F値 */}
+                    <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 mt-4 text-white shadow-2xl space-y-3">
+                        <h3 className="font-bold border-b border-neutral-700 pb-2 text-sm">累積近親交配係数（個体自身のF値）</h3>
+                        <div className="flex items-center justify-between">
+                            <p className="text-xs text-neutral-300">この個体の両親間のF値。自身が近親交配の産物かどうかを示します。</p>
+                            <p className={`text-2xl font-bold ml-4 shrink-0 ${selfFInfo.color}`}>{(selfF * 100).toFixed(2)}%</p>
+                        </div>
+                        <div className="w-full bg-neutral-700 rounded-full h-2">
+                            <div className="h-2 rounded-full" style={{ width: `${Math.min(selfF / 0.25 * 100, 100)}%`, backgroundColor: barColor(selfF) }}></div>
+                        </div>
+                        <p className="text-xs"><span className={`font-bold ${selfFInfo.color}`}>{selfFInfo.label}</span></p>
+                        <p className="text-[10px] text-neutral-500">※ 登録血統情報の範囲内（最大6世代）で計算。</p>
+                    </div>
+
+                    {/* 他個体との血縁係数一覧 */}
+                    <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 mt-4 text-white shadow-2xl space-y-3">
+                        <h3 className="font-bold border-b border-neutral-700 pb-2 text-sm">他個体との血縁係数（r値）</h3>
+                        <p className="text-[10px] text-neutral-400">値が高いほど遺伝的に近い関係。親子・きょうだい≒50%、いとこ≒12.5%が理論値です。</p>
+                        <div className="space-y-2">
+                            {relatedList.map(({ creature: c, r }) => {
+                                const pct = (r * 100).toFixed(2);
+                                const col = barColor(r * 0.5);
+                                return (
+                                    <div key={c.id} className="flex items-center gap-2">
+                                        <span className="text-[11px] w-28 truncate shrink-0">{c.name}</span>
+                                        <div className="flex-1 bg-neutral-700 rounded-full h-1.5">
+                                            <div className="h-1.5 rounded-full" style={{ width: `${Math.min(r / 0.5 * 100, 100)}%`, backgroundColor: col }}></div>
+                                        </div>
+                                        <span className="text-[11px] w-12 text-right shrink-0 font-bold" style={{ color: col }}>{pct}%</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <p className="text-[10px] text-neutral-500">※ 登録血統情報の範囲内（最大6世代）で計算。r=0の個体は血縁なし。</p>
+                    </div>
 
                     {showRecordModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
