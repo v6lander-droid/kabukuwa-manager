@@ -498,9 +498,26 @@
 
                     {showEditModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-                            <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4">
+                            <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4 overflow-y-auto max-h-[90vh]">
                                 <h3 className="font-bold text-white">詳細情報の編集</h3>
-                                {fields.map(f => (<div key={f.key}><p className="text-[10px] text-white">{f.label}</p><input className="w-full bg-neutral-800 p-2 rounded text-white text-sm" value={editForm[f.key] || ''} onChange={e => setEditForm({...editForm, [f.key]: e.target.value})} /></div>))}
+                                {fields.map(f => (
+                                    <div key={f.key}>
+                                        <p className="text-[10px] text-white">{f.label}</p>
+                                        {f.key === 'maleParent' ? (
+                                            <select className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" value={editForm[f.key] || ''} onChange={e => setEditForm({...editForm, [f.key]: e.target.value})}>
+                                                <option value="-">-</option>
+                                                {allCreatures.filter(c => c.sex === 'オス').map(c => <option key={c.id} value={c.name}>{c.name}（{c.generation}）</option>)}
+                                            </select>
+                                        ) : f.key === 'femaleParent' ? (
+                                            <select className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" value={editForm[f.key] || ''} onChange={e => setEditForm({...editForm, [f.key]: e.target.value})}>
+                                                <option value="-">-</option>
+                                                {allCreatures.filter(c => c.sex === 'メス').map(c => <option key={c.id} value={c.name}>{c.name}（{c.generation}）</option>)}
+                                            </select>
+                                        ) : (
+                                            <input className="w-full bg-neutral-800 p-2 rounded text-white text-sm" value={editForm[f.key] || ''} onChange={e => setEditForm({...editForm, [f.key]: e.target.value})} />
+                                        )}
+                                    </div>
+                                ))}
                                 <div className="flex gap-2">
                                     <button onClick={() => setShowEditModal(false)} className="w-full bg-neutral-700 py-2 rounded font-bold text-white">キャンセル</button>
                                     <button onClick={saveEdit} className="w-full bg-emerald-600 py-2 rounded font-bold text-white">保存</button>
