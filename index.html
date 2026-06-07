@@ -60,6 +60,97 @@
             { border: '#84cc16', bg: 'rgba(132,204,22,0.15)', text: '#84cc16', label: 'lime' },
         ];
 
+        // ---- 血統図コンポーネント ----
+        function PedigreeNode({ creature, creatures, highlightId, onSelect, depth = 0 }) {
+            const [expanded, setExpanded] = useState(true);
+            const maleParent = creatures.find(c => c.name === creature.maleParent);
+            const femaleParent = creatures.find(c => c.name === creature.femaleParent);
+            const hasParents = maleParent || femaleParent;
+
+            return (
+                <div className="flex flex-col items-start">
+                    {/* 個体カード */}
+                    <div className="flex items-center gap-2">
+                        {hasParents && (
+                            <button onClick={() => setExpanded(e => !e)} className="text-neutral-500 hover:text-white text-xs w-4 flex-shrink-0">
+                                {expanded ? '▾' : '▸'}
+                            </button>
+                        )}
+                        {!hasParents && <span className="w-4 flex-shrink-0"></span>}
+                        <div
+                            onClick={() => onSelect(creature)}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all hover:scale-[1.01] min-w-[200px]
+                                ${highlightId === creature.id ? 'bg-emerald-900 border-emerald-400' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-500'}
+                                ${creature.sex === 'オス' ? 'border-l-4 border-l-emerald-500' : 'border-l-4 border-l-rose-500'}`}
+                        >
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] flex-shrink-0
+                                ${creature.sex === 'オス' ? 'bg-emerald-900 text-emerald-400' : 'bg-rose-900 text-rose-400'}`}>
+                                <i className={`fa-solid ${creature.sex === 'オス' ? 'fa-mars' : 'fa-venus'}`}></i>
+                            </div>
+                            <div className="min-w-0">
+                                <div className="flex items-center gap-1">
+                                    <span className="font-bold text-xs truncate">{creature.name}</span>
+                                    <span className="bg-neutral-700 text-[9px] px-1 py-0.5 rounded text-white font-mono flex-shrink-0">{creature.generation}</span>
+                                </div>
+                                <div className="text-[9px] text-neutral-400 truncate">{creature.stage}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 親ノード */}
+                    {hasParents && expanded && (
+                        <div className="ml-6 mt-1 flex flex-col gap-2 border-l-2 border-neutral-700 pl-4 pt-1">
+                            {maleParent && (
+                                <div className="flex items-start gap-1">
+                                    <span className="text-emerald-500 text-[10px] mt-2 flex-shrink-0">♂</span>
+                                    <PedigreeNode creature={maleParent} creatures={creatures} highlightId={highlightId} onSelect={onSelect} depth={depth + 1} />
+                                </div>
+                            )}
+                            {!maleParent && creature.maleParent && creature.maleParent !== '-' && (
+                                <div className="flex items-center gap-1 text-[10px] text-neutral-500 ml-1">
+                                    <span className="text-emerald-500">♂</span> {creature.maleParent}（未登録）
+                                </div>
+                            )}
+                            {femaleParent && (
+                                <div className="flex items-start gap-1">
+                                    <span className="text-rose-500 text-[10px] mt-2 flex-shrink-0">♀</span>
+                                    <PedigreeNode creature={femaleParent} creatures={creatures} highlightId={highlightId} onSelect={onSelect} depth={depth + 1} />
+                                </div>
+                            )}
+                            {!femaleParent && creature.femaleParent && creature.femaleParent !== '-' && (
+                                <div className="flex items-center gap-1 text-[10px] text-neutral-500 ml-1">
+                                    <span className="text-rose-500">♀</span> {creature.femaleParent}（未登録）
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        function PedigreeView({ creatures, highlightId, onSelect }) {
+            // 親として登録されていない個体＝ルートノード
+            const allNames = creatures.map(c => c.name);
+            const childNames = new Set(
+                creatures.flatMap(c => [c.maleParent, c.femaleParent]).filter(n => n && n !== '-' && allNames.includes(n))
+            );
+            const roots = creatures.filter(c => !childNames.has(c.name));
+
+            return (
+                <div className="bg-neutral-900 p-6 rounded-lg space-y-6 overflow-x-auto">
+                    <div className="flex items-center gap-2 mb-2">
+                        <h3 className="font-bold text-emerald-400 text-sm">血統図</h3>
+                        <span className="text-[10px] text-neutral-500">（▸▾で展開/折りたたみ）</span>
+                    </div>
+                    <div className="flex flex-col gap-6">
+                        {roots.map(c => (
+                            <PedigreeNode key={c.id} creature={c} creatures={creatures} highlightId={highlightId} onSelect={onSelect} />
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
         function App() {
             const [selectedCreature, setSelectedCreature] = useState(null);
             const [activeTab, setActiveTab] = useState('一覧');
@@ -220,42 +311,7 @@
                             </div>
                         </>
                     ) : activeTab === '血統図' ? (
-                        <div className="bg-neutral-900 p-6 rounded-lg space-y-12">
-                            {Array.from(new Set(creatures.map(c => c.alias))).map(line => (
-                                <div key={line} className="space-y-4">
-                                    <div className="flex items-center gap-2">
-                                        <h3 className="font-bold text-emerald-400 border-l-4 border-emerald-400 pl-2">{line || "未設定ライン"}</h3>
-                                        <div className="h-[1px] bg-neutral-800 flex-1"></div>
-                                    </div>
-                                    <div className="grid gap-y-4">
-                                        {creatures.filter(c => c.alias === line).map((c, idx) => (
-                                            <div key={c.id} style={{marginLeft: `${idx * 24}px`}} className="relative group" onClick={() => setSelectedCreature(c)}>
-                                                {idx > 0 && <div className="pedigree-line"></div>}
-                                                <div className={`flex items-center gap-4 p-3 rounded-lg border cursor-pointer transition-all hover:scale-[1.01] ${highlightId === c.id ? 'bg-emerald-900 border-emerald-400' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-500'} ${c.sex === 'オス' ? 'border-l-4 border-l-emerald-500' : 'border-l-4 border-l-rose-500'}`}>
-                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs shadow-inner ${c.sex === 'オス' ? 'bg-emerald-900 text-emerald-400' : 'bg-rose-900 text-rose-400'}`}>
-                                                        <i className={`fa-solid ${c.sex === 'オス' ? 'fa-mars' : 'fa-venus'}`}></i>
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="font-bold text-sm truncate">{c.name}</span>
-                                                            <span className="bg-neutral-700 text-[10px] px-1.5 py-0.5 rounded text-white font-mono">{c.generation}</span>
-                                                        </div>
-                                                        <div className="flex gap-4 mt-1">
-                                                            <div className="text-[10px] text-white flex items-center gap-1"><span className="text-emerald-500">♂</span> {c.maleParent}</div>
-                                                            <div className="text-[10px] text-white flex items-center gap-1"><span className="text-rose-500">♀</span> {c.femaleParent}</div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="text-right">
-                                                        <p className="text-[10px] text-white uppercase tracking-tighter">Stage</p>
-                                                        <p className="text-xs font-bold text-emerald-400">{c.stage}</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                        <PedigreeView creatures={creatures} highlightId={highlightId} onSelect={setSelectedCreature} />
                     ) : (
                         <div className="bg-neutral-900 p-6 rounded-lg space-y-6 text-white text-sm">
                             <h3 className="font-bold text-emerald-400 text-lg border-b border-neutral-700 pb-2">交配シミュレーション</h3>
@@ -504,12 +560,12 @@
                                     <div key={f.key}>
                                         <p className="text-[10px] text-white">{f.label}</p>
                                         {f.key === 'maleParent' ? (
-                                            <select className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" value={editForm[f.key] || ''} onChange={e => setEditForm({...editForm, [f.key]: e.target.value})}>
+                                            <select className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700 relative z-50" value={editForm[f.key] || ''} onChange={e => setEditForm({...editForm, [f.key]: e.target.value})}>
                                                 <option value="-">-</option>
                                                 {allCreatures.filter(c => c.sex === 'オス').map(c => <option key={c.id} value={c.name}>{c.name}（{c.generation}）</option>)}
                                             </select>
                                         ) : f.key === 'femaleParent' ? (
-                                            <select className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" value={editForm[f.key] || ''} onChange={e => setEditForm({...editForm, [f.key]: e.target.value})}>
+                                            <select className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700 relative z-50" value={editForm[f.key] || ''} onChange={e => setEditForm({...editForm, [f.key]: e.target.value})}>
                                                 <option value="-">-</option>
                                                 {allCreatures.filter(c => c.sex === 'メス').map(c => <option key={c.id} value={c.name}>{c.name}（{c.generation}）</option>)}
                                             </select>
