@@ -47,7 +47,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo, useRef, useCallback } = React;
+        const { useState, useEffect, useMemo, useRef } = React;
 
         const COMPARE_COLORS = [
             { border: '#10b981', bg: 'rgba(16,185,129,0.15)', text: '#10b981', label: 'emerald' },
@@ -64,17 +64,9 @@
         function PedigreeView({ creatures, highlightId, onSelect }) {
             const allNames = creatures.map(c => c.name);
 
-            // 親→子マップを構築
-            const childrenMap = {};
-            creatures.forEach(c => {
-                [c.maleParent, c.femaleParent].forEach(pName => {
-                    if (pName && pName !== '-' && allNames.includes(pName)) {
-                        if (!childrenMap[pName]) childrenMap[pName] = [];
-                        if (!childrenMap[pName].find(x => x.id === c.id))
-                            childrenMap[pName].push(c);
-                    }
-                });
-            });
+            if (creatures.length === 0) return (
+                <div className="bg-neutral-900 p-8 rounded-lg text-center text-neutral-500 text-sm">個体が登録されていません</div>
+            );
 
             // 各個体の世代深度を計算
             const depthMap = {};
@@ -147,11 +139,6 @@
                     }
                 }
             }
-
-            // y座標を付与
-            Object.values(posMap).forEach(p => {
-                p.y = p.rowIdx * (CARD_H + ROW_GAP) + CARD_H / 2;
-            });
 
             // 接続線（直角折れ線）
             const lines = [];
