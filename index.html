@@ -211,17 +211,7 @@
 
                     {/* 世代ラベル＋カード */}
                     <div className="overflow-x-auto">
-                        <div className="flex gap-0" style={{ minWidth: svgW + 60 }}>
-                            {/* 世代ラベル列 */}
-                            <div className="flex flex-col flex-shrink-0" style={{ width: 48 }}>
-                                {generations.map((gen, i) => (
-                                    <div key={i} style={{ height: CARD_H + ROW_GAP }} className="flex items-start pt-2">
-                                        <span className="text-[9px] text-neutral-500 font-mono writing-mode-vertical">
-                                            {gen[0]?.generation || `第${i+1}世代`}
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
+                        <div className="flex gap-0" style={{ minWidth: svgW }}>
 
                             {/* ツリー本体（SVG線＋絶対配置カード） */}
                             <div style={{ position: 'relative', width: svgW, height: svgH, flexShrink: 0 }}>
