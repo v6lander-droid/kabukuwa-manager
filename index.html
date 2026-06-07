@@ -320,8 +320,12 @@
             const [femaleSelection, setFemaleSelection] = useState('');
 
             const [creatures, setCreatures] = useState(() => {
-                const saved = localStorage.getItem('beetle_data');
-                if (saved) return JSON.parse(saved);
+                try {
+                    const saved = localStorage.getItem('beetle_data');
+                    if (saved) return JSON.parse(saved);
+                } catch (e) {
+                    console.warn('保存データの読み込みに失敗しました。初期データを使用します。', e);
+                }
                 const sampleStages = ['孵化', '1令', '2令', '3令', '蛹', '成虫'];
                 return Array.from({ length: 10 }, (_, i) => {
                     const historyLength = 2 + Math.floor(Math.random() * 4);
