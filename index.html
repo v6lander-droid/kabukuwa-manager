@@ -41,6 +41,9 @@
             font-weight: bold;
             border: 1px solid;
         }
+        input[type="date"] {
+            color-scheme: dark;
+        }
     </style>
 </head>
 <body class="bg-neutral-950 text-white font-sans">
@@ -322,7 +325,7 @@
             ];
             const formFields = [
                 {key:'name', label:'個体名'}, {key:'sex', label:'性別'}, {key:'alias', label:'名称'}, {key:'origin', label:'産地'},
-                {key:'generation', label:'累代'}, {key:'hatchDate', label:'孵化日'}, {key:'emergenceDate', label:'羽化日'},
+                {key:'generation', label:'累代'}, {key:'hatchDate', label:'孵化日', isDate:true}, {key:'emergenceDate', label:'羽化日', isDate:true},
                 {key:'maleParent', label:'オス親'}, {key:'femaleParent', label:'メス親'}, {key:'stage', label:'ステージ'}
             ];
 
@@ -346,7 +349,7 @@
                                     <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4">
                                         <h3 className="font-bold text-white">新規個体追加</h3>
                                         {formFields.map(f => (
-                                            <div key={f.key}><p className="text-[10px] text-white">{f.label}</p><input className="w-full bg-neutral-800 p-2 rounded text-white text-sm" value={newCreatureData[f.key]} onChange={e => setNewCreatureData({...newCreatureData, [f.key]: e.target.value})} /></div>
+                                            <div key={f.key}><p className="text-[10px] text-white">{f.label}</p><input type={f.isDate ? 'date' : 'text'} className="w-full bg-neutral-800 p-2 rounded text-white text-sm" value={newCreatureData[f.key] === '-' ? '' : newCreatureData[f.key]} onChange={e => setNewCreatureData({...newCreatureData, [f.key]: e.target.value || '-'})} /></div>
                                         ))}
                                         <div className="flex gap-2"><button onClick={() => setShowAddModal(false)} className="w-full bg-neutral-700 py-2 rounded font-bold text-white">キャンセル</button><button onClick={confirmAdd} className="w-full bg-emerald-600 py-2 rounded font-bold text-white">保存</button></div>
                                     </div>
@@ -597,8 +600,8 @@
 
             const fields = [
                 {key:'name', label:'個体名'}, {key:'sex', label:'性別'}, {key:'alias', label:'名称'},
-                {key:'origin', label:'産地'}, {key:'generation', label:'累代'}, {key:'hatchDate', label:'孵化日'},
-                {key:'emergenceDate', label:'羽化日'}, {key:'maleParent', label:'オス親'},
+                {key:'origin', label:'産地'}, {key:'generation', label:'累代'}, {key:'hatchDate', label:'孵化日', isDate:true},
+                {key:'emergenceDate', label:'羽化日', isDate:true}, {key:'maleParent', label:'オス親'},
                 {key:'femaleParent', label:'メス親'}, {key:'stage', label:'ステージ'}
             ];
 
@@ -642,6 +645,8 @@
                                                 <option value="-">-</option>
                                                 {allCreatures.filter(c => c.sex === 'メス').map(c => <option key={c.id} value={c.name}>{c.name}（{c.generation}）</option>)}
                                             </select>
+                                        ) : f.isDate ? (
+                                            <input type="date" className="w-full bg-neutral-800 p-2 rounded text-white text-sm" value={editForm[f.key] === '-' ? '' : (editForm[f.key] || '')} onChange={e => setEditForm({...editForm, [f.key]: e.target.value || '-'})} />
                                         ) : (
                                             <input className="w-full bg-neutral-800 p-2 rounded text-white text-sm" value={editForm[f.key] || ''} onChange={e => setEditForm({...editForm, [f.key]: e.target.value})} />
                                         )}
@@ -712,7 +717,7 @@
                             <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4 shadow-2xl">
                                 <h3 className="font-bold text-white">飼育記録の編集</h3>
                                 <div className="space-y-3">
-                                    <input className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" placeholder="日付" value={showRecordModal.date} onChange={e=>setShowRecordModal({...showRecordModal, date:e.target.value})} />
+                                    <input type="date" className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" value={showRecordModal.date} onChange={e=>setShowRecordModal({...showRecordModal, date:e.target.value})} />
                                     <input className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" placeholder="ステージ" value={showRecordModal.item} onChange={e=>setShowRecordModal({...showRecordModal, item:e.target.value})} />
                                     <input className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" placeholder="サイズ" value={showRecordModal.size} onChange={e=>setShowRecordModal({...showRecordModal, size:e.target.value})} />
                                     <input className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" placeholder="温度" value={showRecordModal.temp} onChange={e=>setShowRecordModal({...showRecordModal, temp:e.target.value})} />
