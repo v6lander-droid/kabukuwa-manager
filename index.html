@@ -16,6 +16,7 @@
         thead th.sticky-col-1, thead th.sticky-col-2 { background-color: #262626; z-index: 30; }
         tbody tr .sticky-col-1, tbody tr .sticky-col-2 { background-color: #171717; }
         tbody tr:hover .sticky-col-1, tbody tr:hover .sticky-col-2 { background-color: #262626; }
+        .bg-neutral-900 { background-color: #171717; }
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #0a0a0a; }
         ::-webkit-scrollbar-thumb { background: #404040; border-radius: 4px; }
@@ -509,10 +510,7 @@
                     )}
 
                     <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 space-y-4 text-white shadow-2xl">
-                        <h2 className="text-xl font-bold border-b border-neutral-700 pb-2 flex items-center gap-3">
-                            <span className={form.sex === 'オス' ? 'text-emerald-400' : 'text-rose-400'}>
-                                <i className={`fa-solid ${form.sex === 'オス' ? 'fa-mars' : 'fa-venus'}`}></i>
-                            </span>
+                        <h2 className="text-xl font-bold border-b border-neutral-700 pb-2">
                             詳細情報
                         </h2>
                         <div className="grid grid-cols-[100px,1fr] gap-x-2 gap-y-2 text-sm items-center">
