@@ -62,7 +62,7 @@
             const [activeTab, setActiveTab] = useState('一覧');
             const [highlightId, setHighlightId] = useState(null);
             const [showAddModal, setShowAddModal] = useState(false);
-            const [newCreatureData, setNewCreatureData] = useState({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '-', femaleParent: '-', stage: '幼虫', saleStatus: '非売', sex: 'オス' });
+            const [newCreatureData, setNewCreatureData] = useState({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '-', femaleParent: '-', stage: '幼虫', saleStatus: '使用', sex: 'オス' });
             const [maleSelection, setMaleSelection] = useState('');
             const [femaleSelection, setFemaleSelection] = useState('');
 
@@ -87,7 +87,7 @@
                         maleParent: 'M-1',
                         femaleParent: 'F-1',
                         stage: history[history.length - 1].item,
-                        saleStatus: '非売',
+                        saleStatus: '使用',
                         hatchDate: '2026-04-01',
                         emergenceDate: '-',
                         history,
@@ -101,7 +101,7 @@
 
             const toggleSaleStatus = (id, e) => {
                 e.stopPropagation();
-                const statuses = ['非売', '予備', '販売'];
+                const statuses = ['使用', '予備', '計画'];
                 setCreatures(creatures.map(c => c.id === id ? { ...c, saleStatus: statuses[(statuses.indexOf(c.saleStatus) + 1) % 3] } : c));
             };
 
@@ -109,7 +109,7 @@
                 const newCreature = { ...newCreatureData, id: Date.now().toString(), history: [] };
                 setCreatures([newCreature, ...creatures]);
                 setShowAddModal(false);
-                setNewCreatureData({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '-', femaleParent: '-', stage: '幼虫', saleStatus: '非売', sex: 'オス' });
+                setNewCreatureData({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '-', femaleParent: '-', stage: '幼虫', saleStatus: '使用', sex: 'オス' });
             };
 
             const updateCreature = (updated) => {
@@ -149,7 +149,7 @@
             );
 
             const tableHeaders = [
-                {k:'saleStatus',l:'販売'}, {k:'name',l:'個体名'}, {k:'sex',l:'性別'}, {k:'alias',l:'名称'}, {k:'origin',l:'産地'},
+                {k:'saleStatus',l:'計画'}, {k:'name',l:'個体名'}, {k:'sex',l:'性別'}, {k:'alias',l:'名称'}, {k:'origin',l:'産地'},
                 {k:'generation',l:'累代'}, {k:'size',l:'サイズ'}, {k:'hatchDate',l:'孵化日'}, {k:'stage',l:'ステージ'},
                 {k:'temp',l:'温度'}, {k:'emergenceDate',l:'羽化日'}, {k:'maleParent',l:'オス親'}, {k:'femaleParent',l:'メス親'}
             ];
@@ -196,7 +196,7 @@
                                     <tbody>
                                         {processedCreatures.map(c => (
                                             <tr key={c.id} className="border-t border-neutral-800 hover:bg-neutral-800 cursor-pointer" onClick={() => setSelectedCreature(c)}>
-                                                <td className="p-3 sticky-col-1"><button onClick={(e) => toggleSaleStatus(c.id, e)} className={`px-2 py-1 rounded text-[10px] font-bold ${c.saleStatus === '販売' ? 'bg-emerald-600' : 'bg-neutral-600'}`}>{c.saleStatus}</button></td>
+                                                <td className="p-3 sticky-col-1"><button onClick={(e) => toggleSaleStatus(c.id, e)} className={`px-2 py-1 rounded text-[10px] font-bold ${c.saleStatus === '計画' ? 'bg-emerald-600' : 'bg-neutral-600'}`}>{c.saleStatus}</button></td>
                                                 <td className="p-3 sticky-col-2 font-bold">{c.name}</td>
                                                 <td className="p-3">{c.sex}</td>
                                                 <td className="p-3">{c.alias}</td>
