@@ -538,7 +538,7 @@
                                         {form.history.map((h,i) => (
                                             <tr key={i} className="border-b border-neutral-800 hover:bg-neutral-800/50 transition-colors">
                                                 <td className="p-2">{h.date}</td><td className="p-2">{h.item}</td><td className="p-2">{h.size}</td><td className="p-2">{h.temp}</td>
-                                                <td className="p-2"><button onClick={() => setShowRecordModal({item:h.item, size:h.size, temp:h.temp, date:h.date, index:i})} className="text-emerald-500 hover:underline">訂正</button></td>
+                                                <td className="p-2"><button onClick={() => setShowRecordModal({item:h.item, size:h.size, temp:h.temp, date:h.date, index:i})} className="bg-emerald-600 text-white px-2 py-0.5 rounded text-[10px] font-bold">訂正</button></td>
                                             </tr>
                                         ))}
                                     </tbody>
