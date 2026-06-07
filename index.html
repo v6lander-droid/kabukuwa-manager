@@ -444,8 +444,56 @@
                 <div className="min-h-screen p-4">
                     <nav className="mb-4 flex justify-between items-center font-bold text-emerald-400">
                         <div className="flex flex-col"><span>Beetle Base</span><span className="text-[10px] text-white">made by ＭＨ</span></div>
-                        {activeTab === '一覧' && <button onClick={() => setShowAddModal(true)} className="bg-emerald-600 px-3 py-1 rounded text-sm text-white font-bold">追加</button>}
+                        <div className="flex gap-2 items-center">
+                            {/* エクスポート */}
+                            <button onClick={() => {
+                                const json = JSON.stringify(creatures, null, 2);
+                                const blob = new Blob([json], { type: 'application/json' });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `beetle_backup_${new Date().toISOString().slice(0,10)}.json`;
+                                a.click();
+                                URL.revokeObjectURL(url);
+                            }} className="bg-neutral-700 px-3 py-1 rounded text-sm text-white font-bold">
+                                <i className="fa-solid fa-download mr-1"></i>保存
+                            </button>
+                            {/* インポート */}
+                            <label className="bg-neutral-700 px-3 py-1 rounded text-sm text-white font-bold cursor-pointer">
+                                <i className="fa-solid fa-upload mr-1"></i>読込
+                                <input type="file" accept=".json" className="hidden" onChange={e => {
+                                    const file = e.target.files[0];
+                                    if (!file) return;
+                                    const reader = new FileReader();
+                                    reader.onload = ev => {
+                                        try {
+                                            const data = JSON.parse(ev.target.result);
+                                            if (!Array.isArray(data)) throw new Error('不正な形式');
+                                            if (confirm(`${data.length}件のデータを読み込みます。現在のデータは上書きされます。よろしいですか？`)) {
+                                                setCreatures(data);
+                                            }
+                                        } catch (err) {
+                                            alert('ファイルの読み込みに失敗しました。正しいバックアップファイルか確認してください。');
+                                        }
+                                    };
+                                    reader.readAsText(file);
+                                    e.target.value = '';
+                                }} />
+                            </label>
+                            {activeTab === '一覧' && <button onClick={() => setShowAddModal(true)} className="bg-emerald-600 px-3 py-1 rounded text-sm text-white font-bold">追加</button>}
+                        </div>
                     </nav>
+
+                    {saveError && (
+                        <div className="mb-3 p-3 bg-red-900/60 border border-red-500 rounded text-red-300 text-xs">
+                            ⚠ データの保存に失敗しました。ストレージの空き容量を確認してください。入力内容は失われる可能性があります。
+                        </div>
+                    )}
+                    {loadFailed && (
+                        <div className="mb-3 p-3 bg-amber-900/60 border border-amber-500 rounded text-amber-300 text-xs">
+                            ⚠ 保存データの読み込みに失敗しました。データが破損している可能性があります。新規データの保存は行われていません。
+                        </div>
+                    )}
 
                     <div className="flex border-b border-neutral-800 mb-4">
                         {['一覧', '血統図', '交配'].map(tab => (
