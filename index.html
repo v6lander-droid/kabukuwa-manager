@@ -417,6 +417,88 @@
                 return { F, Fpct, r, Rpct, riskLabel: risk.label, riskColor: risk.color, desc, commonAncestors };
             }, [maleSelection, femaleSelection, creatures, nameMap]);
 
+            const [agreedToTerms, setAgreedToTerms] = useState(() => {
+                return localStorage.getItem('beetle_agreed') === 'true';
+            });
+            const [termsTab, setTermsTab] = useState('使用方法');
+
+            const agreeToTerms = () => {
+                localStorage.setItem('beetle_agreed', 'true');
+                setAgreedToTerms(true);
+            };
+
+            // 利用規約・使用方法モーダル
+            if (!agreedToTerms) return (
+                <div className="min-h-screen flex items-center justify-center p-4 bg-neutral-950">
+                    <div className="bg-neutral-900 border border-neutral-700 rounded-xl w-full max-w-lg shadow-2xl text-white">
+                        <div className="p-6 border-b border-neutral-700">
+                            <h1 className="text-lg font-bold text-emerald-400">Beetle Base</h1>
+                            <p className="text-xs text-neutral-400 mt-1">ご利用前に以下をお読みください</p>
+                        </div>
+
+                        <div className="flex border-b border-neutral-700">
+                            {['使用方法', '利用規約'].map(t => (
+                                <button key={t} onClick={() => setTermsTab(t)} className={`px-5 py-2 text-sm font-bold ${termsTab === t ? 'text-emerald-400 border-b-2 border-emerald-400' : 'text-neutral-400'}`}>{t}</button>
+                            ))}
+                        </div>
+
+                        <div className="p-6 h-96 overflow-y-auto text-sm space-y-4">
+                            {termsTab === '使用方法' ? (
+                                <>
+                                    <section className="space-y-2">
+                                        <h2 className="font-bold text-emerald-400">基本操作</h2>
+                                        <p className="text-neutral-300 leading-relaxed">「一覧」タブで個体を管理します。行をタップすると詳細画面へ移動します。「追加」ボタンで新規個体を登録できます。</p>
+                                    </section>
+                                    <section className="space-y-2">
+                                        <h2 className="font-bold text-emerald-400">血統図</h2>
+                                        <p className="text-neutral-300 leading-relaxed">「血統図」タブで親子関係を視覚的に確認できます。各個体の詳細編集画面でオス親・メス親を登録することで自動的に接続されます。</p>
+                                    </section>
+                                    <section className="space-y-2">
+                                        <h2 className="font-bold text-emerald-400">交配シミュレーション</h2>
+                                        <p className="text-neutral-300 leading-relaxed">「交配」タブでオス・メスを選択すると、ライト係数法に基づく近親交配係数（F値）と血縁係数（r値）を計算します。登録されている血統情報の範囲内（最大6世代）での計算となります。</p>
+                                    </section>
+                                    <section className="space-y-2">
+                                        <h2 className="font-bold text-white bg-red-800/50 border border-red-600 rounded px-3 py-2">⚠ データ消失について（必読）</h2>
+                                        <ul className="text-neutral-300 leading-relaxed space-y-1.5 list-none">
+                                            <li>・ データはお使いのブラウザ内（localStorage）にのみ保存されます。</li>
+                                            <li>・ <span className="text-red-400 font-bold">ブラウザのキャッシュ・履歴・Cookieを削除するとデータが完全に消失します。</span></li>
+                                            <li>・ <span className="text-red-400 font-bold">ブラウザの変更・PCの買い替え・OSの再インストール時もデータは引き継がれません。</span></li>
+                                            <li>・ ストレージ容量が不足した場合、保存に失敗することがあります。</li>
+                                            <li>・ 上記リスクを避けるため、ヘッダーの「<span className="text-emerald-400 font-bold">保存</span>」ボタンから定期的にJSONファイルへバックアップしてください。</li>
+                                            <li>・ バックアップファイルは「<span className="text-emerald-400 font-bold">読込</span>」ボタンから復元できます。</li>
+                                        </ul>
+                                    </section>
+                                </>
+                            ) : (
+                                <>
+                                    <section className="space-y-2">
+                                        <h2 className="font-bold text-emerald-400">第1条（自己責任）</h2>
+                                        <p className="text-neutral-300 leading-relaxed">本アプリの利用により生じたいかなる損害・損失（データの消失、飼育個体への影響、交配判断の結果等を含む）についても、開発者は一切の責任を負いません。利用者は全て自己の責任においてご利用ください。</p>
+                                    </section>
+                                    <section className="space-y-2">
+                                        <h2 className="font-bold text-emerald-400">第2条（データの管理）</h2>
+                                        <p className="text-neutral-300 leading-relaxed">本アプリに入力したデータはお使いの端末のブラウザ内にのみ保存されます。開発者はデータの保全・復旧に関して一切の責任を負いません。データの管理・バックアップは利用者自身の責任で行ってください。</p>
+                                    </section>
+                                    <section className="space-y-2">
+                                        <h2 className="font-bold text-emerald-400">第3条（計算結果の免責）</h2>
+                                        <p className="text-neutral-300 leading-relaxed">近親交配係数（F値）・血縁係数（r値）等の計算結果は、登録された血統情報の範囲内での推定値です。計算結果の正確性・完全性を保証するものではなく、これらを根拠とした交配判断の結果について開発者は責任を負いません。</p>
+                                    </section>
+                                    <section className="space-y-2">
+                                        <h2 className="font-bold text-emerald-400">第4条（規約の変更）</h2>
+                                        <p className="text-neutral-300 leading-relaxed">本規約は予告なく変更される場合があります。変更後も本アプリを使用した場合、変更後の規約に同意したものとみなします。</p>
+                                    </section>
+                                </>
+                            )}
+                        </div>
+
+                        <div className="p-6 border-t border-neutral-700 space-y-3">
+                            <p className="text-[11px] text-neutral-400 text-center">「同意して始める」を押すと利用規約・使用方法に同意したものとみなします</p>
+                            <button onClick={agreeToTerms} className="w-full bg-emerald-600 py-3 rounded-lg font-bold text-white text-sm hover:bg-emerald-500 transition-colors">同意して始める</button>
+                        </div>
+                    </div>
+                </div>
+            );
+
             if (selectedCreature) return (
                 <DetailView
                     creature={selectedCreature}
@@ -445,6 +527,7 @@
                     <nav className="mb-4 flex justify-between items-center font-bold text-emerald-400">
                         <div className="flex flex-col"><span>Beetle Base</span><span className="text-[10px] text-white">made by ＭＨ</span></div>
                         <div className="flex gap-2 items-center">
+                            <button onClick={() => setAgreedToTerms(false)} className="text-neutral-500 text-[10px] hover:text-neutral-300 px-1">規約</button>
                             {/* エクスポート */}
                             <button onClick={() => {
                                 const json = JSON.stringify(creatures, null, 2);
