@@ -60,191 +60,153 @@
             { border: '#84cc16', bg: 'rgba(132,204,22,0.15)', text: '#84cc16', label: 'lime' },
         ];
 
-        // ---- 血統図（日本家系図スタイル）----
+        // ---- 血統図（世代横並び・日本家系図スタイル）----
         function PedigreeView({ creatures, highlightId, onSelect }) {
-            // ツリー構造を構築：親→子のマップ
             const allNames = creatures.map(c => c.name);
 
-            // 子を持つ個体の子リストを作成
-            const childrenMap = {};
+            // 子→親マップ・親→子マップを構築
+            const childrenMap = {}; // 親名 → 子[]
             creatures.forEach(c => {
                 [c.maleParent, c.femaleParent].forEach(pName => {
                     if (pName && pName !== '-' && allNames.includes(pName)) {
                         if (!childrenMap[pName]) childrenMap[pName] = [];
-                        if (!childrenMap[pName].find(x => x.id === c.id)) {
+                        if (!childrenMap[pName].find(x => x.id === c.id))
                             childrenMap[pName].push(c);
-                        }
                     }
                 });
             });
 
-            // 親を持たない個体（ルート）を特定
-            const hasRegisteredParent = (c) => {
-                return (c.maleParent && c.maleParent !== '-' && allNames.includes(c.maleParent)) ||
-                       (c.femaleParent && c.femaleParent !== '-' && allNames.includes(c.femaleParent));
-            };
-            const roots = creatures.filter(c => !hasRegisteredParent(c));
-
-            // カードコンポーネント
-            const Card = ({ creature }) => (
-                <div
-                    onClick={() => onSelect(creature)}
-                    className={`cursor-pointer rounded-lg border px-3 py-2 text-center transition-all hover:scale-105 w-28
-                        ${highlightId === creature.id ? 'bg-emerald-900 border-emerald-400' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-400'}
-                        ${creature.sex === 'オス' ? 'border-t-4 border-t-emerald-500' : 'border-t-4 border-t-rose-400'}`}
-                >
-                    <div className={`text-[10px] font-bold mb-0.5 ${creature.sex === 'オス' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        <i className={`fa-solid ${creature.sex === 'オス' ? 'fa-mars' : 'fa-venus'}`}></i>
-                        {' '}{creature.sex}
-                    </div>
-                    <div className="font-bold text-xs text-white leading-tight truncate">{creature.name}</div>
-                    <div className="text-[9px] text-neutral-400 mt-0.5">{creature.generation}</div>
-                    <div className="text-[9px] text-emerald-400">{creature.stage}</div>
-                </div>
-            );
-
-            // ツリーノード（再帰）
-            const TreeNode = ({ creature, visited = new Set() }) => {
-                if (visited.has(creature.id)) return null;
-                const newVisited = new Set(visited);
-                newVisited.add(creature.id);
-
-                const children = childrenMap[creature.name] || [];
-
-                return (
-                    <div className="flex flex-col items-center">
-                        <Card creature={creature} />
-                        {children.length > 0 && (
-                            <>
-                                {/* 縦線（親→子） */}
-                                <div className="w-0.5 h-5 bg-neutral-600"></div>
-                                {/* 子が複数の場合は横線で繋ぐ */}
-                                <div className="flex items-start" style={{ gap: 0 }}>
-                                    {children.map((child, idx) => (
-                                        <div key={child.id} className="flex flex-col items-center" style={{ minWidth: 130 }}>
-                                            {/* 横線の上部ライン */}
-                                            <div className="flex w-full items-center justify-center" style={{ height: 12 }}>
-                                                {children.length > 1 && (
-                                                    <div style={{
-                                                        width: '100%',
-                                                        height: 2,
-                                                        backgroundColor: '#525252',
-                                                        marginTop: 0,
-                                                    }}></div>
-                                                )}
-                                            </div>
-                                            {/* 縦線（横線→子カード） */}
-                                            <div className="w-0.5 h-4 bg-neutral-600"></div>
-                                            <TreeNode creature={child} visited={newVisited} />
-                                        </div>
-                                    ))}
-                                </div>
-                            </>
-                        )}
-                    </div>
+            // 各個体の世代深度を計算（ルート=0）
+            const depthMap = {};
+            const getDepth = (c, visited = new Set()) => {
+                if (depthMap[c.id] !== undefined) return depthMap[c.id];
+                if (visited.has(c.id)) return 0;
+                visited.add(c.id);
+                const mp = creatures.find(x => x.name === c.maleParent);
+                const fp = creatures.find(x => x.name === c.femaleParent);
+                const pd = Math.max(
+                    mp ? getDepth(mp, new Set(visited)) + 1 : 0,
+                    fp ? getDepth(fp, new Set(visited)) + 1 : 0
                 );
+                depthMap[c.id] = pd;
+                return pd;
             };
+            creatures.forEach(c => getDepth(c));
 
-            // カップル（交配ペア）を検出してまとめて表示
-            // 同じ子を持つオス・メスのペアをセットとして扱う
-            const couples = [];
-            const usedRoots = new Set();
+            // 世代ごとにグループ化
+            const maxDepth = Math.max(...Object.values(depthMap));
+            const generations = [];
+            for (let d = 0; d <= maxDepth; d++) {
+                generations.push(creatures.filter(c => depthMap[c.id] === d));
+            }
 
-            roots.forEach(r => {
-                if (usedRoots.has(r.id)) return;
-                // このルートの子と同じ子を持つ異性のルートを探す
-                const myChildren = childrenMap[r.name] || [];
-                if (myChildren.length === 0) {
-                    couples.push({ members: [r], children: [] });
-                    usedRoots.add(r.id);
-                    return;
-                }
-                // 子を共有するパートナーを探す（ルート内のみ）
-                const partner = roots.find(other => {
-                    if (other.id === r.id || usedRoots.has(other.id)) return false;
-                    const otherChildren = childrenMap[other.name] || [];
-                    return myChildren.some(mc => otherChildren.find(oc => oc.id === mc.id));
+            // SVGで接続線を描画するため各カードの位置を追跡
+            const CARD_W = 112;
+            const CARD_H = 72;
+            const COL_GAP = 16;
+            const ROW_GAP = 56;
+
+            // 各個体のx中心位置を計算（世代内インデックスから）
+            const posMap = {}; // id → { x, y, rowIdx }
+            generations.forEach((gen, rowIdx) => {
+                gen.forEach((c, colIdx) => {
+                    const x = colIdx * (CARD_W + COL_GAP) + CARD_W / 2;
+                    const y = rowIdx * (CARD_H + ROW_GAP) + CARD_H / 2;
+                    posMap[c.id] = { x, y, rowIdx, colIdx };
                 });
-                if (partner) {
-                    // 共通の子
-                    const partnerChildren = childrenMap[partner.name] || [];
-                    const sharedChildren = myChildren.filter(mc => partnerChildren.find(oc => oc.id === mc.id));
-                    couples.push({ members: [r, partner], children: sharedChildren });
-                    usedRoots.add(r.id);
-                    usedRoots.add(partner.id);
-                } else {
-                    couples.push({ members: [r], children: myChildren });
-                    usedRoots.add(r.id);
-                }
             });
 
-            const CoupleTree = ({ couple }) => {
-                const { members, children } = couple;
-                const allChildren = members.length === 1
-                    ? (childrenMap[members[0].name] || [])
-                    : children;
+            // 接続線を収集（親→子）
+            const lines = [];
+            creatures.forEach(c => {
+                const childPos = posMap[c.id];
+                if (!childPos) return;
+                const mp = creatures.find(x => x.name === c.maleParent);
+                const fp = creatures.find(x => x.name === c.femaleParent);
+                [mp, fp].forEach(parent => {
+                    if (!parent) return;
+                    const pPos = posMap[parent.id];
+                    if (!pPos) return;
+                    lines.push({ x1: pPos.x, y1: pPos.rowIdx * (CARD_H + ROW_GAP) + CARD_H, x2: childPos.x, y2: childPos.rowIdx * (CARD_H + ROW_GAP) });
+                });
+            });
 
+            // SVGサイズ
+            const maxCols = Math.max(...generations.map(g => g.length));
+            const svgW = maxCols * (CARD_W + COL_GAP);
+            const svgH = generations.length * (CARD_H + ROW_GAP);
+
+            const Card = ({ creature, x, y }) => {
+                const left = x - CARD_W / 2;
+                const top = y - CARD_H / 2;
                 return (
-                    <div className="flex flex-col items-center">
-                        {/* 親世代（横並び＋結婚線） */}
-                        <div className="flex items-center gap-0">
-                            {members.map((m, i) => (
-                                <React.Fragment key={m.id}>
-                                    <Card creature={m} />
-                                    {i < members.length - 1 && (
-                                        <div className="flex flex-col items-center mx-1">
-                                            <div className="h-0.5 w-6 bg-neutral-500"></div>
-                                            <div className="text-[9px] text-neutral-500 leading-none">×</div>
-                                            <div className="h-0.5 w-6 bg-neutral-500"></div>
-                                        </div>
-                                    )}
-                                </React.Fragment>
-                            ))}
+                    <div
+                        onClick={() => onSelect(creature)}
+                        style={{ position: 'absolute', left, top, width: CARD_W, height: CARD_H }}
+                        className={`cursor-pointer rounded-lg border px-2 py-1.5 text-center transition-all hover:scale-105 select-none
+                            ${highlightId === creature.id ? 'bg-emerald-900 border-emerald-400' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-400'}
+                            ${creature.sex === 'オス' ? 'border-t-4 border-t-emerald-500' : 'border-t-4 border-t-rose-400'}`}
+                    >
+                        <div className={`text-[9px] font-bold ${creature.sex === 'オス' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            <i className={`fa-solid ${creature.sex === 'オス' ? 'fa-mars' : 'fa-venus'}`}></i> {creature.sex}
                         </div>
-
-                        {/* 子世代 */}
-                        {allChildren.length > 0 && (
-                            <>
-                                <div className="w-0.5 h-5 bg-neutral-600"></div>
-                                <div className="relative flex items-start">
-                                    {allChildren.length > 1 && (
-                                        <div style={{
-                                            position: 'absolute',
-                                            top: 12,
-                                            left: '50%',
-                                            transform: 'translateX(-50%)',
-                                            width: `${(allChildren.length - 1) * 130}px`,
-                                            height: 2,
-                                            backgroundColor: '#525252',
-                                        }}></div>
-                                    )}
-                                    {allChildren.map(child => (
-                                        <div key={child.id} className="flex flex-col items-center" style={{ minWidth: 130 }}>
-                                            <div className="w-0.5 h-5 bg-neutral-600"></div>
-                                            <TreeNode creature={child} visited={new Set(members.map(m => m.id))} />
-                                        </div>
-                                    ))}
-                                </div>
-                            </>
-                        )}
+                        <div className="font-bold text-[11px] text-white leading-tight truncate mt-0.5">{creature.name}</div>
+                        <div className="text-[9px] text-neutral-400">{creature.generation}</div>
+                        <div className="text-[9px] text-emerald-400">{creature.stage}</div>
                     </div>
                 );
             };
 
             return (
-                <div className="bg-neutral-900 p-6 rounded-lg overflow-x-auto">
-                    <div className="flex items-center gap-2 mb-6">
+                <div className="bg-neutral-900 p-4 rounded-lg">
+                    <div className="flex items-center gap-3 mb-4">
                         <h3 className="font-bold text-emerald-400 text-sm">血統図</h3>
-                        <span className="text-[10px] text-neutral-500">（カードをタップで詳細）</span>
-                        <div className="flex gap-3 ml-2 text-[10px]">
-                            <span className="flex items-center gap-1"><span className="inline-block w-3 h-1 bg-emerald-500 rounded"></span>オス</span>
-                            <span className="flex items-center gap-1"><span className="inline-block w-3 h-1 bg-rose-400 rounded"></span>メス</span>
-                        </div>
+                        <span className="text-[10px] text-neutral-500">同世代は横に並びます</span>
+                        <span className="text-[10px] flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-emerald-500"></span>オス</span>
+                        <span className="text-[10px] flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-rose-400"></span>メス</span>
                     </div>
-                    <div className="flex flex-wrap gap-12 justify-start items-start pb-6">
-                        {couples.map((couple, i) => (
-                            <CoupleTree key={i} couple={couple} />
-                        ))}
+
+                    {/* 世代ラベル＋カード */}
+                    <div className="overflow-x-auto">
+                        <div className="flex gap-0" style={{ minWidth: svgW + 60 }}>
+                            {/* 世代ラベル列 */}
+                            <div className="flex flex-col flex-shrink-0" style={{ width: 48 }}>
+                                {generations.map((gen, i) => (
+                                    <div key={i} style={{ height: CARD_H + ROW_GAP }} className="flex items-start pt-2">
+                                        <span className="text-[9px] text-neutral-500 font-mono writing-mode-vertical">
+                                            {gen[0]?.generation || `第${i+1}世代`}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* ツリー本体（SVG線＋絶対配置カード） */}
+                            <div style={{ position: 'relative', width: svgW, height: svgH, flexShrink: 0 }}>
+                                {/* 接続線SVG */}
+                                <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
+                                    {lines.map((l, i) => {
+                                        const midY = (l.y1 + l.y2) / 2;
+                                        return (
+                                            <path
+                                                key={i}
+                                                d={`M ${l.x1} ${l.y1} C ${l.x1} ${midY}, ${l.x2} ${midY}, ${l.x2} ${l.y2}`}
+                                                stroke="#525252"
+                                                strokeWidth="1.5"
+                                                fill="none"
+                                            />
+                                        );
+                                    })}
+                                </svg>
+
+                                {/* カード */}
+                                {generations.map((gen, rowIdx) =>
+                                    gen.map((c, colIdx) => {
+                                        const pos = posMap[c.id];
+                                        return <Card key={c.id} creature={c} x={pos.x} y={pos.y} />;
+                                    })
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </div>
             );
