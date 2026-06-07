@@ -28,19 +28,16 @@
             border-bottom: 2px solid #525252;
             border-bottom-left-radius: 8px;
         }
-        .compare-chip {
+        .compare-tag {
             display: inline-flex;
             align-items: center;
             gap: 4px;
-            padding: 2px 8px;
+            padding: 2px 8px 2px 6px;
             border-radius: 9999px;
             font-size: 10px;
             font-weight: bold;
             border: 1px solid;
-            cursor: pointer;
-            transition: opacity 0.15s;
         }
-        .compare-chip:hover { opacity: 0.75; }
     </style>
 </head>
 <body class="bg-neutral-950 text-white font-sans">
@@ -49,7 +46,6 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
-        // 比較用カラーパレット（最大8個体まで対応）
         const COMPARE_COLORS = [
             { border: '#10b981', bg: 'rgba(16,185,129,0.15)', text: '#10b981', label: 'emerald' },
             { border: '#f59e0b', bg: 'rgba(245,158,11,0.15)', text: '#f59e0b', label: 'amber' },
@@ -280,23 +276,28 @@
             );
         }
 
-        // ---- 比較グラフコンポーネント ----
+        // ---- 比較グラフコンポーネント（ドロップダウン選択版）----
         function CompareGrowthChart({ mainCreature, allCreatures }) {
             const chartRef = useRef(null);
             const chartInstance = useRef(null);
-            // 比較対象IDセット（メイン個体以外）
+            // 比較対象IDリスト（最大7個体）
             const [compareIds, setCompareIds] = useState([]);
+            // ドロップダウンの現在の選択値（追加用）
+            const [dropdownValue, setDropdownValue] = useState('');
 
             const otherCreatures = allCreatures.filter(c => c.id !== mainCreature.id && c.history.length > 0);
+            // まだ追加していない個体のみドロップダウンに表示
+            const availableToAdd = otherCreatures.filter(c => !compareIds.includes(c.id));
+            const canAddMore = compareIds.length < COMPARE_COLORS.length - 1;
 
-            const toggleCompare = (id) => {
-                setCompareIds(prev =>
-                    prev.includes(id)
-                        ? prev.filter(x => x !== id)
-                        : prev.length < COMPARE_COLORS.length - 1
-                            ? [...prev, id]
-                            : prev
-                );
+            const addCompare = (id) => {
+                if (!id || compareIds.includes(id) || !canAddMore) return;
+                setCompareIds(prev => [...prev, id]);
+                setDropdownValue(''); // 選択後リセット
+            };
+
+            const removeCompare = (id) => {
+                setCompareIds(prev => prev.filter(x => x !== id));
             };
 
             // グラフ描画
@@ -304,22 +305,17 @@
                 if (!chartRef.current) return;
                 if (chartInstance.current) chartInstance.current.destroy();
 
-                // メイン個体のデータセット
                 const datasets = [];
 
-                // 比較個体を先に追加（背景に）
+                // 比較個体を先に追加
                 compareIds.forEach((cid, idx) => {
                     const c = allCreatures.find(x => x.id === cid);
                     if (!c) return;
-                    const color = COMPARE_COLORS[idx + 1]; // +1 because index 0 is main
-                    const data = c.history.map(h => {
-                        const val = parseFloat(h.size.replace(/[^0-9.]/g, ''));
-                        return isNaN(val) ? null : val;
-                    });
+                    const color = COMPARE_COLORS[idx + 1];
                     datasets.push({
                         label: c.name,
-                        data,
-                        labels: c.history.map(h => h.date),
+                        data: [],
+                        _history: c.history,
                         borderColor: color.border,
                         backgroundColor: color.bg,
                         tension: 0.3,
@@ -328,17 +324,15 @@
                         pointRadius: 4,
                         borderDash: [4, 3],
                         borderWidth: 1.5,
+                        _isCompare: true,
                     });
                 });
 
                 // メイン個体（最前面）
-                const mainData = mainCreature.history.map(h => {
-                    const val = parseFloat(h.size.replace(/[^0-9.]/g, ''));
-                    return isNaN(val) ? null : val;
-                });
                 datasets.push({
                     label: mainCreature.name,
-                    data: mainData,
+                    data: [],
+                    _history: mainCreature.history,
                     borderColor: COMPARE_COLORS[0].border,
                     backgroundColor: COMPARE_COLORS[0].bg,
                     tension: 0.3,
@@ -346,9 +340,10 @@
                     pointBackgroundColor: '#fff',
                     pointRadius: 5,
                     borderWidth: 2.5,
+                    _isCompare: false,
                 });
 
-                // 全ラベル（日付）の統合・ソート
+                // 全日付の統合
                 const allDates = new Set();
                 mainCreature.history.forEach(h => allDates.add(h.date));
                 compareIds.forEach(cid => {
@@ -357,34 +352,20 @@
                 });
                 const sortedDates = Array.from(allDates).sort();
 
-                // 各データセットをソート済みラベルに合わせてマッピング
+                // 各データセットをマッピング
                 const mappedDatasets = datasets.map(ds => {
-                    if (ds.labels) {
-                        // 比較個体：日付をキーにしてマップ
-                        const c = allCreatures.find(x => ds.label === x.name);
-                        const map = {};
-                        if (c) c.history.forEach(h => {
-                            const val = parseFloat(h.size.replace(/[^0-9.]/g, ''));
-                            map[h.date] = isNaN(val) ? null : val;
-                        });
-                        return { ...ds, data: sortedDates.map(d => map[d] ?? null), labels: undefined };
-                    } else {
-                        // メイン個体
-                        const map = {};
-                        mainCreature.history.forEach(h => {
-                            const val = parseFloat(h.size.replace(/[^0-9.]/g, ''));
-                            map[h.date] = isNaN(val) ? null : val;
-                        });
-                        return { ...ds, data: sortedDates.map(d => map[d] ?? null) };
-                    }
+                    const map = {};
+                    ds._history.forEach(h => {
+                        const val = parseFloat(h.size.replace(/[^0-9.]/g, ''));
+                        map[h.date] = isNaN(val) ? null : val;
+                    });
+                    const { _history, _isCompare, ...rest } = ds;
+                    return { ...rest, data: sortedDates.map(d => map[d] ?? null) };
                 });
 
                 chartInstance.current = new Chart(chartRef.current, {
                     type: 'line',
-                    data: {
-                        labels: sortedDates,
-                        datasets: mappedDatasets,
-                    },
+                    data: { labels: sortedDates, datasets: mappedDatasets },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
@@ -392,17 +373,10 @@
                         plugins: {
                             legend: {
                                 display: true,
-                                labels: {
-                                    color: '#d4d4d4',
-                                    font: { size: 10 },
-                                    boxWidth: 12,
-                                    padding: 8,
-                                }
+                                labels: { color: '#d4d4d4', font: { size: 10 }, boxWidth: 12, padding: 8 }
                             },
                             tooltip: {
-                                callbacks: {
-                                    label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y ?? '-'}g`
-                                }
+                                callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y ?? '-'}g` }
                             }
                         },
                         scales: {
@@ -417,39 +391,67 @@
 
             return (
                 <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 mt-4 text-white shadow-2xl">
-                    <h3 className="font-bold border-b border-neutral-700 pb-2 mb-3 text-sm flex items-center gap-2">
+                    <h3 className="font-bold border-b border-neutral-700 pb-2 mb-4 text-sm flex items-center gap-2">
                         成長グラフ
                         <span className="text-[10px] text-neutral-400 font-normal">（他の個体と比較できます）</span>
                     </h3>
 
-                    {/* 比較個体の選択チップ */}
+                    {/* ドロップダウン＋追加ボタン */}
                     {otherCreatures.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mb-4">
-                            {otherCreatures.map((c, idx) => {
-                                const isSelected = compareIds.includes(c.id);
-                                const colorIdx = compareIds.indexOf(c.id);
-                                const color = isSelected ? COMPARE_COLORS[colorIdx + 1] : null;
-                                const canAdd = compareIds.length < COMPARE_COLORS.length - 1;
-                                return (
-                                    <button
-                                        key={c.id}
-                                        onClick={() => toggleCompare(c.id)}
-                                        disabled={!isSelected && !canAdd}
-                                        className="compare-chip"
-                                        style={isSelected
-                                            ? { borderColor: color.border, color: color.text, backgroundColor: color.bg }
-                                            : { borderColor: '#525252', color: '#a3a3a3', backgroundColor: 'transparent', opacity: (!canAdd && !isSelected) ? 0.4 : 1 }
+                        <div className="mb-3 space-y-2">
+                            <div className="flex gap-2 items-center">
+                                <select
+                                    value={dropdownValue}
+                                    onChange={e => setDropdownValue(e.target.value)}
+                                    disabled={!canAddMore}
+                                    className="flex-1 bg-neutral-800 border border-neutral-600 text-white text-xs rounded px-2 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:border-emerald-500"
+                                >
+                                    <option value="">
+                                        {canAddMore
+                                            ? availableToAdd.length > 0 ? '比較個体を選択...' : '（追加できる個体なし）'
+                                            : `最大${COMPARE_COLORS.length - 1}個体まで`
                                         }
-                                    >
-                                        {isSelected && <span style={{width:6,height:6,borderRadius:'50%',backgroundColor:color.border,display:'inline-block'}}></span>}
-                                        {c.name}
-                                        {isSelected
-                                            ? <i className="fa-solid fa-xmark" style={{fontSize:8}}></i>
-                                            : <i className="fa-solid fa-plus" style={{fontSize:8}}></i>
-                                        }
-                                    </button>
-                                );
-                            })}
+                                    </option>
+                                    {availableToAdd.map(c => (
+                                        <option key={c.id} value={c.id}>{c.name}（{c.generation} / {c.alias || '—'}）</option>
+                                    ))}
+                                </select>
+                                <button
+                                    onClick={() => addCompare(dropdownValue)}
+                                    disabled={!dropdownValue || !canAddMore}
+                                    className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 disabled:cursor-not-allowed text-white text-xs font-bold px-3 py-1.5 rounded transition-colors"
+                                >
+                                    追加
+                                </button>
+                            </div>
+
+                            {/* 選択済み個体タグ */}
+                            {compareIds.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5">
+                                    {compareIds.map((cid, idx) => {
+                                        const c = allCreatures.find(x => x.id === cid);
+                                        if (!c) return null;
+                                        const color = COMPARE_COLORS[idx + 1];
+                                        return (
+                                            <span
+                                                key={cid}
+                                                className="compare-tag"
+                                                style={{ borderColor: color.border, color: color.text, backgroundColor: color.bg }}
+                                            >
+                                                <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: color.border, display: 'inline-block', flexShrink: 0 }}></span>
+                                                {c.name}
+                                                <button
+                                                    onClick={() => removeCompare(cid)}
+                                                    style={{ marginLeft: 2, lineHeight: 1 }}
+                                                    title="削除"
+                                                >
+                                                    <i className="fa-solid fa-xmark" style={{ fontSize: 8 }}></i>
+                                                </button>
+                                            </span>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -491,7 +493,6 @@
                 setShowRecordModal(null);
             };
 
-            // allCreaturesのメイン個体も最新に
             const allForChart = allCreatures.map(c => c.id === form.id ? form : c);
 
             return (
@@ -558,7 +559,6 @@
                         </div>
                     </div>
 
-                    {/* ↓ 新しい比較グラフコンポーネント */}
                     <CompareGrowthChart mainCreature={form} allCreatures={allForChart} />
 
                     <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 mt-4 space-y-4 text-white shadow-2xl">
