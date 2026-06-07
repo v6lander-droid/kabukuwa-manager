@@ -282,8 +282,6 @@
             const chartInstance = useRef(null);
             // 比較対象IDリスト（最大7個体）
             const [compareIds, setCompareIds] = useState([]);
-            // ドロップダウンの現在の選択値（追加用）
-            const [dropdownValue, setDropdownValue] = useState('');
 
             const otherCreatures = allCreatures.filter(c => c.id !== mainCreature.id && c.history.length > 0);
             // まだ追加していない個体のみドロップダウンに表示
@@ -293,7 +291,6 @@
             const addCompare = (id) => {
                 if (!id || compareIds.includes(id) || !canAddMore) return;
                 setCompareIds(prev => [...prev, id]);
-                setDropdownValue(''); // 選択後リセット
             };
 
             const removeCompare = (id) => {
@@ -396,34 +393,25 @@
                         <span className="text-[10px] text-neutral-400 font-normal">（他の個体と比較できます）</span>
                     </h3>
 
-                    {/* ドロップダウン＋追加ボタン */}
+                    {/* ドロップダウン選択 */}
                     {otherCreatures.length > 0 && (
                         <div className="mb-3 space-y-2">
-                            <div className="flex gap-2 items-center">
-                                <select
-                                    value={dropdownValue}
-                                    onChange={e => setDropdownValue(e.target.value)}
-                                    disabled={!canAddMore}
-                                    className="flex-1 bg-neutral-800 border border-neutral-600 text-white text-xs rounded px-2 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:border-emerald-500"
-                                >
-                                    <option value="">
-                                        {canAddMore
-                                            ? availableToAdd.length > 0 ? '比較個体を選択...' : '（追加できる個体なし）'
-                                            : `最大${COMPARE_COLORS.length - 1}個体まで`
-                                        }
-                                    </option>
-                                    {availableToAdd.map(c => (
-                                        <option key={c.id} value={c.id}>{c.name}（{c.generation} / {c.alias || '—'}）</option>
-                                    ))}
-                                </select>
-                                <button
-                                    onClick={() => addCompare(dropdownValue)}
-                                    disabled={!dropdownValue || !canAddMore}
-                                    className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 disabled:cursor-not-allowed text-white text-xs font-bold px-3 py-1.5 rounded transition-colors"
-                                >
-                                    追加
-                                </button>
-                            </div>
+                            <select
+                                value=""
+                                onChange={e => { addCompare(e.target.value); }}
+                                disabled={!canAddMore}
+                                className="w-full bg-neutral-800 border border-neutral-600 text-white text-xs rounded px-2 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:border-emerald-500"
+                            >
+                                <option value="">
+                                    {canAddMore
+                                        ? availableToAdd.length > 0 ? '比較個体を選択...' : '（追加できる個体なし）'
+                                        : `最大${COMPARE_COLORS.length - 1}個体まで`
+                                    }
+                                </option>
+                                {availableToAdd.map(c => (
+                                    <option key={c.id} value={c.id}>{c.name}（{c.generation} / {c.alias || '—'}）</option>
+                                ))}
+                            </select>
 
                             {/* 選択済み個体タグ */}
                             {compareIds.length > 0 && (
