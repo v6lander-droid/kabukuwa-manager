@@ -319,12 +319,19 @@
             const [maleSelection, setMaleSelection] = useState('');
             const [femaleSelection, setFemaleSelection] = useState('');
 
+            const [saveError, setSaveError] = useState(false);
+
+            const [loadFailed, setLoadFailed] = useState(false);
+
             const [creatures, setCreatures] = useState(() => {
                 try {
                     const saved = localStorage.getItem('beetle_data');
                     if (saved) return JSON.parse(saved);
                 } catch (e) {
-                    console.warn('保存データの読み込みに失敗しました。初期データを使用します。', e);
+                    console.warn('保存データの読み込みに失敗しました。', e);
+                    // 読み込み失敗フラグはuseEffect内でセットできないため別途管理
+                    // ここではサンプルデータを返すが保存はしない（loadFailedフラグで制御）
+                    return [];
                 }
                 const sampleStages = ['孵化', '1令', '2令', '3令', '蛹', '成虫'];
                 return Array.from({ length: 10 }, (_, i) => {
@@ -354,7 +361,16 @@
             });
             const [sort, setSort] = useState({ key: 'id', direction: 'asc' });
 
-            useEffect(() => { localStorage.setItem('beetle_data', JSON.stringify(creatures)); }, [creatures]);
+            useEffect(() => {
+                if (loadFailed) return; // 読み込み失敗時は上書き保存しない
+                try {
+                    localStorage.setItem('beetle_data', JSON.stringify(creatures));
+                    setSaveError(false);
+                } catch (e) {
+                    console.error('データの保存に失敗しました。', e);
+                    setSaveError(true);
+                }
+            }, [creatures, loadFailed]);
 
             const toggleSaleStatus = (id, e) => {
                 e.stopPropagation();
