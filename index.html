@@ -346,12 +346,12 @@
             const [creatures, setCreatures] = useState(() => {
                 try {
                     const saved = localStorage.getItem('beetle_data');
-                    if (saved) return JSON.parse(saved);
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        if (Array.isArray(parsed)) return parsed;
+                    }
                 } catch (e) {
                     console.warn('保存データの読み込みに失敗しました。', e);
-                    // 読み込み失敗フラグはuseEffect内でセットできないため別途管理
-                    // ここではサンプルデータを返すが保存はしない（loadFailedフラグで制御）
-                    return [];
                 }
                 const sampleStages = ['孵化', '1令', '2令', '3令', '蛹', '成虫'];
                 return Array.from({ length: 10 }, (_, i) => {
@@ -430,12 +430,12 @@
                 const Rpct = (r * 100).toFixed(2);
                 const risk = fRiskInfo(F);
                 const desc = fRiskDesc(F);
-                const mAnc = getAncestors(m.name, nameMap);
-                const fAnc = getAncestors(f.name, nameMap);
+                const mAnc = getAncestors(m.name, nameMap, 0);
+                const fAnc = getAncestors(f.name, nameMap, 0);
                 const commonAncestors = [];
                 mAnc.forEach((_, name) => { if (fAnc.has(name)) commonAncestors.push(name); });
-                return { F, Fpct, r, Rpct, riskLabel: risk.label, riskColor: risk.color, desc, commonAncestors };
-            }, [maleSelection, femaleSelection, creatures, nameMap]);
+                return { F, Fpct, r, Rpct, riskLabel: risk.label, desc, commonAncestors };
+            }, [maleSelection, femaleSelection, nameMap]);
 
             const [agreedToTerms, setAgreedToTerms] = useState(() => {
                 return localStorage.getItem('beetle_agreed') === 'true';
@@ -951,7 +951,7 @@
                                                 {allCreatures.filter(c => c.sex === 'メス').map(c => <option key={c.id} value={c.name}>{c.name}（{c.generation}）</option>)}
                                             </select>
                                         ) : f.isDate ? (
-                                            <input type="date" className="w-full bg-neutral-800 p-2 rounded text-white text-sm" value={editForm[f.key] === '-' ? '' : (editForm[f.key] || '')} onChange={e => setEditForm({...editForm, [f.key]: e.target.value || '-'})} />
+                                            <input type="date" className="w-full bg-neutral-800 p-2 rounded text-white text-sm text-left" value={editForm[f.key] === '-' ? '' : (editForm[f.key] || '')} onChange={e => setEditForm({...editForm, [f.key]: e.target.value || '-'})} />
                                         ) : (
                                             <input className="w-full bg-neutral-800 p-2 rounded text-white text-sm" value={editForm[f.key] || ''} onChange={e => setEditForm({...editForm, [f.key]: e.target.value})} />
                                         )}
