@@ -544,11 +544,13 @@
 
             return (
                 <div className="min-h-screen p-4">
-                    <nav className="mb-4 flex justify-between items-center font-bold text-emerald-400">
-                        <div className="flex flex-col"><span>Beetle Base</span><span className="text-[10px] text-white">made by ＭＨ</span></div>
-                        <div className="flex gap-2 items-center">
-                            <button onClick={() => setAgreedToTerms(false)} className="bg-neutral-700 px-3 py-1 rounded text-sm text-white font-bold hover:bg-neutral-600 transition-colors"><i className="fa-solid fa-file-lines mr-1"></i>規約</button>
-                            {/* エクスポート */}
+                    <nav className="mb-4 font-bold text-emerald-400">
+                        <div className="flex justify-between items-center mb-2">
+                            <div className="flex flex-col"><span>Beetle Base</span><span className="text-[10px] text-white">made by ＭＨ</span></div>
+                            {activeTab === '一覧' && <button onClick={() => setShowAddModal(true)} className="bg-emerald-600 px-4 py-2 rounded text-sm text-white font-bold">追加</button>}
+                        </div>
+                        <div className="flex gap-2">
+                            <button onClick={() => setAgreedToTerms(false)} className="flex-1 bg-neutral-700 py-2 rounded text-xs text-white font-bold hover:bg-neutral-600 transition-colors"><i className="fa-solid fa-file-lines mr-1"></i>規約</button>
                             <button onClick={() => {
                                 const json = JSON.stringify(creatures, null, 2);
                                 const blob = new Blob([json], { type: 'application/json' });
@@ -558,11 +560,10 @@
                                 a.download = `beetle_backup_${new Date().toISOString().slice(0,10)}.json`;
                                 a.click();
                                 URL.revokeObjectURL(url);
-                            }} className="bg-neutral-700 px-3 py-1 rounded text-sm text-white font-bold">
+                            }} className="flex-1 bg-neutral-700 py-2 rounded text-xs text-white font-bold hover:bg-neutral-600 transition-colors">
                                 <i className="fa-solid fa-download mr-1"></i>保存
                             </button>
-                            {/* インポート */}
-                            <label className="bg-neutral-700 px-3 py-1 rounded text-sm text-white font-bold cursor-pointer">
+                            <label className="flex-1 bg-neutral-700 py-2 rounded text-xs text-white font-bold cursor-pointer hover:bg-neutral-600 transition-colors text-center">
                                 <i className="fa-solid fa-upload mr-1"></i>読込
                                 <input type="file" accept=".json" className="hidden" onChange={e => {
                                     const file = e.target.files[0];
@@ -583,7 +584,6 @@
                                     e.target.value = '';
                                 }} />
                             </label>
-                            {activeTab === '一覧' && <button onClick={() => setShowAddModal(true)} className="bg-emerald-600 px-3 py-1 rounded text-sm text-white font-bold">追加</button>}
                         </div>
                     </nav>
 
