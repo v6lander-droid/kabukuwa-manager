@@ -3,7 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Beetle Base - 統合管理 (Visual Pedigree)</title>
+    <title>Beetle Base</title>
+    <link id="favicon" rel="icon" type="image/png" href="">
+    <link id="apple-touch-icon" rel="apple-touch-icon" href="">
+    <script>
+        // localStorageからアイコンを即時反映（React描画前に実行）
+        (function() {
+            const icon = localStorage.getItem('beetle_icon');
+            if (icon) {
+                document.getElementById('favicon').href = icon;
+                document.getElementById('apple-touch-icon').href = icon;
+            }
+        })();
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -441,6 +453,22 @@
                 return localStorage.getItem('beetle_agreed') === 'true';
             });
             const [termsTab, setTermsTab] = useState('使用方法');
+            const [appIcon, setAppIcon] = useState(() => localStorage.getItem('beetle_icon') || '');
+            const [showIconModal, setShowIconModal] = useState(false);
+
+            const updateAppIcon = (base64) => {
+                localStorage.setItem('beetle_icon', base64);
+                setAppIcon(base64);
+                document.getElementById('favicon').href = base64;
+                document.getElementById('apple-touch-icon').href = base64;
+            };
+
+            const removeAppIcon = () => {
+                localStorage.removeItem('beetle_icon');
+                setAppIcon('');
+                document.getElementById('favicon').href = '';
+                document.getElementById('apple-touch-icon').href = '';
+            };
 
             const agreeToTerms = () => {
                 localStorage.setItem('beetle_agreed', 'true');
@@ -546,7 +574,10 @@
                 <div className="min-h-screen p-4">
                     <nav className="mb-4 font-bold text-emerald-400">
                         <div className="flex justify-between items-center mb-2">
-                            <div className="flex flex-col"><span>Beetle Base</span><span className="text-[10px] text-white">made by ＭＨ</span></div>
+                            <div className="flex items-center gap-2">
+                                {appIcon && <img src={appIcon} alt="icon" className="w-8 h-8 rounded-lg object-cover" />}
+                                <div className="flex flex-col"><span>Beetle Base</span><span className="text-[10px] text-white">made by ＭＨ</span></div>
+                            </div>
                             {activeTab === '一覧' && <button onClick={() => setShowAddModal(true)} className="bg-emerald-600 px-4 py-2 rounded text-sm text-white font-bold">追加</button>}
                         </div>
                         <div className="flex gap-2">
@@ -584,8 +615,59 @@
                                     e.target.value = '';
                                 }} />
                             </label>
+                            <button onClick={() => setShowIconModal(true)} className="flex-1 bg-neutral-700 py-2 rounded text-xs text-white font-bold hover:bg-neutral-600 transition-colors">
+                                <i className="fa-solid fa-image mr-1"></i>アイコン
+                            </button>
                         </div>
                     </nav>
+
+                    {/* アイコン設定モーダル */}
+                    {showIconModal && (
+                        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+                            <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4">
+                                <h3 className="font-bold text-white">アイコン設定</h3>
+                                {appIcon && (
+                                    <div className="flex justify-center">
+                                        <img src={appIcon} alt="現在のアイコン" className="w-24 h-24 rounded-2xl object-cover border border-neutral-600" />
+                                    </div>
+                                )}
+                                <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-neutral-600 rounded-lg cursor-pointer hover:border-emerald-500 transition-colors bg-neutral-800/50">
+                                    <i className="fa-solid fa-image text-2xl text-neutral-500 mb-1"></i>
+                                    <span className="text-xs text-neutral-500">{appIcon ? '画像を変更' : '画像を選択'}</span>
+                                    <input type="file" accept="image/*" className="hidden" onChange={e => {
+                                        const file = e.target.files[0];
+                                        if (!file) return;
+                                        const reader = new FileReader();
+                                        reader.onload = ev => {
+                                            const img = new Image();
+                                            img.onload = () => {
+                                                const SIZE = 512;
+                                                const canvas = document.createElement('canvas');
+                                                canvas.width = SIZE; canvas.height = SIZE;
+                                                const ctx = canvas.getContext('2d');
+                                                // 正方形にクロップ
+                                                const min = Math.min(img.width, img.height);
+                                                const sx = (img.width - min) / 2;
+                                                const sy = (img.height - min) / 2;
+                                                ctx.drawImage(img, sx, sy, min, min, 0, 0, SIZE, SIZE);
+                                                const compressed = canvas.toDataURL('image/png');
+                                                updateAppIcon(compressed);
+                                                setShowIconModal(false);
+                                            };
+                                            img.src = ev.target.result;
+                                        };
+                                        reader.readAsDataURL(file);
+                                        e.target.value = '';
+                                    }} />
+                                </label>
+                                <p className="text-[10px] text-neutral-500">※ 正方形にトリミングされます。iPhoneのホーム画面に追加するとアイコンとして表示されます。</p>
+                                <div className="flex gap-2">
+                                    <button onClick={() => setShowIconModal(false)} className="flex-1 bg-neutral-700 py-2 rounded font-bold text-white text-sm">閉じる</button>
+                                    {appIcon && <button onClick={() => { removeAppIcon(); setShowIconModal(false); }} className="flex-1 bg-red-800 py-2 rounded font-bold text-white text-sm">削除</button>}
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {saveError && (
                         <div className="mb-3 p-3 bg-red-900/60 border border-red-500 rounded text-red-300 text-xs">
