@@ -441,8 +441,6 @@
                 setSelectedCreature(updated);
             };
 
-            const processedCreatures = [...creatures].sort((a, b) => (a[sort.key] < b[sort.key] ? -1 : 1) * (sort.direction === 'asc' ? 1 : -1));
-
             // ---- ライト係数法によるF値計算 ----
             // 個体名→個体オブジェクトのマップ
             const nameMap = useMemo(() => {
@@ -450,23 +448,6 @@
                 creatures.forEach(c => { m[c.name] = c; });
                 return m;
             }, [creatures]);
-
-            const sim = useMemo(() => {
-                const m = creatures.find(c => c.id === maleSelection);
-                const f = creatures.find(c => c.id === femaleSelection);
-                if (!m || !f) return null;
-                const F = calcF(m.name, f.name, nameMap);
-                const r = calcR(m.name, f.name, nameMap);
-                const Fpct = (F * 100).toFixed(2);
-                const Rpct = (r * 100).toFixed(2);
-                const risk = fRiskInfo(F);
-                const desc = fRiskDesc(F);
-                const mAnc = getAncestors(m.name, nameMap, 0);
-                const fAnc = getAncestors(f.name, nameMap, 0);
-                const commonAncestors = [];
-                mAnc.forEach((_, name) => { if (fAnc.has(name)) commonAncestors.push(name); });
-                return { F, Fpct, r, Rpct, riskLabel: risk.label, desc, commonAncestors };
-            }, [maleSelection, femaleSelection, nameMap]);
 
             const [agreedToTerms, setAgreedToTerms] = useState(() => {
                 return localStorage.getItem('beetle_agreed') === 'true';
@@ -576,6 +557,23 @@
                     onGoToTree={(id) => { setHighlightId(id); setActiveTab('血統図'); setSelectedCreature(null); }}
                 />
             );
+
+            const sim = useMemo(() => {
+                const m = creatures.find(c => c.id === maleSelection);
+                const f = creatures.find(c => c.id === femaleSelection);
+                if (!m || !f) return null;
+                const F = calcF(m.name, f.name, nameMap);
+                const r = calcR(m.name, f.name, nameMap);
+                const Fpct = (F * 100).toFixed(2);
+                const Rpct = (r * 100).toFixed(2);
+                const risk = fRiskInfo(F);
+                const desc = fRiskDesc(F);
+                const mAnc = getAncestors(m.name, nameMap, 0);
+                const fAnc = getAncestors(f.name, nameMap, 0);
+                const commonAncestors = [];
+                mAnc.forEach((_, name) => { if (fAnc.has(name)) commonAncestors.push(name); });
+                return { F, Fpct, r, Rpct, riskLabel: risk.label, desc, commonAncestors };
+            }, [maleSelection, femaleSelection, nameMap]);
 
             const tableHeaders = [
                 {k:'saleStatus',l:'計画'}, {k:'name',l:'個体名'}, {k:'sex',l:'性別'}, {k:'alias',l:'名称'}, {k:'origin',l:'産地'},
