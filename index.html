@@ -411,7 +411,9 @@
                     })
                     .sort((a, b) => (a[sort.key] < b[sort.key] ? -1 : 1) * (sort.direction === 'asc' ? 1 : -1));
             }, [creatures, filters, sort]);
-                if (loadFailed) return; // 読み込み失敗時は上書き保存しない
+
+            useEffect(() => {
+                if (loadFailed) return;
                 try {
                     localStorage.setItem('beetle_data', JSON.stringify(creatures));
                     setSaveError(false);
