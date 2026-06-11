@@ -441,20 +441,34 @@
                 setSelectedCreature(updated);
             };
 
-            // ---- ライト係数法によるF値計算 ----
-            // 個体名→個体オブジェクトのマップ
+            const [agreedToTerms, setAgreedToTerms] = useState(() => localStorage.getItem('beetle_agreed') === 'true');
+            const [termsTab, setTermsTab] = useState('使用方法');
+            const [appIcon, setAppIcon] = useState(() => localStorage.getItem('beetle_icon') || '');
+            const [showIconModal, setShowIconModal] = useState(false);
+
+            // ---- 遺伝計算 ----
             const nameMap = useMemo(() => {
                 const m = {};
                 creatures.forEach(c => { m[c.name] = c; });
                 return m;
             }, [creatures]);
 
-            const [agreedToTerms, setAgreedToTerms] = useState(() => {
-                return localStorage.getItem('beetle_agreed') === 'true';
-            });
-            const [termsTab, setTermsTab] = useState('使用方法');
-            const [appIcon, setAppIcon] = useState(() => localStorage.getItem('beetle_icon') || '');
-            const [showIconModal, setShowIconModal] = useState(false);
+            const sim = useMemo(() => {
+                const m = creatures.find(c => c.id === maleSelection);
+                const f = creatures.find(c => c.id === femaleSelection);
+                if (!m || !f) return null;
+                const F = calcF(m.name, f.name, nameMap);
+                const r = calcR(m.name, f.name, nameMap);
+                const Fpct = (F * 100).toFixed(2);
+                const Rpct = (r * 100).toFixed(2);
+                const risk = fRiskInfo(F);
+                const desc = fRiskDesc(F);
+                const mAnc = getAncestors(m.name, nameMap, 0);
+                const fAnc = getAncestors(f.name, nameMap, 0);
+                const commonAncestors = [];
+                mAnc.forEach((_, name) => { if (fAnc.has(name)) commonAncestors.push(name); });
+                return { F, Fpct, r, Rpct, riskLabel: risk.label, desc, commonAncestors };
+            }, [maleSelection, femaleSelection, nameMap]);
 
             const updateAppIcon = (base64) => {
                 localStorage.setItem('beetle_icon', base64);
@@ -462,14 +476,12 @@
                 document.getElementById('favicon').href = base64;
                 document.getElementById('apple-touch-icon').href = base64;
             };
-
             const removeAppIcon = () => {
                 localStorage.removeItem('beetle_icon');
                 setAppIcon('');
                 document.getElementById('favicon').href = '';
                 document.getElementById('apple-touch-icon').href = '';
             };
-
             const agreeToTerms = () => {
                 localStorage.setItem('beetle_agreed', 'true');
                 setAgreedToTerms(true);
