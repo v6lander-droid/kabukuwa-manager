@@ -392,8 +392,25 @@
                 });
             });
             const [sort, setSort] = useState({ key: 'id', direction: 'asc' });
+            const [filters, setFilters] = useState({ name: '', sex: '', saleStatus: '', stage: '', alias: '', generation: '' });
+            const [showFilter, setShowFilter] = useState(false);
 
-            useEffect(() => {
+            const resetFilters = () => setFilters({ name: '', sex: '', saleStatus: '', stage: '', alias: '', generation: '' });
+            const activeFilterCount = Object.values(filters).filter(v => v !== '').length;
+
+            const processedCreatures = useMemo(() => {
+                return [...creatures]
+                    .filter(c => {
+                        if (filters.name && !c.name.includes(filters.name)) return false;
+                        if (filters.sex && c.sex !== filters.sex) return false;
+                        if (filters.saleStatus && c.saleStatus !== filters.saleStatus) return false;
+                        if (filters.stage && c.stage !== filters.stage) return false;
+                        if (filters.alias && c.alias !== filters.alias) return false;
+                        if (filters.generation && c.generation !== filters.generation) return false;
+                        return true;
+                    })
+                    .sort((a, b) => (a[sort.key] < b[sort.key] ? -1 : 1) * (sort.direction === 'asc' ? 1 : -1));
+            }, [creatures, filters, sort]);
                 if (loadFailed) return; // 読み込み失敗時は上書き保存しない
                 try {
                     localStorage.setItem('beetle_data', JSON.stringify(creatures));
@@ -699,11 +716,59 @@
                                     </div>
                                 </div>
                             )}
+                            {/* フィルターUI */}
+                            <div className="mb-3">
+                                <div className="flex gap-2 items-center mb-2">
+                                    <button onClick={() => setShowFilter(!showFilter)} className={`flex items-center gap-1 px-3 py-1.5 rounded text-xs font-bold transition-colors ${showFilter ? 'bg-emerald-600 text-white' : 'bg-neutral-700 text-white hover:bg-neutral-600'}`}>
+                                        <i className="fa-solid fa-filter"></i>
+                                        フィルター
+                                        {activeFilterCount > 0 && <span className="bg-emerald-400 text-black rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-bold">{activeFilterCount}</span>}
+                                    </button>
+                                    {activeFilterCount > 0 && <button onClick={resetFilters} className="text-xs text-neutral-400 hover:text-white transition-colors"><i className="fa-solid fa-xmark mr-1"></i>リセット</button>}
+                                    <span className="text-xs text-neutral-500 ml-auto">{processedCreatures.length} / {creatures.length} 件</span>
+                                </div>
+                                {showFilter && (
+                                    <div className="bg-neutral-800 rounded-lg p-3 space-y-2 border border-neutral-700">
+                                        <input
+                                            type="text"
+                                            placeholder="個体名で検索..."
+                                            value={filters.name}
+                                            onChange={e => setFilters({...filters, name: e.target.value})}
+                                            className="w-full bg-neutral-700 text-white text-xs rounded px-2 py-1.5 border border-neutral-600 focus:outline-none focus:border-emerald-500"
+                                        />
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {[
+                                                { key: 'sex', label: '性別', options: ['オス', 'メス'] },
+                                                { key: 'saleStatus', label: '計画', options: ['使用', '予備', '不要'] },
+                                                { key: 'stage', label: 'ステージ', options: [...new Set(creatures.map(c => c.stage).filter(Boolean))] },
+                                                { key: 'alias', label: '名称', options: [...new Set(creatures.map(c => c.alias).filter(Boolean))] },
+                                                { key: 'generation', label: '累代', options: [...new Set(creatures.map(c => c.generation).filter(Boolean))].sort() },
+                                            ].map(f => (
+                                                <select key={f.key} value={filters[f.key]} onChange={e => setFilters({...filters, [f.key]: e.target.value})}
+                                                    className="bg-neutral-700 text-white text-xs rounded px-2 py-1.5 border border-neutral-600 focus:outline-none focus:border-emerald-500">
+                                                    <option value="">全て（{f.label}）</option>
+                                                    {f.options.map(o => <option key={o} value={o}>{o}</option>)}
+                                                </select>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                             <div className="overflow-x-auto bg-neutral-900 rounded-lg shadow-xl">
                                 <table className="w-full text-sm border-collapse whitespace-nowrap">
                                     <thead className="bg-neutral-800">
                                         <tr>
-                                            {tableHeaders.map((h, i) => (<th key={h.k} className={`p-3 cursor-pointer hover:bg-neutral-700 ${i < 2 ? `sticky-col-${i+1}` : ''}`} onClick={() => setSort({key:h.k, direction: sort.key===h.k && sort.direction==='asc'?'desc':'asc'})}>{h.l}</th>))}
+                                            {tableHeaders.map((h, i) => (
+                                                <th key={h.k} className={`p-3 cursor-pointer hover:bg-neutral-700 select-none ${i < 2 ? `sticky-col-${i+1}` : ''}`} onClick={() => setSort({key:h.k, direction: sort.key===h.k && sort.direction==='asc'?'desc':'asc'})}>
+                                                    <span className="flex items-center justify-center gap-1">
+                                                        {h.l}
+                                                        <span className="flex flex-col leading-none">
+                                                            <i className={`fa-solid fa-caret-up text-[8px] ${sort.key === h.k && sort.direction === 'asc' ? 'text-emerald-400' : 'text-neutral-600'}`}></i>
+                                                            <i className={`fa-solid fa-caret-down text-[8px] ${sort.key === h.k && sort.direction === 'desc' ? 'text-emerald-400' : 'text-neutral-600'}`}></i>
+                                                        </span>
+                                                    </span>
+                                                </th>
+                                            ))}
                                             <th className="p-3">操作</th>
                                         </tr>
                                     </thead>
