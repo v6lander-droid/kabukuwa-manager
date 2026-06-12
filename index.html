@@ -692,12 +692,12 @@
                                                 {f.key === 'maleParent' ? (
                                                     <select className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" value={newCreatureData[f.key] || ''} onChange={e => setNewCreatureData({...newCreatureData, [f.key]: e.target.value})}>
                                                         <option value="">未設定</option>
-                                                        {creatures.filter(c => c.sex === 'オス').map(c => <option key={c.id} value={c.name}>{c.name}（{c.generation}）</option>)}
+                                                        {creatures.filter(c => isMale(c.sex)).map(c => <option key={c.id} value={c.name}>{c.name}（{c.generation}）</option>)}
                                                     </select>
                                                 ) : f.key === 'femaleParent' ? (
                                                     <select className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" value={newCreatureData[f.key] || ''} onChange={e => setNewCreatureData({...newCreatureData, [f.key]: e.target.value})}>
                                                         <option value="">未設定</option>
-                                                        {creatures.filter(c => c.sex === 'メス').map(c => <option key={c.id} value={c.name}>{c.name}（{c.generation}）</option>)}
+                                                        {creatures.filter(c => isFemale(c.sex)).map(c => <option key={c.id} value={c.name}>{c.name}（{c.generation}）</option>)}
                                                     </select>
                                                 ) : f.isDate ? (
                                                     <DateInput
@@ -803,8 +803,8 @@
                         <div className="bg-neutral-900 p-6 rounded-lg space-y-6 text-white text-sm">
                             <h3 className="font-bold text-emerald-400 text-lg border-b border-neutral-700 pb-2">交配シミュレーション</h3>
                             <div className="flex gap-4">
-                                <select className="bg-neutral-800 p-2 rounded flex-1 border border-neutral-700" onChange={e => setMaleSelection(e.target.value)}><option value="">オス親を選択</option>{creatures.filter(c => c.sex === 'オス').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
-                                <select className="bg-neutral-800 p-2 rounded flex-1 border border-neutral-700" onChange={e => setFemaleSelection(e.target.value)}><option value="">メス親を選択</option>{creatures.filter(c => c.sex === 'メス').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+                                <select className="bg-neutral-800 p-2 rounded flex-1 border border-neutral-700" onChange={e => setMaleSelection(e.target.value)}><option value="">オス親を選択</option>{creatures.filter(c => isMale(c.sex)).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+                                <select className="bg-neutral-800 p-2 rounded flex-1 border border-neutral-700" onChange={e => setFemaleSelection(e.target.value)}><option value="">メス親を選択</option>{creatures.filter(c => isFemale(c.sex)).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
                             </div>
                             {sim && (
                                 <div className="space-y-4">
@@ -1028,12 +1028,12 @@
                                         {f.key === 'maleParent' ? (
                                             <select className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" value={(!editForm[f.key] || editForm[f.key] === '-') ? '' : editForm[f.key]} onChange={e => setEditForm({...editForm, [f.key]: e.target.value})}>
                                                 <option value="">未設定</option>
-                                                {allCreatures.filter(c => c.sex === 'オス').map(c => <option key={c.id} value={c.name}>{c.name}（{c.generation}）</option>)}
+                                                {allCreatures.filter(c => isMale(c.sex)).map(c => <option key={c.id} value={c.name}>{c.name}（{c.generation}）</option>)}
                                             </select>
                                         ) : f.key === 'femaleParent' ? (
                                             <select className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" value={(!editForm[f.key] || editForm[f.key] === '-') ? '' : editForm[f.key]} onChange={e => setEditForm({...editForm, [f.key]: e.target.value})}>
                                                 <option value="">未設定</option>
-                                                {allCreatures.filter(c => c.sex === 'メス').map(c => <option key={c.id} value={c.name}>{c.name}（{c.generation}）</option>)}
+                                                {allCreatures.filter(c => isFemale(c.sex)).map(c => <option key={c.id} value={c.name}>{c.name}（{c.generation}）</option>)}
                                             </select>
                                         ) : f.isDate ? (
                                             <DateInput
