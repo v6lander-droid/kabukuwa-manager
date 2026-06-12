@@ -268,46 +268,48 @@
             let globalOffsetX = 0;
 
             groups.forEach(group => {
-                // グループ内のリーフ
-                const groupLeaves = group.filter(c => getChildren(c).filter(ch => group.includes(ch)).length === 0);
+                // 深度の最大値（グループ内）
+                const groupMaxD = Math.max(...group.map(c => depthMap[c.id]));
 
-                // リーフを等間隔に配置
-                groupLeaves.forEach((c, i) => {
-                    posMap[c.id] = { x: globalOffsetX + i * STEP + CARD_W / 2, rowIdx: depthMap[c.id] };
-                });
-
-                // 上の世代を子の中央に配置（深度の大きい順→小さい順）
+                // 深度の大きい順（リーフ側から祖先側）に配置
                 const groupDepths = [...new Set(group.map(c => depthMap[c.id]))].sort((a, b) => b - a);
+
                 groupDepths.forEach(d => {
-                    group.filter(c => depthMap[c.id] === d && !posMap[c.id]).forEach(c => {
+                    const gen = group.filter(c => depthMap[c.id] === d);
+
+                    gen.forEach(c => {
+                        if (posMap[c.id]) return; // 既に配置済みはスキップ
                         const children = getChildren(c).filter(ch => group.includes(ch));
                         const childPositions = children.map(ch => posMap[ch.id]).filter(Boolean);
                         if (childPositions.length > 0) {
                             const avgX = childPositions.reduce((sum, p) => sum + p.x, 0) / childPositions.length;
                             posMap[c.id] = { x: avgX, rowIdx: d };
                         } else {
-                            const usedX = group.filter(x => posMap[x.id]?.rowIdx === d).map(x => posMap[x.id].x);
+                            // 子がいない or 子が未配置の場合は右端に配置
+                            const usedX = Object.values(posMap).filter(p => p.rowIdx === d).map(p => p.x);
                             const maxX = usedX.length > 0 ? Math.max(...usedX) + STEP : globalOffsetX + CARD_W / 2;
                             posMap[c.id] = { x: maxX, rowIdx: d };
                         }
                     });
 
                     // 同世代の重なりをずらす
-                    const same = group.filter(c => depthMap[c.id] === d && posMap[c.id]).sort((a, b) => posMap[a.id].x - posMap[b.id].x);
+                    const same = gen.filter(c => posMap[c.id]).sort((a, b) => posMap[a.id].x - posMap[b.id].x);
                     for (let j = 1; j < same.length; j++) {
                         const prev = posMap[same[j-1].id];
                         const cur = posMap[same[j].id];
                         if (cur.x < prev.x + STEP) {
                             posMap[same[j].id] = { ...cur, x: prev.x + STEP };
-                            // 子の位置も再調整
-                            getChildren(same[j]).filter(ch => group.includes(ch) && posMap[ch.id]).forEach(ch => {
-                                const siblings = [same[j-1], same[j]];
-                                const sibPos = siblings.map(s => posMap[s.id]).filter(Boolean);
-                                if (sibPos.length > 0) {
-                                    posMap[ch.id] = { ...posMap[ch.id], x: sibPos.reduce((s, p) => s + p.x, 0) / sibPos.length };
-                                }
-                            });
                         }
+                    }
+                });
+
+                // 未配置の個体を右端に追加（念のため）
+                group.forEach(c => {
+                    if (!posMap[c.id]) {
+                        const d = depthMap[c.id];
+                        const usedX = Object.values(posMap).filter(p => p.rowIdx === d).map(p => p.x);
+                        const maxX = usedX.length > 0 ? Math.max(...usedX) + STEP : globalOffsetX + CARD_W / 2;
+                        posMap[c.id] = { x: maxX, rowIdx: d };
                     }
                 });
 
