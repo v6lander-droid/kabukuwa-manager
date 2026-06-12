@@ -155,24 +155,22 @@
         // 性別判定ヘルパー（オス/雄/♂ → blue, メス/雌/♀ → pink）
         function sexColor(sex) {
             if (!sex) return '#ffffff';
-            if (/^オス$|^雄$|♂/.test(sex) || sex.includes('♂')) return '#60a5fa';
-            if (/^メス$|^雌$|♀/.test(sex) || sex.includes('♀')) return '#f472b6';
-            // 部分一致：オスが先（「オス」は「メス」を含むため）
-            if (/オス|雄/.test(sex)) return '#60a5fa';
-            if (/メス|雌/.test(sex)) return '#f472b6';
+            if (sex === 'オス' || sex === '雄' || sex === '♂') return '#60a5fa';
+            if (sex === 'メス' || sex === '雌' || sex === '♀') return '#f472b6';
+            if (sex.indexOf('オス') !== -1 || sex.indexOf('雄') !== -1 || sex.indexOf('♂') !== -1) return '#60a5fa';
+            if (sex.indexOf('メス') !== -1 || sex.indexOf('雌') !== -1 || sex.indexOf('♀') !== -1) return '#f472b6';
             return '#ffffff';
         }
         function isMale(sex) {
             if (!sex) return false;
-            if (/^オス$|^雄$/.test(sex) || sex.includes('♂')) return true;
-            if (/オス|雄/.test(sex) && !/メス|雌/.test(sex)) return true;
-            return false;
+            return sex === 'オス' || sex === '雄' || sex === '♂' ||
+                   sex.indexOf('オス') !== -1 || sex.indexOf('雄') !== -1 || sex.indexOf('♂') !== -1;
         }
         function isFemale(sex) {
             if (!sex) return false;
-            if (/^メス$|^雌$/.test(sex) || sex.includes('♀')) return true;
-            if (/メス|雌/.test(sex)) return true;
-            return false;
+            return sex === 'メス' || sex === '雌' || sex === '♀' ||
+                   sex.indexOf('メス') !== -1 || sex.indexOf('雌') !== -1 || sex.indexOf('♀') !== -1;
+        }
         }
 
         // =============================================
