@@ -181,11 +181,12 @@
 
             const CARD_W = 112;
             const CARD_H = 72;
-            const COL_GAP = 24;
+            const COL_GAP = 20;
             const ROW_GAP = 64;
+            const GROUP_GAP = 48; // 血筋間の余白
             const STEP = CARD_W + COL_GAP;
 
-            // --- 1. 各個体の世代深度を計算（祖先が浅い=rowIdx小さい）---
+            // --- 1. 世代深度を計算 ---
             const depthMap = {};
             const getDepth = (c, visited = new Set()) => {
                 if (depthMap[c.id] !== undefined) return depthMap[c.id];
@@ -201,56 +202,108 @@
                 return pd;
             };
             creatures.forEach(c => getDepth(c));
-
             const maxDepth = Math.max(...Object.values(depthMap));
 
-            // --- 2. 世代ごとにグループ化 ---
-            const generations = [];
-            for (let d = 0; d <= maxDepth; d++) {
-                generations.push(creatures.filter(c => depthMap[c.id] === d));
-            }
+            // --- 2. 血筋グループを構築 ---
+            // ルート個体（親を持たない個体）を起点に、子孫ツリーをグループ化
+            // 共通の祖先を持つ個体は同じグループ
 
-            // --- 3. posMapを子基準で構築 ---
-            // まず最下世代（最も子孫側）を等間隔に配置し、上の世代は子の中央に配置する
-            const posMap = {};
+            // 全祖先IDセットを取得
+            const getAncestorIds = (c, visited = new Set()) => {
+                if (visited.has(c.id)) return visited;
+                visited.add(c.id);
+                const mp = (c.maleParent && c.maleParent !== '-') ? creatures.find(x => x.name === c.maleParent) : null;
+                const fp = (c.femaleParent && c.femaleParent !== '-') ? creatures.find(x => x.name === c.femaleParent) : null;
+                if (mp) getAncestorIds(mp, visited);
+                if (fp) getAncestorIds(fp, visited);
+                return visited;
+            };
 
-            // 最下世代を等間隔配置
-            const bottomGen = generations[maxDepth];
-            bottomGen.forEach((c, i) => {
-                posMap[c.id] = { x: i * STEP + CARD_W / 2, rowIdx: maxDepth };
+            // Union-Find でグループを構築
+            const parent = {};
+            creatures.forEach(c => { parent[c.id] = c.id; });
+            const find = (id) => {
+                if (parent[id] !== id) parent[id] = find(parent[id]);
+                return parent[id];
+            };
+            const union = (a, b) => { parent[find(a)] = find(b); };
+
+            // 子→親を辺としてUnion
+            creatures.forEach(c => {
+                const mp = (c.maleParent && c.maleParent !== '-') ? creatures.find(x => x.name === c.maleParent) : null;
+                const fp = (c.femaleParent && c.femaleParent !== '-') ? creatures.find(x => x.name === c.femaleParent) : null;
+                if (mp) union(c.id, mp.id);
+                if (fp) union(c.id, fp.id);
             });
 
-            // 上の世代を下から順に配置
-            for (let d = maxDepth - 1; d >= 0; d--) {
-                const gen = generations[d];
-                // この世代の各個体について、子個体（この個体を親に持つ個体）を探して中央に配置
-                gen.forEach(c => {
-                    const children = creatures.filter(child =>
-                        (child.maleParent === c.name || child.femaleParent === c.name) &&
-                        depthMap[child.id] > d
-                    );
-                    const childPositions = children.map(child => posMap[child.id]).filter(Boolean);
-                    if (childPositions.length > 0) {
-                        const avgX = childPositions.reduce((sum, p) => sum + p.x, 0) / childPositions.length;
-                        posMap[c.id] = { x: avgX, rowIdx: d };
-                    } else {
-                        // 子がいない（孤立した祖先）場合は右端に配置
-                        const usedX = Object.values(posMap).filter(p => p.rowIdx === d).map(p => p.x);
-                        const maxX = usedX.length > 0 ? Math.max(...usedX) + STEP : CARD_W / 2;
-                        posMap[c.id] = { x: maxX, rowIdx: d };
-                    }
+            // グループIDごとに個体をまとめる
+            const groupMap = {};
+            creatures.forEach(c => {
+                const gid = find(c.id);
+                if (!groupMap[gid]) groupMap[gid] = [];
+                groupMap[gid].push(c);
+            });
+            const groups = Object.values(groupMap);
+
+            // --- 3. グループ内でposMapを構築 ---
+            const posMap = {};
+            let groupOffsetX = 0;
+
+            // グループを最大世代深度でソート（大きいグループを左に）
+            groups.sort((a, b) => b.length - a.length);
+
+            groups.forEach(group => {
+                const groupMaxDepth = Math.max(...group.map(c => depthMap[c.id]));
+
+                // グループ内の世代ごとに分類
+                const genMap = {};
+                group.forEach(c => {
+                    const d = depthMap[c.id];
+                    if (!genMap[d]) genMap[d] = [];
+                    genMap[d].push(c);
                 });
 
-                // 同世代で重なる場合はずらす
-                const sorted = [...gen].sort((a, b) => (posMap[a.id]?.x || 0) - (posMap[b.id]?.x || 0));
-                for (let j = 1; j < sorted.length; j++) {
-                    const prev = posMap[sorted[j-1].id];
-                    const cur = posMap[sorted[j].id];
-                    if (prev && cur && cur.x < prev.x + STEP) {
-                        posMap[sorted[j].id] = { ...cur, x: prev.x + STEP };
+                // 最下世代を等間隔配置
+                const bottomDepth = groupMaxDepth;
+                const bottomGen = genMap[bottomDepth] || [];
+                bottomGen.forEach((c, i) => {
+                    posMap[c.id] = { x: groupOffsetX + i * STEP + CARD_W / 2, rowIdx: depthMap[c.id] };
+                });
+
+                // 上の世代を子の中央に配置
+                for (let d = bottomDepth - 1; d >= 0; d--) {
+                    const gen = genMap[d] || [];
+                    gen.forEach(c => {
+                        const children = group.filter(child =>
+                            (child.maleParent === c.name || child.femaleParent === c.name)
+                        );
+                        const childPos = children.map(child => posMap[child.id]).filter(Boolean);
+                        if (childPos.length > 0) {
+                            const avgX = childPos.reduce((sum, p) => sum + p.x, 0) / childPos.length;
+                            posMap[c.id] = { x: avgX, rowIdx: d };
+                        } else {
+                            const usedX = Object.values(posMap).filter(p => p.rowIdx === d).map(p => p.x);
+                            const maxX = usedX.length > 0 ? Math.max(...usedX) + STEP : groupOffsetX + CARD_W / 2;
+                            posMap[c.id] = { x: maxX, rowIdx: d };
+                        }
+                    });
+
+                    // 同世代で重なる場合はずらす
+                    const sorted = gen.sort((a, b) => (posMap[a.id]?.x || 0) - (posMap[b.id]?.x || 0));
+                    for (let j = 1; j < sorted.length; j++) {
+                        const prev = posMap[sorted[j-1].id];
+                        const cur = posMap[sorted[j].id];
+                        if (prev && cur && cur.x < prev.x + STEP) {
+                            posMap[sorted[j].id] = { ...cur, x: prev.x + STEP };
+                        }
                     }
                 }
-            }
+
+                // このグループの最大X+余白を次のグループの開始点に
+                const groupXs = group.map(c => posMap[c.id]?.x || 0);
+                const groupMaxX = Math.max(...groupXs);
+                groupOffsetX = groupMaxX + CARD_W / 2 + GROUP_GAP;
+            });
 
             // --- 4. 接続線 ---
             const lines = [];
@@ -261,9 +314,9 @@
                 const fp = (c.femaleParent && c.femaleParent !== '-') ? creatures.find(x => x.name === c.femaleParent) : null;
                 const cy_top = cp.rowIdx * (CARD_H + ROW_GAP);
                 const midY = cy_top - ROW_GAP / 2;
-                [mp, fp].forEach(parent => {
-                    if (!parent) return;
-                    const pp = posMap[parent.id];
+                [mp, fp].forEach(par => {
+                    if (!par) return;
+                    const pp = posMap[par.id];
                     if (!pp) return;
                     const py_bottom = pp.rowIdx * (CARD_H + ROW_GAP) + CARD_H;
                     lines.push({ x1: pp.x, y1: py_bottom, x2: cp.x, y2: cy_top, midY });
@@ -301,7 +354,7 @@
                 <div className="bg-neutral-900 p-4 rounded-lg">
                     <div className="flex items-center gap-3 mb-4">
                         <h3 className="font-bold text-emerald-400 text-sm">血統図</h3>
-                        <span className="text-[10px] text-neutral-500">上が祖先・下が子孫</span>
+                        <span className="text-[10px] text-neutral-500">上が祖先・下が子孫　血筋ごとにグループ表示</span>
                         <span className="text-[10px] flex items-center gap-1"><span className="inline-block w-3 h-0.5" style={{backgroundColor:'#60a5fa'}}></span>オス</span>
                         <span className="text-[10px] flex items-center gap-1"><span className="inline-block w-3 h-0.5" style={{backgroundColor:'#f472b6'}}></span>メス</span>
                     </div>
@@ -319,6 +372,7 @@
             );
         }
 
+        // ---- 日付入力コンポーネント（不明対応）----
         // ---- 日付入力コンポーネント（不明対応）----
         // ---- 日付入力コンポーネント（不明対応）----
         function DateInput({ value, onChange, className }) {
