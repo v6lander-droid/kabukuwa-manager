@@ -275,10 +275,9 @@
                 return (
                     <div
                         onClick={() => onSelect(creature)}
-                        style={{ position: 'absolute', left, top, width: CARD_W, height: CARD_H }}
+                        style={{ position: 'absolute', left, top, width: CARD_W, height: CARD_H, borderTopWidth: 4, borderTopStyle: 'solid', borderTopColor: isMale(creature.sex) ? '#60a5fa' : '#f472b6' }}
                         className={`cursor-pointer rounded-lg border px-2 py-1.5 text-center transition-all hover:scale-105 select-none
-                            ${highlightId === creature.id ? 'bg-emerald-900 border-emerald-400' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-400'}
-                            ${isMale(creature.sex) ? 'border-t-4 border-t-blue-400' : 'border-t-4 border-t-rose-400'}`}
+                            ${highlightId === creature.id ? 'bg-emerald-900 border-emerald-400' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-400'}`}
                     >
                         <div style={{color: sexColor(creature.sex)}} className="text-[9px] font-bold">
                             <i className={`fa-solid ${isMale(creature.sex) ? 'fa-mars' : 'fa-venus'}`}></i> {creature.sex}
