@@ -753,8 +753,8 @@
                                                 <td className="p-3">{c.history.length > 0 ? c.history[c.history.length - 1].temp : '-'}</td>
                                                 <td className="p-3">{c.emergenceDate}</td>
                                                 <td className="p-3">{c.emergenceSize ? `${c.emergenceSize}mm` : '-'}</td>
-                                                <td className="p-3">{c.maleParent}</td>
-                                                <td className="p-3">{c.femaleParent}</td>
+                                                <td className="p-3">{c.maleParent === '-' ? '' : c.maleParent}</td>
+                                                <td className="p-3">{c.femaleParent === '-' ? '' : c.femaleParent}</td>
                                                 <td className="p-3">
                                                     {(() => { const f = calcSelfF(c, nameMap); const col = gradColor(f, 0.25); return <span className="font-bold text-xs" style={{ color: col }}>{(f*100).toFixed(2)}%</span>; })()}
                                                 </td>
@@ -1081,7 +1081,9 @@
                                     <p className="p-2 bg-neutral-800 rounded text-white w-full border border-neutral-700/50">
                                         {f.isNumber
                                             ? (form[f.key] ? `${form[f.key]}mm` : '-')
-                                            : (form[f.key] || '-')}
+                                            : (form[f.key] === '-' && (f.key === 'maleParent' || f.key === 'femaleParent'))
+                                                ? ''
+                                                : (form[f.key] || '-')}
                                     </p>
                                 </React.Fragment>
                             ))}
