@@ -994,12 +994,12 @@
                                     <div key={f.key}>
                                         <p className="text-[10px] text-white mb-1">{f.label}</p>
                                         {f.key === 'maleParent' ? (
-                                            <select className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" value={editForm[f.key] || ''} onChange={e => setEditForm({...editForm, [f.key]: e.target.value})}>
+                                            <select className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" value={(!editForm[f.key] || editForm[f.key] === '-') ? '' : editForm[f.key]} onChange={e => setEditForm({...editForm, [f.key]: e.target.value})}>
                                                 <option value="">未設定</option>
                                                 {allCreatures.filter(c => c.sex === 'オス').map(c => <option key={c.id} value={c.name}>{c.name}（{c.generation}）</option>)}
                                             </select>
                                         ) : f.key === 'femaleParent' ? (
-                                            <select className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" value={editForm[f.key] || ''} onChange={e => setEditForm({...editForm, [f.key]: e.target.value})}>
+                                            <select className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" value={(!editForm[f.key] || editForm[f.key] === '-') ? '' : editForm[f.key]} onChange={e => setEditForm({...editForm, [f.key]: e.target.value})}>
                                                 <option value="">未設定</option>
                                                 {allCreatures.filter(c => c.sex === 'メス').map(c => <option key={c.id} value={c.name}>{c.name}（{c.generation}）</option>)}
                                             </select>
