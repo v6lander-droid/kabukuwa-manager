@@ -293,15 +293,15 @@
 
         // ---- 日付入力コンポーネント（不明対応）----
         function DateInput({ value, onChange, className }) {
-            const isUnknown = !value || value === '-';
+            const isUnknown = value === '-';
             return (
                 <div className="flex items-center gap-2">
                     <input
                         type="date"
                         className={className + (isUnknown ? ' opacity-40' : '')}
-                        value={isUnknown ? '' : value}
+                        value={isUnknown ? '' : (value || '')}
                         disabled={isUnknown}
-                        onChange={e => onChange(e.target.value || '-')}
+                        onChange={e => onChange(e.target.value || '')}
                     />
                     <label className="flex items-center gap-1 text-xs text-neutral-400 whitespace-nowrap cursor-pointer select-none">
                         <input
