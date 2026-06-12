@@ -204,8 +204,8 @@
                 generations.push(creatures.filter(c => depthMap[c.id] === d));
             }
 
-            const CARD_W = 88;
-            const CARD_H = 56;
+            const CARD_W = 112;
+            const CARD_H = 72;
             const COL_GAP = 24;
             const ROW_GAP = 64;
             const STEP = CARD_W + COL_GAP;
@@ -275,11 +275,10 @@
                 return (
                     <div
                         onClick={() => onSelect(creature)}
-                        style={{ position: 'absolute', left, top, width: CARD_W, height: CARD_H }}
+                        style={{ position: 'absolute', left, top, width: CARD_W, height: CARD_H, borderTopColor: sexColor(creature.sex) }}
                         className={`cursor-pointer rounded-lg border px-2 py-1.5 text-center transition-all hover:scale-105 select-none
                             ${highlightId === creature.id ? 'bg-emerald-900 border-emerald-400' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-400'}
-                            ${creature.sex === 'オス' ? 'border-t-4' : 'border-t-4'}`}
-                        style={{borderTopColor: sexColor(creature.sex)}}
+                            border-t-4`}
                     >
                         <div style={{color: sexColor(creature.sex)}} className="text-[9px] font-bold">
                             <i className={`fa-solid ${isMale(creature.sex) ? 'fa-mars' : 'fa-venus'}`}></i> {creature.sex}
