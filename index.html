@@ -179,6 +179,13 @@
                 <div className="bg-neutral-900 p-8 rounded-lg text-center text-neutral-500 text-sm">個体が登録されていません</div>
             );
 
+            const CARD_W = 112;
+            const CARD_H = 72;
+            const COL_GAP = 24;
+            const ROW_GAP = 64;
+            const STEP = CARD_W + COL_GAP;
+
+            // --- 1. 各個体の世代深度を計算（祖先が浅い=rowIdx小さい）---
             const depthMap = {};
             const getDepth = (c, visited = new Set()) => {
                 if (depthMap[c.id] !== undefined) return depthMap[c.id];
@@ -187,6 +194,7 @@
                 const mp = (c.maleParent && c.maleParent !== '-') ? creatures.find(x => x.name === c.maleParent) : null;
                 const fp = (c.femaleParent && c.femaleParent !== '-') ? creatures.find(x => x.name === c.femaleParent) : null;
                 const pd = Math.max(
+                    mp ? getDepth(mp, new Set(visited)) + 1 : 0,
                     fp ? getDepth(fp, new Set(visited)) + 1 : 0
                 );
                 depthMap[c.id] = pd;
@@ -195,53 +203,56 @@
             creatures.forEach(c => getDepth(c));
 
             const maxDepth = Math.max(...Object.values(depthMap));
+
+            // --- 2. 世代ごとにグループ化 ---
             const generations = [];
             for (let d = 0; d <= maxDepth; d++) {
                 generations.push(creatures.filter(c => depthMap[c.id] === d));
             }
 
-            const CARD_W = 112;
-            const CARD_H = 72;
-            const COL_GAP = 24;
-            const ROW_GAP = 64;
-            const STEP = CARD_W + COL_GAP;
-
+            // --- 3. posMapを子基準で構築 ---
+            // まず最下世代（最も子孫側）を等間隔に配置し、上の世代は子の中央に配置する
             const posMap = {};
-            generations[0].forEach((c, i) => {
-                posMap[c.id] = { x: i * STEP + CARD_W / 2, rowIdx: 0 };
+
+            // 最下世代を等間隔配置
+            const bottomGen = generations[maxDepth];
+            bottomGen.forEach((c, i) => {
+                posMap[c.id] = { x: i * STEP + CARD_W / 2, rowIdx: maxDepth };
             });
 
-            for (let d = 1; d <= maxDepth; d++) {
+            // 上の世代を下から順に配置
+            for (let d = maxDepth - 1; d >= 0; d--) {
                 const gen = generations[d];
-                gen.forEach((c, i) => {
-                    const mp = (c.maleParent && c.maleParent !== '-') ? creatures.find(x => x.name === c.maleParent) : null;
-                    const fp = (c.femaleParent && c.femaleParent !== '-') ? creatures.find(x => x.name === c.femaleParent) : null;
-                    const mpPos = mp ? posMap[mp.id] : null;
-                    const fpPos = fp ? posMap[fp.id] : null;
-                    let cx;
-                    if (mpPos && fpPos) {
-                        cx = (mpPos.x + fpPos.x) / 2;
-                    } else if (mpPos) {
-                        cx = mpPos.x;
-                    } else if (fpPos) {
-                        cx = fpPos.x;
+                // この世代の各個体について、子個体（この個体を親に持つ個体）を探して中央に配置
+                gen.forEach(c => {
+                    const children = creatures.filter(child =>
+                        (child.maleParent === c.name || child.femaleParent === c.name) &&
+                        depthMap[child.id] > d
+                    );
+                    const childPositions = children.map(child => posMap[child.id]).filter(Boolean);
+                    if (childPositions.length > 0) {
+                        const avgX = childPositions.reduce((sum, p) => sum + p.x, 0) / childPositions.length;
+                        posMap[c.id] = { x: avgX, rowIdx: d };
                     } else {
-                        const prevMaxX = Math.max(...Object.values(posMap).map(p => p.x));
-                        cx = prevMaxX + STEP * (i + 1);
+                        // 子がいない（孤立した祖先）場合は右端に配置
+                        const usedX = Object.values(posMap).filter(p => p.rowIdx === d).map(p => p.x);
+                        const maxX = usedX.length > 0 ? Math.max(...usedX) + STEP : CARD_W / 2;
+                        posMap[c.id] = { x: maxX, rowIdx: d };
                     }
-                    posMap[c.id] = { x: cx, rowIdx: d };
                 });
 
-                const sorted = [...gen].sort((a, b) => posMap[a.id].x - posMap[b.id].x);
+                // 同世代で重なる場合はずらす
+                const sorted = [...gen].sort((a, b) => (posMap[a.id]?.x || 0) - (posMap[b.id]?.x || 0));
                 for (let j = 1; j < sorted.length; j++) {
                     const prev = posMap[sorted[j-1].id];
                     const cur = posMap[sorted[j].id];
-                    if (cur.x < prev.x + STEP) {
+                    if (prev && cur && cur.x < prev.x + STEP) {
                         posMap[sorted[j].id] = { ...cur, x: prev.x + STEP };
                     }
                 }
             }
 
+            // --- 4. 接続線 ---
             const lines = [];
             creatures.forEach(c => {
                 const cp = posMap[c.id];
@@ -259,6 +270,7 @@
                 });
             });
 
+            // --- 5. SVGサイズ ---
             const allX = Object.values(posMap).map(p => p.x);
             const svgW = Math.max(...allX) + CARD_W / 2 + 8;
             const svgH = (maxDepth + 1) * (CARD_H + ROW_GAP);
@@ -289,26 +301,25 @@
                 <div className="bg-neutral-900 p-4 rounded-lg">
                     <div className="flex items-center gap-3 mb-4">
                         <h3 className="font-bold text-emerald-400 text-sm">血統図</h3>
-                        <span className="text-[10px] text-neutral-500">同世代は横に並びます</span>
+                        <span className="text-[10px] text-neutral-500">上が祖先・下が子孫</span>
                         <span className="text-[10px] flex items-center gap-1"><span className="inline-block w-3 h-0.5" style={{backgroundColor:'#60a5fa'}}></span>オス</span>
                         <span className="text-[10px] flex items-center gap-1"><span className="inline-block w-3 h-0.5" style={{backgroundColor:'#f472b6'}}></span>メス</span>
                     </div>
                     <div className="overflow-x-auto">
-                        <div className="flex gap-0" style={{ minWidth: svgW }}>
-                            <div style={{ position: 'relative', width: svgW, height: svgH, flexShrink: 0 }}>
-                                <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
-                                    {lines.map((l, i) => (
-                                        <path key={i} d={`M ${l.x1} ${l.y1} L ${l.x1} ${l.midY} L ${l.x2} ${l.midY} L ${l.x2} ${l.y2}`} stroke="#525252" strokeWidth="1.5" fill="none" />
-                                    ))}
-                                </svg>
-                                {creatures.map(c => <Card key={c.id} creature={c} />)}
-                            </div>
+                        <div style={{ position: 'relative', width: svgW, height: svgH }}>
+                            <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
+                                {lines.map((l, i) => (
+                                    <path key={i} d={`M ${l.x1} ${l.y1} L ${l.x1} ${l.midY} L ${l.x2} ${l.midY} L ${l.x2} ${l.y2}`} stroke="#525252" strokeWidth="1.5" fill="none" />
+                                ))}
+                            </svg>
+                            {creatures.map(c => <Card key={c.id} creature={c} />)}
                         </div>
                     </div>
                 </div>
             );
         }
 
+        // ---- 日付入力コンポーネント（不明対応）----
         // ---- 日付入力コンポーネント（不明対応）----
         function DateInput({ value, onChange, className }) {
             const isUnknown = value === '-';
