@@ -184,10 +184,9 @@
                 if (depthMap[c.id] !== undefined) return depthMap[c.id];
                 if (visited.has(c.id)) return 0;
                 visited.add(c.id);
-                const mp = creatures.find(x => x.name === c.maleParent);
-                const fp = creatures.find(x => x.name === c.femaleParent);
+                const mp = (c.maleParent && c.maleParent !== '-') ? creatures.find(x => x.name === c.maleParent) : null;
+                const fp = (c.femaleParent && c.femaleParent !== '-') ? creatures.find(x => x.name === c.femaleParent) : null;
                 const pd = Math.max(
-                    mp ? getDepth(mp, new Set(visited)) + 1 : 0,
                     fp ? getDepth(fp, new Set(visited)) + 1 : 0
                 );
                 depthMap[c.id] = pd;
@@ -215,8 +214,8 @@
             for (let d = 1; d <= maxDepth; d++) {
                 const gen = generations[d];
                 gen.forEach((c, i) => {
-                    const mp = creatures.find(x => x.name === c.maleParent);
-                    const fp = creatures.find(x => x.name === c.femaleParent);
+                    const mp = (c.maleParent && c.maleParent !== '-') ? creatures.find(x => x.name === c.maleParent) : null;
+                    const fp = (c.femaleParent && c.femaleParent !== '-') ? creatures.find(x => x.name === c.femaleParent) : null;
                     const mpPos = mp ? posMap[mp.id] : null;
                     const fpPos = fp ? posMap[fp.id] : null;
                     let cx;
@@ -247,8 +246,8 @@
             creatures.forEach(c => {
                 const cp = posMap[c.id];
                 if (!cp) return;
-                const mp = creatures.find(x => x.name === c.maleParent);
-                const fp = creatures.find(x => x.name === c.femaleParent);
+                const mp = (c.maleParent && c.maleParent !== '-') ? creatures.find(x => x.name === c.maleParent) : null;
+                const fp = (c.femaleParent && c.femaleParent !== '-') ? creatures.find(x => x.name === c.femaleParent) : null;
                 const cy_top = cp.rowIdx * (CARD_H + ROW_GAP);
                 const midY = cy_top - ROW_GAP / 2;
                 [mp, fp].forEach(parent => {
