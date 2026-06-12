@@ -321,7 +321,7 @@
             const [activeTab, setActiveTab] = useState('一覧');
             const [highlightId, setHighlightId] = useState(null);
             const [showAddModal, setShowAddModal] = useState(false);
-            const [newCreatureData, setNewCreatureData] = useState({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '-', femaleParent: '-', stage: '幼虫', saleStatus: '使用', sex: 'オス', emergenceSize: '' });
+            const [newCreatureData, setNewCreatureData] = useState({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '', femaleParent: '', stage: '幼虫', saleStatus: '使用', sex: 'オス', emergenceSize: '' });
             const [maleSelection, setMaleSelection] = useState('');
             const [femaleSelection, setFemaleSelection] = useState('');
             const [saveError, setSaveError] = useState(false);
@@ -432,7 +432,7 @@
                 const newCreature = { ...newCreatureData, id: Date.now().toString(), history: [] };
                 setCreatures([newCreature, ...creatures]);
                 setShowAddModal(false);
-                setNewCreatureData({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '-', femaleParent: '-', stage: '幼虫', saleStatus: '使用', sex: 'オス', emergenceSize: '' });
+                setNewCreatureData({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '', femaleParent: '', stage: '幼虫', saleStatus: '使用', sex: 'オス', emergenceSize: '' });
             };
             const updateCreature = (updated) => {
                 setCreatures(creatures.map(c => c.id === updated.id ? updated : c));
@@ -753,8 +753,8 @@
                                                 <td className="p-3">{c.history.length > 0 ? c.history[c.history.length - 1].temp : '-'}</td>
                                                 <td className="p-3">{c.emergenceDate}</td>
                                                 <td className="p-3">{c.emergenceSize ? `${c.emergenceSize}mm` : '-'}</td>
-                                                <td className="p-3">{c.maleParent === '-' ? '' : c.maleParent}</td>
-                                                <td className="p-3">{c.femaleParent === '-' ? '' : c.femaleParent}</td>
+                                                <td className="p-3">{(!c.maleParent || c.maleParent === '-') ? '' : c.maleParent}</td>
+                                                <td className="p-3">{(!c.femaleParent || c.femaleParent === '-') ? '' : c.femaleParent}</td>
                                                 <td className="p-3">
                                                     {(() => { const f = calcSelfF(c, nameMap); const col = gradColor(f, 0.25); return <span className="font-bold text-xs" style={{ color: col }}>{(f*100).toFixed(2)}%</span>; })()}
                                                 </td>
@@ -995,12 +995,12 @@
                                         <p className="text-[10px] text-white mb-1">{f.label}</p>
                                         {f.key === 'maleParent' ? (
                                             <select className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" value={editForm[f.key] || ''} onChange={e => setEditForm({...editForm, [f.key]: e.target.value})}>
-                                                <option value="-">-</option>
+                                                <option value="">未設定</option>
                                                 {allCreatures.filter(c => c.sex === 'オス').map(c => <option key={c.id} value={c.name}>{c.name}（{c.generation}）</option>)}
                                             </select>
                                         ) : f.key === 'femaleParent' ? (
                                             <select className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" value={editForm[f.key] || ''} onChange={e => setEditForm({...editForm, [f.key]: e.target.value})}>
-                                                <option value="-">-</option>
+                                                <option value="">未設定</option>
                                                 {allCreatures.filter(c => c.sex === 'メス').map(c => <option key={c.id} value={c.name}>{c.name}（{c.generation}）</option>)}
                                             </select>
                                         ) : f.isDate ? (
@@ -1081,8 +1081,8 @@
                                     <p className="p-2 bg-neutral-800 rounded text-white w-full border border-neutral-700/50">
                                         {f.isNumber
                                             ? (form[f.key] ? `${form[f.key]}mm` : '-')
-                                            : (form[f.key] === '-' && (f.key === 'maleParent' || f.key === 'femaleParent'))
-                                                ? ''
+                                            : (f.key === 'maleParent' || f.key === 'femaleParent')
+                                                ? ((!form[f.key] || form[f.key] === '-') ? '' : form[f.key])
                                                 : (form[f.key] || '-')}
                                     </p>
                                 </React.Fragment>
