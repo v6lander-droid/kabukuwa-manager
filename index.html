@@ -274,18 +274,18 @@
                 // 深度の大きい順（リーフ側から祖先側）に配置
                 const groupDepths = [...new Set(group.map(c => depthMap[c.id]))].sort((a, b) => b - a);
 
+                // パス1: リーフ→祖先の順に初期配置
                 groupDepths.forEach(d => {
                     const gen = group.filter(c => depthMap[c.id] === d);
 
                     gen.forEach(c => {
-                        if (posMap[c.id]) return; // 既に配置済みはスキップ
+                        if (posMap[c.id]) return;
                         const children = getChildren(c).filter(ch => group.includes(ch));
                         const childPositions = children.map(ch => posMap[ch.id]).filter(Boolean);
                         if (childPositions.length > 0) {
                             const avgX = childPositions.reduce((sum, p) => sum + p.x, 0) / childPositions.length;
                             posMap[c.id] = { x: avgX, rowIdx: d };
                         } else {
-                            // 子がいない or 子が未配置の場合は右端に配置
                             const usedX = Object.values(posMap).filter(p => p.rowIdx === d).map(p => p.x);
                             const maxX = usedX.length > 0 ? Math.max(...usedX) + STEP : globalOffsetX + CARD_W / 2;
                             posMap[c.id] = { x: maxX, rowIdx: d };
@@ -311,6 +311,18 @@
                         const maxX = usedX.length > 0 ? Math.max(...usedX) + STEP : globalOffsetX + CARD_W / 2;
                         posMap[c.id] = { x: maxX, rowIdx: d };
                     }
+                });
+
+                // パス2: 祖先→リーフの順に親位置を子の中央に再調整
+                [...groupDepths].reverse().forEach(d => {
+                    const gen = group.filter(c => depthMap[c.id] === d);
+                    gen.forEach(c => {
+                        const children = getChildren(c).filter(ch => group.includes(ch) && posMap[ch.id]);
+                        if (children.length > 0) {
+                            const avgX = children.reduce((sum, ch) => sum + posMap[ch.id].x, 0) / children.length;
+                            posMap[c.id] = { ...posMap[c.id], x: avgX };
+                        }
+                    });
                 });
 
                 // グループの最大X+余白を次のオフセットに
