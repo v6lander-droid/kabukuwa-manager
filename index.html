@@ -255,9 +255,10 @@
                         style={{ position: 'absolute', left, top, width: CARD_W, height: CARD_H }}
                         className={`cursor-pointer rounded-lg border px-2 py-1.5 text-center transition-all hover:scale-105 select-none
                             ${highlightId === creature.id ? 'bg-emerald-900 border-emerald-400' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-400'}
-                            ${creature.sex === 'オス' ? 'border-t-4 border-t-blue-400' : 'border-t-4 border-t-pink-400'}`}
+                            ${creature.sex === 'オス' ? 'border-t-4' : 'border-t-4'}`}
+                        style={{borderTopColor: creature.sex === 'オス' ? '#60a5fa' : '#f472b6'}}
                     >
-                        <div className={`text-[9px] font-bold ${creature.sex === 'オス' ? 'text-blue-400' : 'text-pink-400'}`}>
+                        <div style={{color: creature.sex === 'オス' ? '#60a5fa' : '#f472b6'}} className="text-[9px] font-bold">
                             <i className={`fa-solid ${creature.sex === 'オス' ? 'fa-mars' : 'fa-venus'}`}></i> {creature.sex}
                         </div>
                         <div className="font-bold text-[11px] text-white leading-tight truncate mt-0.5">{creature.name}</div>
@@ -272,8 +273,8 @@
                     <div className="flex items-center gap-3 mb-4">
                         <h3 className="font-bold text-emerald-400 text-sm">血統図</h3>
                         <span className="text-[10px] text-neutral-500">同世代は横に並びます</span>
-                        <span className="text-[10px] flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-blue-400"></span>オス</span>
-                        <span className="text-[10px] flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-pink-400"></span>メス</span>
+                        <span className="text-[10px] flex items-center gap-1"><span className="inline-block w-3 h-0.5" style={{backgroundColor:'#60a5fa'}}></span>オス</span>
+                        <span className="text-[10px] flex items-center gap-1"><span className="inline-block w-3 h-0.5" style={{backgroundColor:'#f472b6'}}></span>メス</span>
                     </div>
                     <div className="overflow-x-auto">
                         <div className="flex gap-0" style={{ minWidth: svgW }}>
@@ -753,7 +754,7 @@
                                             <tr key={c.id} className="border-t border-neutral-800 hover:bg-neutral-800 bg-neutral-900 cursor-pointer" onClick={() => setSelectedCreature(c)}>
                                                 <td className="p-3 sticky-col-1"><button onClick={(e) => toggleSaleStatus(c.id, e)} className={`px-2 py-1 rounded text-[10px] font-bold ${c.saleStatus === '使用' ? 'bg-emerald-600 text-white' : c.saleStatus === '予備' ? 'bg-amber-600 text-white' : 'bg-neutral-500 text-white'}`}>{c.saleStatus}</button></td>
                                                 <td className="p-3 sticky-col-2 font-bold">{c.name}</td>
-                                                <td className="p-3"><span className={c.sex === 'オス' ? 'text-blue-400 font-bold' : 'text-pink-400 font-bold'}>{c.sex}</span></td>
+                                                <td className="p-3"><span style={{color: c.sex === 'オス' ? '#60a5fa' : '#f472b6', fontWeight: 'bold'}}>{c.sex}</span></td>
                                                 <td className="p-3">{c.alias}</td>
                                                 <td className="p-3">{c.origin}</td>
                                                 <td className="p-3">{c.generation}</td>
@@ -1090,7 +1091,7 @@
                                     <p className="text-white text-left text-[11px] uppercase">{f.label}</p>
                                     <p className="p-2 bg-neutral-800 rounded w-full border border-neutral-700/50">
                                         {f.key === 'sex'
-                                            ? <span className={form[f.key] === 'オス' ? 'text-blue-400 font-bold' : 'text-pink-400 font-bold'}>{form[f.key] || '-'}</span>
+                                            ? <span style={{color: form[f.key] === 'オス' ? '#60a5fa' : '#f472b6', fontWeight: 'bold'}}>{form[f.key] || '-'}</span>
                                             : f.isNumber
                                                 ? (form[f.key] ? `${form[f.key]}mm` : '-')
                                                 : (f.key === 'maleParent' || f.key === 'femaleParent')
