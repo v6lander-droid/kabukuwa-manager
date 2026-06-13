@@ -181,10 +181,10 @@
 
             const CARD_W = 112;
             const CARD_H = 72;
-            const H_GAP = 60;   // カード間横間隔
-            const ROW_GAP = 100; // 世代間縦間隔
-            const STEP = CARD_W + H_GAP;
-            const GROUP_GAP = 120; // 血筋グループ間余白
+            const MIN_H_GAP = 16;  // 最小横間隔
+            const ROW_GAP = 64;    // 世代間縦間隔
+            const GROUP_GAP = 40;  // 血筋グループ間余白
+            const STEP = CARD_W + MIN_H_GAP; // 最小ステップ
 
             // ヘルパー
             const getParentObjs = (c) => {
@@ -211,28 +211,6 @@
             });
             const groups = Object.values(groupMap).sort((a, b) => b.length - a.length);
 
-            // =============================================
-            // サブツリーを再帰的に配置する関数
-            // offsetX: このサブツリーの左端X座標
-            // 戻り値: { posMap更新済み, 使用した幅 }
-            // =============================================
-            const posMap = {};
-
-            // 各ノードのサブツリー幅を計算（葉=STEP、内部=子の幅の合計）
-            const treeWidth = {};
-            const calcTreeWidth = (c, visited = new Set()) => {
-                if (treeWidth[c.id] !== undefined) return treeWidth[c.id];
-                if (visited.has(c.id)) { treeWidth[c.id] = STEP; return STEP; }
-                visited.add(c.id);
-                const parents = getParentObjs(c);
-                if (parents.length === 0) {
-                    treeWidth[c.id] = STEP;
-                } else {
-                    treeWidth[c.id] = Math.max(STEP, parents.reduce((s, p) => s + calcTreeWidth(p, new Set(visited)), 0));
-                }
-                return treeWidth[c.id];
-            };
-
             // 世代深度
             const depthMap = {};
             const getDepth = (c, visited = new Set()) => {
@@ -246,45 +224,64 @@
                 return depthMap[c.id];
             };
             creatures.forEach(c => getDepth(c));
-            creatures.forEach(c => calcTreeWidth(c));
-
             const maxDepth = Math.max(...Object.values(depthMap));
 
-            // 再帰的配置：子を中央に、親をその左右に展開
-            const placeNode = (c, centerX, rowIdx, visited = new Set()) => {
+            // リーフ数を再帰的にカウント（サブツリーのリーフ数＝必要な横幅の単位）
+            const leafCount = {};
+            const countLeaves = (c, group, visited = new Set()) => {
+                if (leafCount[c.id] !== undefined) return leafCount[c.id];
+                if (visited.has(c.id)) { leafCount[c.id] = 1; return 1; }
+                visited.add(c.id);
+                const parents = getParentObjs(c).filter(p => group.includes(p));
+                if (parents.length === 0) {
+                    leafCount[c.id] = 1;
+                } else {
+                    leafCount[c.id] = parents.reduce((s, p) => s + countLeaves(p, group, new Set(visited)), 0);
+                }
+                return leafCount[c.id];
+            };
+
+            const posMap = {};
+
+            // 再帰的配置：子を中央に、親を左右に展開
+            const placeNode = (c, centerX, rowIdx, group, visited = new Set()) => {
                 if (visited.has(c.id)) return;
                 visited.add(c.id);
                 posMap[c.id] = { x: centerX, rowIdx };
-                const parents = getParentObjs(c);
+                const parents = getParentObjs(c).filter(p => group.includes(p));
                 if (parents.length === 0) return;
-                const totalW = parents.reduce((s, p) => s + treeWidth[p.id], 0);
-                let left = centerX - totalW / 2;
+                // 各親のリーフ数に比例して幅を割り当て
+                const totalLeaves = parents.reduce((s, p) => s + (leafCount[p.id] || 1), 0);
+                const totalWidth = totalLeaves * STEP;
+                let left = centerX - totalWidth / 2;
                 parents.forEach(p => {
-                    const w = treeWidth[p.id];
-                    placeNode(p, left + w / 2, rowIdx - 1, visited);
+                    const w = (leafCount[p.id] || 1) * STEP;
+                    placeNode(p, left + w / 2, rowIdx - 1, group, visited);
                     left += w;
                 });
             };
 
-            // グループごとに配置
             let globalOffsetX = CARD_W / 2;
 
             groups.forEach(group => {
-                // グループ内のリーフ（子を持たない個体）
-                const leaves = group.filter(c => getChildObjs(c).filter(ch => group.includes(ch)).length === 0);
-                // リーフをサブツリー幅に応じて配置
-                const groupMaxDepth = Math.max(...group.map(c => depthMap[c.id]));
+                // グループ内リーフ数を計算
+                group.forEach(c => countLeaves(c, group));
 
-                // まずリーフを横に並べ、各リーフのサブツリーを上に展開
+                // グループ内のリーフ（子を持たない個体）
+                const leaves = group.filter(c =>
+                    getChildObjs(c).filter(ch => group.includes(ch)).length === 0
+                );
+
+                // リーフをリーフ数に応じて配置し、各リーフのサブツリーを上に展開
                 let leafOffsetX = globalOffsetX;
                 leaves.forEach(leaf => {
-                    const w = treeWidth[leaf.id];
-                    const centerX = leafOffsetX + w / 2 - CARD_W / 2 + (CARD_W / 2);
-                    placeNode(leaf, leafOffsetX + w / 2 - H_GAP / 2, depthMap[leaf.id], new Set());
+                    const lc = leafCount[leaf.id] || 1;
+                    const w = lc * STEP;
+                    placeNode(leaf, leafOffsetX + w / 2 - STEP / 2, depthMap[leaf.id], group, new Set());
                     leafOffsetX += w;
                 });
 
-                // 未配置の個体（孤立した祖先など）を右端に追加
+                // 未配置の個体をフォールバック
                 group.forEach(c => {
                     if (!posMap[c.id]) {
                         const d = depthMap[c.id];
@@ -362,6 +359,7 @@
             );
         }
 
+        // ---- 日付入力コンポーネント（不明対応）----
         // ---- 日付入力コンポーネント（不明対応）----
         // ---- 日付入力コンポーネント（不明対応）----
         // ---- 日付入力コンポーネント（不明対応）----
