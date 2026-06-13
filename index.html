@@ -241,12 +241,11 @@
                 const leftEdge = centerX - totalWidth / 2 + STEP / 2;
 
                 if (mp) {
-                    const mpCenter = leftEdge + (mLeaves - 1) * STEP / 2 + (mLeaves === 0 ? 0 : 0);
-                    placeTree(mp, leftEdge + mLeaves * STEP / 2 - STEP / 2, depth - 1, visited);
+                    placeTree(mp, leftEdge + mLeaves * STEP / 2 - STEP / 2, depth - 1, new Set(visited));
                 }
                 if (fp) {
                     const fpLeft = leftEdge + mLeaves * STEP;
-                    placeTree(fp, fpLeft + fLeaves * STEP / 2 - STEP / 2, depth - 1, visited);
+                    placeTree(fp, fpLeft + fLeaves * STEP / 2 - STEP / 2, depth - 1, new Set(visited));
                 }
             };
 
