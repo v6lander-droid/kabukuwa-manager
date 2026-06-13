@@ -259,13 +259,7 @@
 
             // ペア配置：両親2枚を隣接配置し、共通の子をペアの中央から展開
             const placePair = (m, f, leftX, rowIdx, vis = new Set()) => {
-                const mW = getLeaf(m) * STEP;
-                const fW = getLeaf(f) * STEP;
-                const mX = leftX + mW / 2;
-                const fX = leftX + mW + fW / 2;
                 vis.add(m.id); vis.add(f.id);
-                posMap[m.id] = { x: mX, rowIdx };
-                posMap[f.id] = { x: fX, rowIdx };
 
                 const commonChildren = getChildren(m).filter(ch =>
                     getChildren(f).some(c2 => c2.id === ch.id)
@@ -273,11 +267,24 @@
                 const mOnly = getChildren(m).filter(ch => !commonChildren.some(c2 => c2.id === ch.id));
                 const fOnly = getChildren(f).filter(ch => !commonChildren.some(c2 => c2.id === ch.id));
 
+                // 各親自身は1枚分(STEP)、共通の子・単独の子はそれぞれの幅を加算
+                const mOwnW = STEP;
+                const fOwnW = STEP;
+                const commonW = commonChildren.reduce((s, ch) => s + getLeaf(ch) * STEP, 0);
+                const mOnlyW = mOnly.reduce((s, ch) => s + getLeaf(ch) * STEP, 0);
+                const fOnlyW = fOnly.reduce((s, ch) => s + getLeaf(ch) * STEP, 0);
+
+                // ペア全体の幅 = mOnly分 + mカード + common分 + fカード + fOnly分 の最大値で配置
+                const mX = leftX + mOnlyW + mOwnW / 2;
+                const fX = leftX + mOnlyW + mOwnW + commonW + fOwnW / 2;
+
+                posMap[m.id] = { x: mX, rowIdx };
+                posMap[f.id] = { x: fX, rowIdx };
+
                 const pairCenterX = (mX + fX) / 2;
 
                 if (commonChildren.length > 0) {
-                    const totalW = commonChildren.reduce((s, ch) => s + getLeaf(ch) * STEP, 0);
-                    let left = pairCenterX - totalW / 2 + STEP / 2;
+                    let left = pairCenterX - commonW / 2 + STEP / 2;
                     commonChildren.forEach(ch => {
                         const w = getLeaf(ch) * STEP;
                         place(ch, left + w / 2 - STEP / 2, rowIdx + 1, new Set(vis));
@@ -285,21 +292,19 @@
                     });
                 }
                 if (mOnly.length > 0) {
-                    const totalW = mOnly.reduce((s, ch) => s + getLeaf(ch) * STEP, 0);
-                    let left = mX - totalW / 2 + STEP / 2;
+                    let cursor = leftX;
                     mOnly.forEach(ch => {
                         const w = getLeaf(ch) * STEP;
-                        place(ch, left + w / 2 - STEP / 2, rowIdx + 1, new Set(vis));
-                        left += w;
+                        place(ch, cursor + w / 2 - STEP / 2, rowIdx + 1, new Set(vis));
+                        cursor += w;
                     });
                 }
                 if (fOnly.length > 0) {
-                    const totalW = fOnly.reduce((s, ch) => s + getLeaf(ch) * STEP, 0);
-                    let left = fX - totalW / 2 + STEP / 2;
+                    let cursor = fX + STEP / 2;
                     fOnly.forEach(ch => {
                         const w = getLeaf(ch) * STEP;
-                        place(ch, left + w / 2 - STEP / 2, rowIdx + 1, new Set(vis));
-                        left += w;
+                        place(ch, cursor + w / 2 - STEP / 2, rowIdx + 1, new Set(vis));
+                        cursor += w;
                     });
                 }
             };
@@ -337,10 +342,10 @@
                         // 婚姻ペア：2枚を隙間なく隣接配置
                         const [m, f] = pair.members;
                         if (posMap[m.id] || posMap[f.id]) return;
-                        const mW = getLeaf(m) * STEP;
-                        const fW = getLeaf(f) * STEP;
                         placePair(m, f, offsetX, 0, new Set());
-                        offsetX += mW + fW + H_GAP;
+                        // 配置後の最大X座標を取得してoffsetXを更新
+                        const allPlacedX = Object.values(posMap).map(p => p.x);
+                        offsetX = Math.max(...allPlacedX, offsetX) + CARD_W / 2 + H_GAP;
                     } else {
                         const root = pair.members[0];
                         if (posMap[root.id]) return;
