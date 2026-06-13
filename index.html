@@ -261,11 +261,51 @@
             let offsetX = CARD_W / 2;
             groups.forEach(group => {
                 const roots = group.filter(c => depthMap[c.id] === 0);
-                roots.forEach(root => {
-                    if (posMap[root.id]) return;
-                    const w = getLeaf(root) * STEP;
-                    place(root, offsetX + w / 2 - STEP / 2, 0, new Set());
-                    offsetX += w + H_GAP;
+
+                // ルートをペア化：同じ子を持つ2個体は1組として扱う
+                const placed = new Set();
+                const pairs = []; // [{members:[c]|[c1,c2], leaf: total}]
+                roots.forEach(r => {
+                    if (placed.has(r.id)) return;
+                    const children = getChildren(r);
+                    // rと同じ子を持つ別のルートを探す（婚姻ペア）
+                    const partner = roots.find(other =>
+                        other.id !== r.id && !placed.has(other.id) &&
+                        getChildren(other).some(ch => children.some(c2 => c2.id === ch.id))
+                    );
+                    if (partner) {
+                        placed.add(r.id);
+                        placed.add(partner.id);
+                        // オスを左、メスを右の順に
+                        const members = isMale(r.sex) ? [r, partner] : [partner, r];
+                        pairs.push({ members, leaf: getLeaf(r) + getLeaf(partner) });
+                    } else {
+                        placed.add(r.id);
+                        pairs.push({ members: [r], leaf: getLeaf(r) });
+                    }
+                });
+
+                pairs.forEach(pair => {
+                    if (pair.members.length === 2) {
+                        // 婚姻ペア：2枚を隙間なく隣接配置
+                        const [m, f] = pair.members;
+                        if (posMap[m.id] || posMap[f.id]) return;
+                        const mLeaf = getLeaf(m);
+                        const fLeaf = getLeaf(f);
+                        const mW = mLeaf * STEP;
+                        const fW = fLeaf * STEP;
+                        const mX = offsetX + mW / 2 - STEP / 2;
+                        const fX = mX + (mW + fW) / 2; // mの右端からfの中心へ
+                        place(m, mX, 0, new Set());
+                        place(f, fX, 0, new Set());
+                        offsetX += mW + fW + H_GAP;
+                    } else {
+                        const root = pair.members[0];
+                        if (posMap[root.id]) return;
+                        const w = getLeaf(root) * STEP;
+                        place(root, offsetX + w / 2 - STEP / 2, 0, new Set());
+                        offsetX += w + H_GAP;
+                    }
                 });
 
                 // フォールバック
