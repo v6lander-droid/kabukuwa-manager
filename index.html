@@ -270,14 +270,15 @@
             // 各グループのルート（最下世代の子孫）から配置
             let offsetX = CARD_W / 2;
             groups.forEach(group => {
-                // グループ内の最下世代
-                const maxD = Math.max(...group.map(c => depthMap[c.id]));
-                const roots = group.filter(c => depthMap[c.id] === maxD);
+                // グループ内のリーフ（子を持たない個体）
+                const roots = group.filter(c =>
+                    group.every(other => other.maleParent !== c.name && other.femaleParent !== c.name)
+                );
 
                 roots.forEach(root => {
                     if (posMap[root.id]) return;
                     const w = leafMap[root.id] * STEP;
-                    placeTree(root, offsetX + w / 2 - STEP / 2, maxD, new Set());
+                    placeTree(root, offsetX + w / 2 - STEP / 2, depthMap[root.id], new Set());
                     offsetX += w;
                 });
 
