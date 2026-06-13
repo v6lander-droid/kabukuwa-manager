@@ -242,7 +242,8 @@
 
                 // Step2: 上の世代を「自分の子の中央」に配置（深度大→小の順）
                 depths.forEach(d => {
-                    group.filter(c => depthMap[c.id] === d && !posMap[c.id]).forEach(c => {
+                    const genCreatures = group.filter(c => depthMap[c.id] === d && !posMap[c.id]);
+                    genCreatures.forEach(c => {
                         const children = getChildObjs(c).filter(ch => group.includes(ch) && posMap[ch.id]);
                         if (children.length > 0) {
                             const xs = children.map(ch => posMap[ch.id].x);
@@ -255,9 +256,15 @@
                         }
                     });
 
-                    // 同世代の重なりをずらす
+                    // 同世代の重なりをずらす（オス親を左・メス親を右に）
                     const same = group.filter(c => depthMap[c.id] === d && posMap[c.id])
-                        .sort((a, b) => posMap[a.id].x - posMap[b.id].x);
+                        .sort((a, b) => {
+                            if (posMap[a.id].x !== posMap[b.id].x) return posMap[a.id].x - posMap[b.id].x;
+                            // 同座標の場合はオスを左・メスを右
+                            if (isMale(a.sex) && !isMale(b.sex)) return -1;
+                            if (!isMale(a.sex) && isMale(b.sex)) return 1;
+                            return 0;
+                        });
                     for (let j = 1; j < same.length; j++) {
                         const prev = posMap[same[j-1].id];
                         const cur = posMap[same[j].id];
