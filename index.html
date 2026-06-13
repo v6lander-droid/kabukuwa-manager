@@ -204,7 +204,8 @@
             creatures.forEach(c => getDepth(c));
             const maxDepth = Math.max(...Object.values(depthMap));
 
-            // サブツリーの葉の数を再帰的に計算（配置幅の基準）
+            // サブツリーの葉の数（祖先側のリーフ数＝親の配置幅の基準）
+            // 自分が葉（親なし）なら1、親がいれば親のリーフ数の合計
             const leafMap = {};
             const countLeaves = (c, visited = new Set()) => {
                 if (leafMap[c.id] !== undefined) return leafMap[c.id];
@@ -213,11 +214,12 @@
                 const mp = getMale(c);
                 const fp = getFemale(c);
                 if (!mp && !fp) {
-                    leafMap[c.id] = 1;
+                    leafMap[c.id] = 1; // 自分が葉
                 } else {
                     const mLeaves = mp ? countLeaves(mp, new Set(visited)) : 0;
                     const fLeaves = fp ? countLeaves(fp, new Set(visited)) : 0;
-                    leafMap[c.id] = Math.max(1, mLeaves + fLeaves);
+                    // 両親がいれば2以上、片親なら1
+                    leafMap[c.id] = Math.max(1, (mp ? mLeaves : 0) + (fp ? fLeaves : 0));
                 }
                 return leafMap[c.id];
             };
@@ -277,9 +279,16 @@
 
                 roots.forEach(root => {
                     if (posMap[root.id]) return;
-                    const w = leafMap[root.id] * STEP;
-                    placeTree(root, offsetX + w / 2 - STEP / 2, depthMap[root.id], new Set());
-                    offsetX += w;
+                    // 子自身は1枠、親がいれば親の分だけ広げる
+                    const mp = getMale(root);
+                    const fp = getFemale(root);
+                    const mL = mp ? leafMap[mp.id] : 0;
+                    const fL = fp ? leafMap[fp.id] : 0;
+                    const parentLeaves = mL + fL;
+                    const w = Math.max(1, parentLeaves) * STEP;
+                    const centerX = offsetX + (parentLeaves > 1 ? w / 2 - STEP / 2 : 0);
+                    placeTree(root, centerX, depthMap[root.id], new Set());
+                    offsetX += Math.max(STEP, w);
                 });
 
                 // フォールバック：未配置
