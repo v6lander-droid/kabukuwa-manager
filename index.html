@@ -181,12 +181,11 @@
 
             const CARD_W = 112;
             const CARD_H = 72;
-            const H_GAP = 16;
+            const H_GAP = 20;
             const ROW_GAP = 64;
-            const GROUP_GAP = 40;
+            const GROUP_GAP = 48;
             const STEP = CARD_W + H_GAP;
 
-            // ヘルパー
             const getParentObjs = (c) => {
                 const mp = (c.maleParent && c.maleParent !== '-') ? creatures.find(x => x.name === c.maleParent) : null;
                 const fp = (c.femaleParent && c.femaleParent !== '-') ? creatures.find(x => x.name === c.femaleParent) : null;
@@ -196,7 +195,7 @@
                 ch.maleParent === c.name || ch.femaleParent === c.name
             );
 
-            // Union-Find で血筋グループ
+            // Union-Find
             const uf = {};
             creatures.forEach(c => { uf[c.id] = c.id; });
             const ufFind = (id) => { if (uf[id] !== id) uf[id] = ufFind(uf[id]); return uf[id]; };
@@ -230,25 +229,23 @@
             let globalOffsetX = CARD_W / 2;
 
             groups.forEach(group => {
-                // グループ内の世代ごとに分類（深度の大きい順）
                 const depths = [...new Set(group.map(c => depthMap[c.id]))].sort((a, b) => b - a);
-
-                // Step1: 最下世代（リーフ）を等間隔に配置
                 const maxD = depths[0];
+
+                // Step1: 最下世代を等間隔配置
                 const bottomGen = group.filter(c => depthMap[c.id] === maxD);
                 bottomGen.forEach((c, i) => {
                     posMap[c.id] = { x: globalOffsetX + i * STEP, rowIdx: maxD };
                 });
 
-                // Step2: 上の世代を「自分の子の中央」に配置（深度大→小の順）
+                // Step2: 上の世代を子の中央に配置（深度大→小）
                 depths.forEach(d => {
-                    const genCreatures = group.filter(c => depthMap[c.id] === d && !posMap[c.id]);
-                    genCreatures.forEach(c => {
+                    const gen = group.filter(c => depthMap[c.id] === d && !posMap[c.id]);
+                    gen.forEach(c => {
                         const children = getChildObjs(c).filter(ch => group.includes(ch) && posMap[ch.id]);
                         if (children.length > 0) {
                             const xs = children.map(ch => posMap[ch.id].x);
-                            const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
-                            posMap[c.id] = { x: centerX, rowIdx: d };
+                            posMap[c.id] = { x: (Math.min(...xs) + Math.max(...xs)) / 2, rowIdx: d };
                         } else {
                             const usedX = Object.values(posMap).filter(p => p.rowIdx === d).map(p => p.x);
                             const maxX = usedX.length > 0 ? Math.max(...usedX) + STEP : globalOffsetX;
@@ -256,14 +253,12 @@
                         }
                     });
 
-                    // 同世代の重なりをずらす（オス親を左・メス親を右に）
+                    // 重なりをずらす（オス左・メス右）
                     const same = group.filter(c => depthMap[c.id] === d && posMap[c.id])
                         .sort((a, b) => {
-                            if (posMap[a.id].x !== posMap[b.id].x) return posMap[a.id].x - posMap[b.id].x;
-                            // 同座標の場合はオスを左・メスを右
-                            if (isMale(a.sex) && !isMale(b.sex)) return -1;
-                            if (!isMale(a.sex) && isMale(b.sex)) return 1;
-                            return 0;
+                            const dx = posMap[a.id].x - posMap[b.id].x;
+                            if (Math.abs(dx) > 1) return dx;
+                            return isMale(a.sex) ? -1 : 1;
                         });
                     for (let j = 1; j < same.length; j++) {
                         const prev = posMap[same[j-1].id];
@@ -274,18 +269,47 @@
                     }
                 });
 
-                // Step3: 子の位置が確定したので親を子の中央に再調整（祖先→子孫方向）
+                // Step3: 子の位置確定後、親を子の中央に再調整（祖先→子孫方向）
+                // ただし両親が同じ子を持つ場合は左右にずらす
                 [...depths].reverse().forEach(d => {
                     group.filter(c => depthMap[c.id] === d && posMap[c.id]).forEach(c => {
                         const children = getChildObjs(c).filter(ch => group.includes(ch) && posMap[ch.id]);
-                        if (children.length > 0) {
-                            const xs = children.map(ch => posMap[ch.id].x);
-                            posMap[c.id] = { ...posMap[c.id], x: (Math.min(...xs) + Math.max(...xs)) / 2 };
+                        if (children.length === 0) return;
+                        const xs = children.map(ch => posMap[ch.id].x);
+                        const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
+
+                        // 同じ子を共有する兄弟親を探す
+                        const coParents = group.filter(other =>
+                            other.id !== c.id &&
+                            depthMap[other.id] === d &&
+                            getChildObjs(other).some(ch => children.find(myChild => myChild.id === ch.id))
+                        );
+
+                        if (coParents.length > 0) {
+                            // 共有親がいる場合：オス親を左・メス親を右にずらす
+                            if (isMale(c.sex)) {
+                                posMap[c.id] = { ...posMap[c.id], x: centerX - STEP / 2 };
+                            } else {
+                                posMap[c.id] = { ...posMap[c.id], x: centerX + STEP / 2 };
+                            }
+                        } else {
+                            posMap[c.id] = { ...posMap[c.id], x: centerX };
                         }
                     });
+
+                    // 再調整後の重なりチェック
+                    const same = group.filter(c => depthMap[c.id] === d && posMap[c.id])
+                        .sort((a, b) => posMap[a.id].x - posMap[b.id].x);
+                    for (let j = 1; j < same.length; j++) {
+                        const prev = posMap[same[j-1].id];
+                        const cur = posMap[same[j].id];
+                        if (cur.x < prev.x + STEP) {
+                            posMap[same[j].id] = { ...cur, x: prev.x + STEP };
+                        }
+                    }
                 });
 
-                // フォールバック：未配置の個体
+                // フォールバック
                 group.forEach(c => {
                     if (!posMap[c.id]) {
                         const d = depthMap[c.id];
@@ -362,6 +386,7 @@
             );
         }
 
+        // ---- 日付入力コンポーネント（不明対応）----
         // ---- 日付入力コンポーネント（不明対応）----
         // ---- 日付入力コンポーネント（不明対応）----
         // ---- 日付入力コンポーネント（不明対応）----
