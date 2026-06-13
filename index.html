@@ -185,113 +185,100 @@
             const ROW_GAP = 64;
             const STEP = CARD_W + H_GAP;
 
-            const getMale = (c) => (c.maleParent && c.maleParent !== '-') ? creatures.find(x => x.name === c.maleParent) : null;
+            const getMale   = (c) => (c.maleParent   && c.maleParent   !== '-') ? creatures.find(x => x.name === c.maleParent)   : null;
             const getFemale = (c) => (c.femaleParent && c.femaleParent !== '-') ? creatures.find(x => x.name === c.femaleParent) : null;
-            const getChildObjs = (c) => creatures.filter(ch => ch.maleParent === c.name || ch.femaleParent === c.name);
+            const getChildren = (c) => creatures.filter(ch => ch.maleParent === c.name || ch.femaleParent === c.name);
 
-            // 世代深度
+            // 世代深度（祖先=0、子孫ほど大きい）
             const depthMap = {};
-            const getDepth = (c, visited = new Set()) => {
-                if (depthMap[c.id] !== undefined) return depthMap[c.id];
-                if (visited.has(c.id)) return 0;
-                visited.add(c.id);
+            const getDepth = (c, vis = new Set()) => {
+                if (depthMap[c.id] != null) return depthMap[c.id];
+                if (vis.has(c.id)) return 0;
+                vis.add(c.id);
                 const parents = [getMale(c), getFemale(c)].filter(Boolean);
-                depthMap[c.id] = parents.length > 0
-                    ? Math.max(...parents.map(p => getDepth(p, new Set(visited)) + 1))
+                depthMap[c.id] = parents.length
+                    ? Math.max(...parents.map(p => getDepth(p, new Set(vis)) + 1))
                     : 0;
                 return depthMap[c.id];
             };
             creatures.forEach(c => getDepth(c));
             const maxDepth = Math.max(...Object.values(depthMap));
 
-            // 子孫側のリーフ数（子を持たない=1、子がいれば子のリーフ数合計）
-            // これにより孫が登録されるまで子は1枠で詰まる
-            const leafMap = {};
-            const countLeaves = (c, visited = new Set()) => {
-                if (leafMap[c.id] !== undefined) return leafMap[c.id];
-                if (visited.has(c.id)) { leafMap[c.id] = 1; return 1; }
-                visited.add(c.id);
-                const children = creatures.filter(ch => ch.maleParent === c.name || ch.femaleParent === c.name);
-                if (children.length === 0) {
-                    leafMap[c.id] = 1;
-                } else {
-                    leafMap[c.id] = children.reduce((s, ch) => s + countLeaves(ch, new Set(visited)), 0);
-                }
-                return leafMap[c.id];
+            // 子孫リーフ数（子を持たない=1、子がいれば子のリーフ数合計）
+            // これが各個体の「占有幅」の単位になる
+            const leafCount = {};
+            const getLeaf = (c, vis = new Set()) => {
+                if (leafCount[c.id] != null) return leafCount[c.id];
+                if (vis.has(c.id)) return 1;
+                vis.add(c.id);
+                const ch = getChildren(c);
+                leafCount[c.id] = ch.length ? ch.reduce((s, x) => s + getLeaf(x, new Set(vis)), 0) : 1;
+                return leafCount[c.id];
             };
-            creatures.forEach(c => countLeaves(c));
-
-            // 再帰的に配置：自分のX座標を受け取り、親を左右に展開
-            const posMap = {};
-            const placeTree = (c, centerX, depth, visited = new Set()) => {
-                if (visited.has(c.id)) return;
-                visited.add(c.id);
-                posMap[c.id] = { x: centerX, rowIdx: depth };
-
-                const mp = getMale(c);
-                const fp = getFemale(c);
-                if (!mp && !fp) return;
-
-                const mLeaves = mp ? leafMap[mp.id] : 0;
-                const fLeaves = fp ? leafMap[fp.id] : 0;
-                const totalLeaves = mLeaves + fLeaves;
-                const totalWidth = totalLeaves * STEP;
-                const leftEdge = centerX - totalWidth / 2 + STEP / 2;
-
-                if (mp) {
-                    placeTree(mp, leftEdge + mLeaves * STEP / 2 - STEP / 2, depth - 1, new Set(visited));
-                }
-                if (fp) {
-                    const fpLeft = leftEdge + mLeaves * STEP;
-                    placeTree(fp, fpLeft + fLeaves * STEP / 2 - STEP / 2, depth - 1, new Set(visited));
-                }
-            };
+            creatures.forEach(c => getLeaf(c));
 
             // Union-Find でグループ分け
             const uf = {};
             creatures.forEach(c => { uf[c.id] = c.id; });
-            const ufFind = (id) => { if (uf[id] !== id) uf[id] = ufFind(uf[id]); return uf[id]; };
-            const ufUnion = (a, b) => { uf[ufFind(a)] = ufFind(b); };
+            const find = (id) => { if (uf[id] !== id) uf[id] = find(uf[id]); return uf[id]; };
+            const union = (a, b) => { uf[find(a)] = find(b); };
             creatures.forEach(c => {
-                const mp = getMale(c); const fp = getFemale(c);
-                if (mp) ufUnion(c.id, mp.id);
-                if (fp) ufUnion(c.id, fp.id);
+                const mp = getMale(c), fp = getFemale(c);
+                if (mp) union(c.id, mp.id);
+                if (fp) union(c.id, fp.id);
             });
             const groupMap = {};
             creatures.forEach(c => {
-                const gid = ufFind(c.id);
-                if (!groupMap[gid]) groupMap[gid] = [];
-                groupMap[gid].push(c);
+                const g = find(c.id);
+                if (!groupMap[g]) groupMap[g] = [];
+                groupMap[g].push(c);
             });
             const groups = Object.values(groupMap).sort((a, b) => b.length - a.length);
 
-            // 各グループのルート（最下世代の子孫）から配置
+            // 配置
+            const posMap = {};
+
+            // 再帰配置：centerXを受け取り自分を配置、子を下に等間隔展開
+            const place = (c, cx, rowIdx, vis = new Set()) => {
+                if (vis.has(c.id)) return;
+                vis.add(c.id);
+                posMap[c.id] = { x: cx, rowIdx };
+
+                const children = getChildren(c);
+                if (!children.length) return;
+
+                // 子の総幅
+                const totalW = children.reduce((s, ch) => s + getLeaf(ch) * STEP, 0);
+                let left = cx - totalW / 2 + STEP / 2;
+                children.forEach(ch => {
+                    const w = getLeaf(ch) * STEP;
+                    place(ch, left + w / 2 - STEP / 2, rowIdx + 1, new Set(vis));
+                    left += w;
+                });
+            };
+
+            // 各グループのルート（祖先=深度0）から配置
             let offsetX = CARD_W / 2;
             groups.forEach(group => {
-                // グループ内のリーフ（子を持たない個体）
-                const roots = group.filter(c =>
-                    group.every(other => other.maleParent !== c.name && other.femaleParent !== c.name)
-                );
-
+                const roots = group.filter(c => depthMap[c.id] === 0);
                 roots.forEach(root => {
                     if (posMap[root.id]) return;
-                    const w = leafMap[root.id] * STEP;
-                    placeTree(root, offsetX + w / 2 - STEP / 2, depthMap[root.id], new Set());
-                    offsetX += w;
+                    const w = getLeaf(root) * STEP;
+                    place(root, offsetX + w / 2 - STEP / 2, 0, new Set());
+                    offsetX += w + H_GAP;
                 });
 
-                // フォールバック：未配置
+                // フォールバック
                 group.forEach(c => {
                     if (!posMap[c.id]) {
-                        const d = depthMap[c.id];
-                        const usedX = Object.values(posMap).filter(p => p.rowIdx === d).map(p => p.x);
-                        const maxX = usedX.length > 0 ? Math.max(...usedX) + STEP : offsetX;
-                        posMap[c.id] = { x: maxX, rowIdx: d };
-                        offsetX = Math.max(offsetX, maxX + STEP);
+                        const usedX = Object.values(posMap).filter(p => p.rowIdx === depthMap[c.id]).map(p => p.x);
+                        const x = usedX.length ? Math.max(...usedX) + STEP : offsetX;
+                        posMap[c.id] = { x, rowIdx: depthMap[c.id] };
+                        offsetX = Math.max(offsetX, x + STEP);
                     }
                 });
 
-                offsetX += CARD_W / 2 + 40; // グループ間余白
+                offsetX += CARD_W / 2 + 40;
             });
 
             // 接続線
@@ -316,14 +303,11 @@
             const Card = ({ creature }) => {
                 const pos = posMap[creature.id];
                 if (!pos) return null;
-                const left = pos.x - CARD_W / 2;
-                const top = pos.rowIdx * (CARD_H + ROW_GAP);
                 return (
                     <div
                         onClick={() => onSelect(creature)}
-                        style={{ position: 'absolute', left, top, width: CARD_W, height: CARD_H, borderTopWidth: 4, borderTopStyle: 'solid', borderTopColor: isMale(creature.sex) ? '#60a5fa' : '#f472b6' }}
-                        className={`cursor-pointer rounded-lg border px-2 py-1.5 text-center transition-all hover:scale-105 select-none
-                            ${highlightId === creature.id ? 'bg-emerald-900 border-emerald-400' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-400'}`}
+                        style={{ position: 'absolute', left: pos.x - CARD_W/2, top: pos.rowIdx*(CARD_H+ROW_GAP), width: CARD_W, height: CARD_H, borderTopWidth: 4, borderTopStyle: 'solid', borderTopColor: isMale(creature.sex) ? '#60a5fa' : '#f472b6' }}
+                        className={`cursor-pointer rounded-lg border px-2 py-1.5 text-center transition-all hover:scale-105 select-none ${highlightId === creature.id ? 'bg-emerald-900 border-emerald-400' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-400'}`}
                     >
                         <div style={{color: sexColor(creature.sex)}} className="text-[9px] font-bold">
                             <i className={`fa-solid ${isMale(creature.sex) ? 'fa-mars' : 'fa-venus'}`}></i>
@@ -357,6 +341,7 @@
             );
         }
 
+        // ---- 日付入力コンポーネント（不明対応）----
         // ---- 日付入力コンポーネント（不明対応）----
         // ---- 日付入力コンポーネント（不明対応）----
         // ---- 日付入力コンポーネント（不明対応）----
