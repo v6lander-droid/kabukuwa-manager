@@ -257,6 +257,53 @@
                 });
             };
 
+            // ペア配置：両親2枚を隣接配置し、共通の子をペアの中央から展開
+            const placePair = (m, f, leftX, rowIdx, vis = new Set()) => {
+                const mW = getLeaf(m) * STEP;
+                const fW = getLeaf(f) * STEP;
+                const mX = leftX + mW / 2;
+                const fX = leftX + mW + fW / 2;
+                vis.add(m.id); vis.add(f.id);
+                posMap[m.id] = { x: mX, rowIdx };
+                posMap[f.id] = { x: fX, rowIdx };
+
+                const commonChildren = getChildren(m).filter(ch =>
+                    getChildren(f).some(c2 => c2.id === ch.id)
+                );
+                const mOnly = getChildren(m).filter(ch => !commonChildren.some(c2 => c2.id === ch.id));
+                const fOnly = getChildren(f).filter(ch => !commonChildren.some(c2 => c2.id === ch.id));
+
+                const pairCenterX = (mX + fX) / 2;
+
+                if (commonChildren.length > 0) {
+                    const totalW = commonChildren.reduce((s, ch) => s + getLeaf(ch) * STEP, 0);
+                    let left = pairCenterX - totalW / 2 + STEP / 2;
+                    commonChildren.forEach(ch => {
+                        const w = getLeaf(ch) * STEP;
+                        place(ch, left + w / 2 - STEP / 2, rowIdx + 1, new Set(vis));
+                        left += w;
+                    });
+                }
+                if (mOnly.length > 0) {
+                    const totalW = mOnly.reduce((s, ch) => s + getLeaf(ch) * STEP, 0);
+                    let left = mX - totalW / 2 + STEP / 2;
+                    mOnly.forEach(ch => {
+                        const w = getLeaf(ch) * STEP;
+                        place(ch, left + w / 2 - STEP / 2, rowIdx + 1, new Set(vis));
+                        left += w;
+                    });
+                }
+                if (fOnly.length > 0) {
+                    const totalW = fOnly.reduce((s, ch) => s + getLeaf(ch) * STEP, 0);
+                    let left = fX - totalW / 2 + STEP / 2;
+                    fOnly.forEach(ch => {
+                        const w = getLeaf(ch) * STEP;
+                        place(ch, left + w / 2 - STEP / 2, rowIdx + 1, new Set(vis));
+                        left += w;
+                    });
+                }
+            };
+
             // 各グループのルート（祖先=深度0）から配置
             let offsetX = CARD_W / 2;
             groups.forEach(group => {
@@ -290,14 +337,9 @@
                         // 婚姻ペア：2枚を隙間なく隣接配置
                         const [m, f] = pair.members;
                         if (posMap[m.id] || posMap[f.id]) return;
-                        const mLeaf = getLeaf(m);
-                        const fLeaf = getLeaf(f);
-                        const mW = mLeaf * STEP;
-                        const fW = fLeaf * STEP;
-                        const mX = offsetX + mW / 2 - STEP / 2;
-                        const fX = mX + (mW + fW) / 2; // mの右端からfの中心へ
-                        place(m, mX, 0, new Set());
-                        place(f, fX, 0, new Set());
+                        const mW = getLeaf(m) * STEP;
+                        const fW = getLeaf(f) * STEP;
+                        placePair(m, f, offsetX, 0, new Set());
                         offsetX += mW + fW + H_GAP;
                     } else {
                         const root = pair.members[0];
