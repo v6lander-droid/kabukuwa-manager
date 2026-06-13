@@ -181,10 +181,10 @@
 
             const CARD_W = 112;
             const CARD_H = 72;
-            const MIN_H_GAP = 16;  // 最小横間隔
-            const ROW_GAP = 64;    // 世代間縦間隔
-            const GROUP_GAP = 40;  // 血筋グループ間余白
-            const STEP = CARD_W + MIN_H_GAP; // 最小ステップ
+            const H_GAP = 16;
+            const ROW_GAP = 64;
+            const GROUP_GAP = 40;
+            const STEP = CARD_W + H_GAP;
 
             // ヘルパー
             const getParentObjs = (c) => {
@@ -193,10 +193,10 @@
                 return [mp, fp].filter(Boolean);
             };
             const getChildObjs = (c) => creatures.filter(ch =>
-                (ch.maleParent === c.name || ch.femaleParent === c.name)
+                ch.maleParent === c.name || ch.femaleParent === c.name
             );
 
-            // Union-Find で血筋グループを構築
+            // Union-Find で血筋グループ
             const uf = {};
             creatures.forEach(c => { uf[c.id] = c.id; });
             const ufFind = (id) => { if (uf[id] !== id) uf[id] = ufFind(uf[id]); return uf[id]; };
@@ -226,62 +226,59 @@
             creatures.forEach(c => getDepth(c));
             const maxDepth = Math.max(...Object.values(depthMap));
 
-            // リーフ数を再帰的にカウント（サブツリーのリーフ数＝必要な横幅の単位）
-            const leafCount = {};
-            const countLeaves = (c, group, visited = new Set()) => {
-                if (leafCount[c.id] !== undefined) return leafCount[c.id];
-                if (visited.has(c.id)) { leafCount[c.id] = 1; return 1; }
-                visited.add(c.id);
-                const parents = getParentObjs(c).filter(p => group.includes(p));
-                if (parents.length === 0) {
-                    leafCount[c.id] = 1;
-                } else {
-                    leafCount[c.id] = parents.reduce((s, p) => s + countLeaves(p, group, new Set(visited)), 0);
-                }
-                return leafCount[c.id];
-            };
-
             const posMap = {};
-
-            // 再帰的配置：子を中央に、親を左右に展開
-            const placeNode = (c, centerX, rowIdx, group, visited = new Set()) => {
-                if (visited.has(c.id)) return;
-                visited.add(c.id);
-                posMap[c.id] = { x: centerX, rowIdx };
-                const parents = getParentObjs(c).filter(p => group.includes(p));
-                if (parents.length === 0) return;
-                // 各親のリーフ数に比例して幅を割り当て
-                const totalLeaves = parents.reduce((s, p) => s + (leafCount[p.id] || 1), 0);
-                const totalWidth = totalLeaves * STEP;
-                let left = centerX - totalWidth / 2;
-                parents.forEach(p => {
-                    const w = (leafCount[p.id] || 1) * STEP;
-                    placeNode(p, left + w / 2, rowIdx - 1, group, visited);
-                    left += w;
-                });
-            };
-
             let globalOffsetX = CARD_W / 2;
 
             groups.forEach(group => {
-                // グループ内リーフ数を計算
-                group.forEach(c => countLeaves(c, group));
+                // グループ内の世代ごとに分類（深度の大きい順）
+                const depths = [...new Set(group.map(c => depthMap[c.id]))].sort((a, b) => b - a);
 
-                // グループ内のリーフ（子を持たない個体）
-                const leaves = group.filter(c =>
-                    getChildObjs(c).filter(ch => group.includes(ch)).length === 0
-                );
-
-                // リーフをリーフ数に応じて配置し、各リーフのサブツリーを上に展開
-                let leafOffsetX = globalOffsetX;
-                leaves.forEach(leaf => {
-                    const lc = leafCount[leaf.id] || 1;
-                    const w = lc * STEP;
-                    placeNode(leaf, leafOffsetX + w / 2 - STEP / 2, depthMap[leaf.id], group, new Set());
-                    leafOffsetX += w;
+                // Step1: 最下世代（リーフ）を等間隔に配置
+                const maxD = depths[0];
+                const bottomGen = group.filter(c => depthMap[c.id] === maxD);
+                bottomGen.forEach((c, i) => {
+                    posMap[c.id] = { x: globalOffsetX + i * STEP, rowIdx: maxD };
                 });
 
-                // 未配置の個体をフォールバック
+                // Step2: 上の世代を「自分の子の中央」に配置（深度大→小の順）
+                depths.forEach(d => {
+                    group.filter(c => depthMap[c.id] === d && !posMap[c.id]).forEach(c => {
+                        const children = getChildObjs(c).filter(ch => group.includes(ch) && posMap[ch.id]);
+                        if (children.length > 0) {
+                            const xs = children.map(ch => posMap[ch.id].x);
+                            const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
+                            posMap[c.id] = { x: centerX, rowIdx: d };
+                        } else {
+                            const usedX = Object.values(posMap).filter(p => p.rowIdx === d).map(p => p.x);
+                            const maxX = usedX.length > 0 ? Math.max(...usedX) + STEP : globalOffsetX;
+                            posMap[c.id] = { x: maxX, rowIdx: d };
+                        }
+                    });
+
+                    // 同世代の重なりをずらす
+                    const same = group.filter(c => depthMap[c.id] === d && posMap[c.id])
+                        .sort((a, b) => posMap[a.id].x - posMap[b.id].x);
+                    for (let j = 1; j < same.length; j++) {
+                        const prev = posMap[same[j-1].id];
+                        const cur = posMap[same[j].id];
+                        if (cur.x < prev.x + STEP) {
+                            posMap[same[j].id] = { ...cur, x: prev.x + STEP };
+                        }
+                    }
+                });
+
+                // Step3: 子の位置が確定したので親を子の中央に再調整（祖先→子孫方向）
+                [...depths].reverse().forEach(d => {
+                    group.filter(c => depthMap[c.id] === d && posMap[c.id]).forEach(c => {
+                        const children = getChildObjs(c).filter(ch => group.includes(ch) && posMap[ch.id]);
+                        if (children.length > 0) {
+                            const xs = children.map(ch => posMap[ch.id].x);
+                            posMap[c.id] = { ...posMap[c.id], x: (Math.min(...xs) + Math.max(...xs)) / 2 };
+                        }
+                    });
+                });
+
+                // フォールバック：未配置の個体
                 group.forEach(c => {
                     if (!posMap[c.id]) {
                         const d = depthMap[c.id];
@@ -291,7 +288,6 @@
                     }
                 });
 
-                // グループの最大X+余白
                 const groupXs = group.map(c => posMap[c.id]?.x || 0);
                 globalOffsetX = Math.max(...groupXs) + CARD_W / 2 + GROUP_GAP;
             });
@@ -359,6 +355,8 @@
             );
         }
 
+        // ---- 日付入力コンポーネント（不明対応）----
+        // ---- 日付入力コンポーネント（不明対応）----
         // ---- 日付入力コンポーネント（不明対応）----
         // ---- 日付入力コンポーネント（不明対応）----
         // ---- 日付入力コンポーネント（不明対応）----
