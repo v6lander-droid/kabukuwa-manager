@@ -182,7 +182,7 @@
             const CARD_W = 112;
             const CARD_H = 72;
             const H_GAP = 20;
-            const ROW_GAP = 96;
+            const ROW_GAP = 64;
             const STEP = CARD_W + H_GAP;
 
             const getMale   = (c) => (c.maleParent   && c.maleParent   !== '-') ? creatures.find(x => x.name === c.maleParent)   : null;
@@ -281,60 +281,25 @@
                 offsetX += CARD_W / 2 + 40;
             });
 
-            // 接続線：両親それぞれから下に降りて横線でつなぎ、同じ両親を持つ全子の中央へ1本
-            const lines = [];     // 縦線（親→中間点）
-            const hLines = [];    // 横線（両親間 or 片親の中間点用）
-            const dropLines = []; // 縦線（中間点→子の中央）
-
-            // 「親キー」ごとに子をグループ化
-            const familyMap = {}; // key: 親の組み合わせ -> { parents:[posMap], children:[posMap], rowIdx }
+            // 接続線：両親がいる場合は親の中間点から子へ1本、片親のみの場合はその親から子へ
+            const lines = [];
             creatures.forEach(c => {
                 const cp = posMap[c.id];
                 if (!cp) return;
-                const mp = getMale(c);
-                const fp = getFemale(c);
-                if (!mp && !fp) return;
+                const parents = [getMale(c), getFemale(c)].filter(Boolean)
+                    .map(p => posMap[p.id]).filter(Boolean);
+                if (parents.length === 0) return;
 
-                const key = `${mp ? mp.id : ''}|${fp ? fp.id : ''}`;
-                if (!familyMap[key]) {
-                    const parents = [mp, fp].filter(Boolean).map(p => posMap[p.id]).filter(Boolean);
-                    if (parents.length === 0) return;
-                    familyMap[key] = { parents, children: [], rowIdx: cp.rowIdx };
-                }
-                familyMap[key].children.push(cp);
-            });
-
-            Object.values(familyMap).forEach(fam => {
-                const { parents, children, rowIdx } = fam;
-                const cy_top = rowIdx * (CARD_H + ROW_GAP);
+                const cy_top = cp.rowIdx * (CARD_H + ROW_GAP);
                 const midY = cy_top - ROW_GAP / 2;
                 const py_bottom = parents[0].rowIdx * (CARD_H + ROW_GAP) + CARD_H;
 
-                // 親側の中点
-                let parentCenterX;
-                if (parents.length === 1) {
-                    parentCenterX = parents[0].x;
-                    lines.push({ x: parents[0].x, y1: py_bottom, y2: midY });
+                if (parents.length === 2) {
+                    const midX = (parents[0].x + parents[1].x) / 2;
+                    lines.push({ x1: midX, y1: py_bottom, x2: cp.x, y2: cy_top, midY });
                 } else {
-                    const xs = parents.map(p => p.x);
-                    const minX = Math.min(...xs);
-                    const maxX = Math.max(...xs);
-                    parentCenterX = (minX + maxX) / 2;
-                    parents.forEach(p => lines.push({ x: p.x, y1: py_bottom, y2: midY }));
-                    hLines.push({ x1: minX, x2: maxX, y: midY });
+                    lines.push({ x1: parents[0].x, y1: py_bottom, x2: cp.x, y2: cy_top, midY });
                 }
-
-                // 子側の中点（全子の中央）
-                const cxs = children.map(c => c.x);
-                const childCenterX = (Math.min(...cxs) + Math.max(...cxs)) / 2;
-
-                // 親中点 -> 子中点 横線（必要な場合）
-                if (parentCenterX !== childCenterX) {
-                    hLines.push({ x1: Math.min(parentCenterX, childCenterX), x2: Math.max(parentCenterX, childCenterX), y: midY });
-                }
-
-                // 子中点から1本の縦線（子の中央へ）
-                dropLines.push({ x1: childCenterX, x2: childCenterX, y: midY, y2end: cy_top });
             });
 
             const allX = Object.values(posMap).map(p => p.x);
@@ -372,13 +337,7 @@
                         <div style={{ position: 'relative', width: svgW, height: svgH }}>
                             <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
                                 {lines.map((l, i) => (
-                                    <line key={`v${i}`} x1={l.x} y1={l.y1} x2={l.x} y2={l.y2} stroke="#525252" strokeWidth="1.5" />
-                                ))}
-                                {hLines.map((l, i) => (
-                                    <line key={`h${i}`} x1={l.x1} y1={l.y} x2={l.x2} y2={l.y} stroke="#525252" strokeWidth="1.5" />
-                                ))}
-                                {dropLines.map((l, i) => (
-                                    <line key={`d${i}`} x1={l.x1} y1={l.y} x2={l.x2} y2={l.y2end} stroke="#525252" strokeWidth="1.5" />
+                                    <path key={i} d={`M ${l.x1} ${l.y1} L ${l.x1} ${l.midY} L ${l.x2} ${l.midY} L ${l.x2} ${l.y2}`} stroke="#525252" strokeWidth="1.5" fill="none" />
                                 ))}
                             </svg>
                             {creatures.map(c => <Card key={c.id} creature={c} />)}
