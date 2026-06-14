@@ -402,10 +402,12 @@
                 const cy_top = cp.rowIdx * (CARD_H + ROW_GAP);
                 const midY = cy_top - ROW_GAP / 2;
                 const py_bottom = parents[0].rowIdx * (CARD_H + ROW_GAP) + CARD_H;
+                const py_center = parents[0].rowIdx * (CARD_H + ROW_GAP) + CARD_H / 2;
 
                 if (parents.length === 2) {
                     const midX = (parents[0].x + parents[1].x) / 2;
-                    lines.push({ x1: midX, y1: py_bottom, x2: cp.x, y2: cy_top, midY });
+                    // 婚姻線の中点（カード中央の高さ）から子へ縦線を伸ばす
+                    lines.push({ x1: midX, y1: py_center, x2: cp.x, y2: cy_top, midY });
                 } else {
                     lines.push({ x1: parents[0].x, y1: py_bottom, x2: cp.x, y2: cy_top, midY });
                 }
@@ -446,7 +448,7 @@
                         <div style={{ position: 'relative', width: svgW, height: svgH }}>
                             <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
                                 {lines.map((l, i) => (
-                                    <path key={i} d={`M ${l.x1} ${l.y1} L ${l.x1} ${l.midY} L ${l.x2} ${l.midY} L ${l.x2} ${l.y2}`} stroke="#525252" strokeWidth="1.5" fill="none" />
+                                    <path key={i} d={`M ${l.x1} ${l.midY} L ${l.x1} ${l.midY} L ${l.x2} ${l.midY} L ${l.x2} ${l.y2}`} stroke="#525252" strokeWidth="1.5" fill="none" />
                                 ))}
                             </svg>
                             {creatures.map(c => <Card key={c.id} creature={c} />)}
@@ -455,7 +457,12 @@
                                     <line key={`m${i}`} x1={m.x1} y1={m.y} x2={m.x2} y2={m.y} stroke="#525252" strokeWidth="1.5" />
                                 ))}
                                 {lines.map((l, i) => (
-                                    <line key={`v${i}`} x1={l.x2} y1={l.midY} x2={l.x2} y2={l.y2} stroke="#525252" strokeWidth="1.5" />
+                                    <React.Fragment key={`vfrag${i}`}>
+                                        {/* 親側：y1からmidYまでの区間（両親2人ならカード背後を含む）を補完 */}
+                                        <line x1={l.x1} y1={l.y1} x2={l.x1} y2={l.midY} stroke="#525252" strokeWidth="1.5" />
+                                        {/* 子側：midYから子カード上端まで */}
+                                        <line x1={l.x2} y1={l.midY} x2={l.x2} y2={l.y2} stroke="#525252" strokeWidth="1.5" />
+                                    </React.Fragment>
                                 ))}
                             </svg>
                         </div>
