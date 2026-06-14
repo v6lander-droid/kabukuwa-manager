@@ -172,6 +172,26 @@
                    sex.indexOf('メス') !== -1 || sex.indexOf('雌') !== -1 || sex.indexOf('♀') !== -1;
         }
 
+        // 重複IDを検出し、重複している個体に新しいIDを振り直す
+        // （オス親・メス親の参照は個体名で行っているため、IDの変更による影響はない）
+        function dedupeIds(creatures) {
+            const seen = new Set();
+            let changed = false;
+            const result = creatures.map((c, i) => {
+                let id = c.id != null ? String(c.id) : '';
+                if (!id || seen.has(id)) {
+                    id = `${Date.now().toString()}_${i}_${Math.random().toString(36).slice(2, 8)}`;
+                    changed = true;
+                }
+                seen.add(id);
+                return id === c.id ? c : { ...c, id };
+            });
+            if (changed) {
+                console.warn('重複したID、または未設定のIDを検出したため、自動的に修正しました。');
+            }
+            return result;
+        }
+
         // =============================================
 
         function PedigreeView({ creatures, highlightId, onSelect }) {
@@ -485,7 +505,7 @@
                     const saved = localStorage.getItem('beetle_data');
                     if (saved) {
                         const parsed = JSON.parse(saved);
-                        if (Array.isArray(parsed)) return parsed;
+                        if (Array.isArray(parsed)) return dedupeIds(parsed);
                     }
                 } catch (e) {
                     console.warn('保存データの読み込みに失敗しました。', e);
@@ -582,7 +602,7 @@
                 setCreatures(creatures.map(c => c.id === id ? { ...c, saleStatus: statuses[(statuses.indexOf(c.saleStatus) + 1) % 3] } : c));
             };
             const confirmAdd = () => {
-                const newCreature = { ...newCreatureData, id: Date.now().toString(), history: [] };
+                const newCreature = { ...newCreatureData, id: `${Date.now().toString()}_${Math.random().toString(36).slice(2, 8)}`, history: [] };
                 setCreatures([newCreature, ...creatures]);
                 setShowAddModal(false);
                 setNewCreatureData({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '', femaleParent: '', stage: '幼虫', saleStatus: '使用', sex: 'オス', emergenceSize: '' });
@@ -737,7 +757,7 @@
                                             const data = JSON.parse(ev.target.result);
                                             if (!Array.isArray(data)) throw new Error('不正な形式');
                                             if (confirm(`${data.length}件のデータを読み込みます。現在のデータは上書きされます。よろしいですか？`)) {
-                                                setCreatures(data);
+                                                setCreatures(dedupeIds(data));
                                             }
                                         } catch (err) {
                                             alert('ファイルの読み込みに失敗しました。正しいバックアップファイルか確認してください。');
