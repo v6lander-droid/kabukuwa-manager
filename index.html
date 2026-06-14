@@ -388,6 +388,11 @@
                         offsetX = Math.max(offsetX, x + STEP + H_GAP);
                     }
                 });
+
+                // グループ全体（祖先〜子孫すべて）の最大X座標を基準に、次グループの開始位置を確定
+                // （婚姻ペアの子孫など、placePair直後には考慮されていなかった子孫の幅も含める）
+                const groupMaxX = Math.max(...group.map(c => posMap[c.id] ? posMap[c.id].x : -Infinity));
+                offsetX = Math.max(offsetX, groupMaxX + CARD_W / 2 + H_GAP);
             });
 
             // 接続線：両親がいる場合は親の中間点から子へ1本、片親のみの場合はその親から子へ
