@@ -363,11 +363,9 @@
                         const usedX = Object.values(posMap).filter(p => p.rowIdx === depthMap[c.id]).map(p => p.x);
                         const x = usedX.length ? Math.max(...usedX) + STEP : offsetX;
                         posMap[c.id] = { x, rowIdx: depthMap[c.id] };
-                        offsetX = Math.max(offsetX, x + STEP);
+                        offsetX = Math.max(offsetX, x + STEP + H_GAP);
                     }
                 });
-
-                offsetX += CARD_W / 2 + H_GAP;
             });
 
             // 接続線：両親がいる場合は親の中間点から子へ1本、片親のみの場合はその親から子へ
