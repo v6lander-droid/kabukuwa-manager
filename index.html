@@ -258,6 +258,7 @@
             // 配置
             const posMap = {};
             const marriagePairs = []; // 婚姻関係（横線でつなぐペア）
+            const debugInfo = [];
 
             // 再帰配置：centerXを受け取り自分を配置、子を下に等間隔展開
             const place = (c, cx, rowIdx, vis = new Set()) => {
@@ -392,7 +393,13 @@
                 // グループ全体（祖先〜子孫すべて）の最大X座標を基準に、次グループの開始位置を確定
                 // （婚姻ペアの子孫など、placePair直後には考慮されていなかった子孫の幅も含める）
                 const groupMaxX = Math.max(...group.map(c => posMap[c.id] ? posMap[c.id].x : -Infinity));
-                console.log('[PEDIGREE] group:', group.map(c=>c.name), 'groupMaxX:', groupMaxX, 'offsetX before:', offsetX, 'offsetX after:', Math.max(offsetX, groupMaxX + CARD_W / 2 + H_GAP));
+                debugInfo.push({
+                    groupNames: group.map(c=>c.name).join(', '),
+                    groupMaxX,
+                    offsetXBefore: offsetX,
+                    offsetXAfter: Math.max(offsetX, groupMaxX + CARD_W / 2 + H_GAP),
+                    positions: group.map(c => `${c.name}: x=${posMap[c.id] ? posMap[c.id].x : 'なし'}, row=${posMap[c.id] ? posMap[c.id].rowIdx : 'なし'}`)
+                });
                 offsetX = Math.max(offsetX, groupMaxX + CARD_W / 2 + H_GAP);
             });
 
@@ -499,6 +506,16 @@
                                 ))}
                             </svg>
                         </div>
+                    </div>
+                    <div className="mt-4 p-2 bg-black text-[10px] text-green-400 font-mono overflow-x-auto" style={{maxHeight: 300, overflowY: 'auto'}}>
+                        <div className="text-yellow-400 font-bold mb-1">[デバッグ情報] グループ配置ログ</div>
+                        {debugInfo.map((d, i) => (
+                            <div key={i} className="mb-2 border-b border-neutral-700 pb-1">
+                                <div>グループ{i}: {d.groupNames}</div>
+                                <div>groupMaxX: {d.groupMaxX.toFixed(1)} / offsetX前: {d.offsetXBefore.toFixed(1)} / offsetX後: {d.offsetXAfter.toFixed(1)}</div>
+                                {d.positions.map((p, j) => <div key={j} className="ml-2 text-neutral-400">{p}</div>)}
+                            </div>
+                        ))}
                     </div>
                 </div>
             );
