@@ -270,8 +270,8 @@
                 // 各親自身は1枚分(STEP)、共通の子・単独の子はそれぞれの幅を加算
                 const mOwnW = STEP;
                 const fOwnW = STEP;
-                // 両親間の隙間：カード半分のみ
-                const commonW = CARD_W / 2;
+                // 両親間の隙間：子世代と同じH_GAP
+                const commonW = H_GAP;
                 const mOnlyW = mOnly.reduce((s, ch) => s + getLeaf(ch) * STEP, 0);
                 const fOnlyW = fOnly.reduce((s, ch) => s + getLeaf(ch) * STEP, 0);
 
