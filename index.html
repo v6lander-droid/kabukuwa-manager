@@ -454,6 +454,9 @@
                                 {marriagePairs.map((m, i) => (
                                     <line key={`m${i}`} x1={m.x1} y1={m.y} x2={m.x2} y2={m.y} stroke="#525252" strokeWidth="1.5" />
                                 ))}
+                                {lines.map((l, i) => (
+                                    <line key={`v${i}`} x1={l.x2} y1={l.midY} x2={l.x2} y2={l.y2} stroke="#525252" strokeWidth="1.5" />
+                                ))}
                             </svg>
                         </div>
                     </div>
