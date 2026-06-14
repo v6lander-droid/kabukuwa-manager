@@ -257,6 +257,7 @@
 
             // 配置
             const posMap = {};
+            const marriagePairs = []; // 婚姻関係（横線でつなぐペア）
 
             // 再帰配置：centerXを受け取り自分を配置、子を下に等間隔展開
             const place = (c, cx, rowIdx, vis = new Set()) => {
@@ -301,6 +302,7 @@
 
                 posMap[m.id] = { x: mX, rowIdx };
                 posMap[f.id] = { x: fX, rowIdx };
+                marriagePairs.push({ x1: mX, x2: fX, y: rowIdx * (CARD_H + ROW_GAP) + CARD_H / 2 });
 
                 const pairCenterX = (mX + fX) / 2;
 
@@ -439,12 +441,16 @@
                         <span className="text-[10px] text-neutral-500">上が祖先・下が子孫</span>
                         <span className="text-[10px] flex items-center gap-1"><span className="inline-block w-3 h-0.5" style={{backgroundColor:'#60a5fa'}}></span>オス</span>
                         <span className="text-[10px] flex items-center gap-1"><span className="inline-block w-3 h-0.5" style={{backgroundColor:'#f472b6'}}></span>メス</span>
+                        <span className="text-[10px] flex items-center gap-1"><span className="inline-block w-3 h-0.5 border-t-2 border-dashed" style={{borderColor:'#a855f7'}}></span>婚姻関係</span>
                     </div>
                     <div className="overflow-x-auto">
                         <div style={{ position: 'relative', width: svgW, height: svgH }}>
                             <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
                                 {lines.map((l, i) => (
                                     <path key={i} d={`M ${l.x1} ${l.y1} L ${l.x1} ${l.midY} L ${l.x2} ${l.midY} L ${l.x2} ${l.y2}`} stroke="#525252" strokeWidth="1.5" fill="none" />
+                                ))}
+                                {marriagePairs.map((m, i) => (
+                                    <line key={`m${i}`} x1={m.x1} y1={m.y} x2={m.x2} y2={m.y} stroke="#a855f7" strokeWidth="2" strokeDasharray="4,3" />
                                 ))}
                             </svg>
                             {creatures.map(c => <Card key={c.id} creature={c} />)}
