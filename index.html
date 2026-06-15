@@ -356,7 +356,7 @@
 
                 posMap[m.id] = { x: mX, rowIdx };
                 posMap[f.id] = { x: fX, rowIdx };
-                marriagePairs.push({ x1: mX, x2: fX, y: rowIdx * (CARD_H + ROW_GAP) + CARD_H / 2 });
+                marriagePairs.push({ x1: mX, x2: fX, y: rowIdx * (CARD_H + ROW_GAP) + CARD_H });
 
                 const pairCenterX = (mX + fX) / 2;
 
@@ -461,12 +461,11 @@
                 const cy_top = cp.rowIdx * (CARD_H + ROW_GAP);
                 const midY = cy_top - ROW_GAP / 2;
                 const py_bottom = parents[0].rowIdx * (CARD_H + ROW_GAP) + CARD_H;
-                const py_center = parents[0].rowIdx * (CARD_H + ROW_GAP) + CARD_H / 2;
 
                 if (parents.length === 2) {
                     const midX = (parents[0].x + parents[1].x) / 2;
-                    // 婚姻線の中点（カード中央の高さ）から子へ縦線を伸ばす
-                    lines.push({ x1: midX, y1: py_center, x2: cp.x, y2: cy_top, midY });
+                    // 婚姻線の中点（カード下端の高さ）から子へ縦線を伸ばす
+                    lines.push({ x1: midX, y1: py_bottom, x2: cp.x, y2: cy_top, midY });
                 } else {
                     lines.push({ x1: parents[0].x, y1: py_bottom, x2: cp.x, y2: cy_top, midY });
                 }
@@ -493,7 +492,7 @@
                         marriagePairs.push({
                             x1: posMap[m.id].x,
                             x2: posMap[f.id].x,
-                            y: posMap[c.id].rowIdx * (CARD_H + ROW_GAP) + CARD_H / 2,
+                            y: posMap[c.id].rowIdx * (CARD_H + ROW_GAP) + CARD_H,
                         });
                     });
                 });
