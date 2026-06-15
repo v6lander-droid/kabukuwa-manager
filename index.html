@@ -201,6 +201,7 @@
 
             const containerRef = useRef(null);
             const [containerWidth, setContainerWidth] = useState(0);
+            const [zoomFactor, setZoomFactor] = useState(1);
 
             useEffect(() => {
                 const updateWidth = () => {
@@ -498,8 +499,9 @@
             const allX = Object.values(posMap).map(p => p.x);
             const svgW = Math.max(...allX) + CARD_W / 2 + 8;
             const svgH = (maxDepth + 1) * (CARD_H + ROW_GAP);
-            // 全体が画面に収まるように初期スケールを計算（拡大はしない）
-            const scale = containerWidth > 0 ? Math.min(1, containerWidth / svgW) : 1;
+            // 全体が画面に収まる基準スケール（拡大はしない）
+            const baseScale = containerWidth > 0 ? Math.min(1, containerWidth / svgW) : 1;
+            const scale = baseScale * zoomFactor;
 
             const Card = ({ creature }) => {
                 const pos = posMap[creature.id];
@@ -528,8 +530,19 @@
                         <span className="text-[10px] flex items-center gap-1"><span className="inline-block w-3 h-0.5" style={{backgroundColor:'#60a5fa'}}></span>オス</span>
                         <span className="text-[10px] flex items-center gap-1"><span className="inline-block w-3 h-0.5" style={{backgroundColor:'#f472b6'}}></span>メス</span>
                     </div>
-                    <div className="overflow-x-auto" ref={containerRef}>
-                        <div style={{ width: svgW * scale, height: svgH * scale, overflow: 'hidden' }}>
+                    <div className="flex items-center gap-2 mb-2">
+                        <button onClick={() => setZoomFactor(z => Math.max(0.3, z - 0.1))} className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 rounded text-xs text-white border border-neutral-700">−</button>
+                        <input
+                            type="range" min="0.3" max="3" step="0.1" value={zoomFactor}
+                            onChange={e => setZoomFactor(parseFloat(e.target.value))}
+                            className="flex-1"
+                        />
+                        <button onClick={() => setZoomFactor(z => Math.min(3, z + 0.1))} className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 rounded text-xs text-white border border-neutral-700">＋</button>
+                        <span className="text-[10px] text-neutral-400 w-12 text-right">{Math.round(zoomFactor * 100)}%</span>
+                        <button onClick={() => setZoomFactor(1)} className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 rounded text-[10px] text-white border border-neutral-700">リセット</button>
+                    </div>
+                    <div className="overflow-auto border border-neutral-800 rounded" ref={containerRef} style={{ height: 500 }}>
+                        <div style={{ width: svgW * scale, height: svgH * scale }}>
                             <div style={{ position: 'relative', width: svgW, height: svgH, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
                                 <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
                                     {lines.map((l, i) => (
