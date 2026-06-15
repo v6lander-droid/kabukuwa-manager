@@ -199,6 +199,20 @@
                 <div className="bg-neutral-900 p-8 rounded-lg text-center text-neutral-500 text-sm">個体が登録されていません</div>
             );
 
+            const containerRef = useRef(null);
+            const [containerWidth, setContainerWidth] = useState(0);
+
+            useEffect(() => {
+                const updateWidth = () => {
+                    if (containerRef.current) {
+                        setContainerWidth(containerRef.current.clientWidth);
+                    }
+                };
+                updateWidth();
+                window.addEventListener('resize', updateWidth);
+                return () => window.removeEventListener('resize', updateWidth);
+            }, []);
+
             const CARD_W = 112;
             const CARD_H = 72;
             const H_GAP = 20;
@@ -456,6 +470,8 @@
             const allX = Object.values(posMap).map(p => p.x);
             const svgW = Math.max(...allX) + CARD_W / 2 + 8;
             const svgH = (maxDepth + 1) * (CARD_H + ROW_GAP);
+            // 全体が画面に収まるように初期スケールを計算（拡大はしない）
+            const scale = containerWidth > 0 ? Math.min(1, containerWidth / svgW) : 1;
 
             const Card = ({ creature }) => {
                 const pos = posMap[creature.id];
@@ -484,11 +500,12 @@
                         <span className="text-[10px] flex items-center gap-1"><span className="inline-block w-3 h-0.5" style={{backgroundColor:'#60a5fa'}}></span>オス</span>
                         <span className="text-[10px] flex items-center gap-1"><span className="inline-block w-3 h-0.5" style={{backgroundColor:'#f472b6'}}></span>メス</span>
                     </div>
-                    <div className="overflow-x-auto">
-                        <div style={{ position: 'relative', width: svgW, height: svgH }}>
-                            <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
-                                {lines.map((l, i) => (
-                                    <path key={i} d={`M ${l.x1} ${l.midY} L ${l.x1} ${l.midY} L ${l.x2} ${l.midY} L ${l.x2} ${l.y2}`} stroke="#525252" strokeWidth="1.5" fill="none" />
+                    <div className="overflow-x-auto" ref={containerRef}>
+                        <div style={{ width: svgW * scale, height: svgH * scale, overflow: 'hidden' }}>
+                            <div style={{ position: 'relative', width: svgW, height: svgH, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+                                <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
+                                    {lines.map((l, i) => (
+                                        <path key={i} d={`M ${l.x1} ${l.midY} L ${l.x1} ${l.midY} L ${l.x2} ${l.midY} L ${l.x2} ${l.y2}`} stroke="#525252" strokeWidth="1.5" fill="none" />
                                 ))}
                             </svg>
                             {creatures.map(c => <Card key={c.id} creature={c} />)}
@@ -505,6 +522,7 @@
                                     </React.Fragment>
                                 ))}
                             </svg>
+                            </div>
                         </div>
                     </div>
                     <div className="mt-4 p-2 bg-black text-[10px] text-green-400 font-mono overflow-x-auto" style={{maxHeight: 300, overflowY: 'auto'}}>
