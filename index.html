@@ -465,9 +465,9 @@
                 if (parents.length === 2) {
                     const midX = (parents[0].x + parents[1].x) / 2;
                     // 婚姻線の中点（カード下端の高さ）から子へ縦線を伸ばす
-                    lines.push({ x1: midX, y1: py_bottom, x2: cp.x, y2: cy_top, midY });
+                    lines.push({ x1: midX, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: true });
                 } else {
-                    lines.push({ x1: parents[0].x, y1: py_bottom, x2: cp.x, y2: cy_top, midY });
+                    lines.push({ x1: parents[0].x, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: false });
                 }
             });
 
@@ -623,12 +623,20 @@
                             {creatures.map(c => <Card key={c.id} creature={c} />)}
                             <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
                                 {marriagePairs.map((m, i) => (
-                                    <line key={`m${i}`} x1={m.x1} y1={m.y} x2={m.x2} y2={m.y} stroke="#525252" strokeWidth="1.5" />
+                                    <React.Fragment key={`m${i}`}>
+                                        {/* 両親それぞれのカード下端から婚姻線まで縦線 */}
+                                        <line x1={m.x1} y1={m.y - ROW_GAP / 2} x2={m.x1} y2={m.y} stroke="#525252" strokeWidth="1.5" />
+                                        <line x1={m.x2} y1={m.y - ROW_GAP / 2} x2={m.x2} y2={m.y} stroke="#525252" strokeWidth="1.5" />
+                                        {/* 婚姻線本体 */}
+                                        <line x1={m.x1} y1={m.y} x2={m.x2} y2={m.y} stroke="#525252" strokeWidth="1.5" />
+                                    </React.Fragment>
                                 ))}
                                 {lines.map((l, i) => (
                                     <React.Fragment key={`vfrag${i}`}>
-                                        {/* 親側：y1からmidYまでの区間（両親2人ならカード背後を含む）を補完 */}
-                                        <line x1={l.x1} y1={l.y1} x2={l.x1} y2={l.midY} stroke="#525252" strokeWidth="1.5" />
+                                        {/* 片親のみの場合：親カード下端からmidYまでの区間を補完 */}
+                                        {!l.isPair && (
+                                            <line x1={l.x1} y1={l.y1} x2={l.x1} y2={l.midY} stroke="#525252" strokeWidth="1.5" />
+                                        )}
                                         {/* 子側：midYから子カード上端まで */}
                                         <line x1={l.x2} y1={l.midY} x2={l.x2} y2={l.y2} stroke="#525252" strokeWidth="1.5" />
                                     </React.Fragment>
