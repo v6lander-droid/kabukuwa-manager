@@ -356,7 +356,7 @@
 
                 posMap[m.id] = { x: mX, rowIdx };
                 posMap[f.id] = { x: fX, rowIdx };
-                marriagePairs.push({ x1: mX, x2: fX, y: rowIdx * (CARD_H + ROW_GAP) + CARD_H });
+                marriagePairs.push({ x1: mX, x2: fX, y: rowIdx * (CARD_H + ROW_GAP) + CARD_H + ROW_GAP / 2 });
 
                 const pairCenterX = (mX + fX) / 2;
 
@@ -492,7 +492,7 @@
                         marriagePairs.push({
                             x1: posMap[m.id].x,
                             x2: posMap[f.id].x,
-                            y: posMap[c.id].rowIdx * (CARD_H + ROW_GAP) + CARD_H,
+                            y: posMap[c.id].rowIdx * (CARD_H + ROW_GAP) + CARD_H + ROW_GAP / 2,
                         });
                     });
                 });
