@@ -356,7 +356,7 @@
 
                 posMap[m.id] = { x: mX, rowIdx };
                 posMap[f.id] = { x: fX, rowIdx };
-                marriagePairs.push({ x1: mX, x2: fX, y: rowIdx * (CARD_H + ROW_GAP) + CARD_H + ROW_GAP / 2, cardBottomY: rowIdx * (CARD_H + ROW_GAP) + CARD_H });
+                marriagePairs.push({ x1: mX, x2: fX, y: rowIdx * (CARD_H + ROW_GAP) + CARD_H + ROW_GAP / 2 });
 
                 const pairCenterX = (mX + fX) / 2;
 
@@ -493,7 +493,6 @@
                             x1: posMap[m.id].x,
                             x2: posMap[f.id].x,
                             y: posMap[c.id].rowIdx * (CARD_H + ROW_GAP) + CARD_H + ROW_GAP / 2,
-                            cardBottomY: posMap[c.id].rowIdx * (CARD_H + ROW_GAP) + CARD_H,
                         });
                     });
                 });
@@ -624,13 +623,7 @@
                             {creatures.map(c => <Card key={c.id} creature={c} />)}
                             <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
                                 {marriagePairs.map((m, i) => (
-                                    <React.Fragment key={`m${i}`}>
-                                        {/* 両親それぞれのカード下端から婚姻線まで縦線 */}
-                                        <line x1={m.x1} y1={m.cardBottomY} x2={m.x1} y2={m.y} stroke="#525252" strokeWidth="1.5" />
-                                        <line x1={m.x2} y1={m.cardBottomY} x2={m.x2} y2={m.y} stroke="#525252" strokeWidth="1.5" />
-                                        {/* 婚姻線本体 */}
-                                        <line x1={m.x1} y1={m.y} x2={m.x2} y2={m.y} stroke="#525252" strokeWidth="1.5" />
-                                    </React.Fragment>
+                                    <line key={`m${i}`} x1={m.x1} y1={m.y} x2={m.x2} y2={m.y} stroke="#525252" strokeWidth="1.5" />
                                 ))}
                                 {lines.map((l, i) => (
                                     <React.Fragment key={`vfrag${i}`}>
