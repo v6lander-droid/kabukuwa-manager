@@ -509,8 +509,8 @@
             });
 
             // 接続線（getRowY定義後に計算）
-            // 親グループごとに子をまとめる
-            const connGroups = {};
+            // 子ごとのrawデータ
+            const rawLines = [];
             creatures.forEach(c => {
                 const cp = posMap[c.id];
                 if (!cp) return;
@@ -522,18 +522,29 @@
                 const parentRowIdx = parents[0].rowIdx;
                 const midY = cy_top - getRowGap(parentRowIdx) / 2;
                 const py_bottom = getRowY(parentRowIdx) + CARD_H;
-                const isPair = parents.length === 2;
-                const parentMidX = isPair
-                    ? (parents[0].x + parents[1].x) / 2
-                    : parents[0].x;
-                const key = `${parentMidX.toFixed(1)}_${midY.toFixed(1)}`;
 
-                if (!connGroups[key]) {
-                    connGroups[key] = { parentMidX, midY, py_bottom, isPair, children: [] };
+                if (parents.length === 2) {
+                    const midX = (parents[0].x + parents[1].x) / 2;
+                    rawLines.push({ x1: midX, y1: py_bottom, childX: cp.x, y2: cy_top, midY, isPair: true });
+                } else {
+                    rawLines.push({ x1: parents[0].x, y1: py_bottom, childX: cp.x, y2: cy_top, midY, isPair: false });
                 }
-                connGroups[key].children.push({ x: cp.x, y2: cy_top });
             });
-            const connGroupList = Object.values(connGroups);
+
+            // 同じx1とmidYを持つエントリをグループ化（同一親グループの子をまとめる）
+            const lineGroups = [];
+            rawLines.forEach(l => {
+                const key = `${l.x1.toFixed(1)}_${l.midY.toFixed(1)}`;
+                let group = lineGroups.find(g => g.key === key);
+                if (!group) {
+                    group = { key, x1: l.x1, y1: l.y1, midY: l.midY, isPair: l.isPair, children: [] };
+                    lineGroups.push(group);
+                }
+                group.children.push({ childX: l.childX, y2: l.y2 });
+            });
+
+            // linesは後方互換のために残す（片親用）
+            const lines = rawLines;
 
             const allX = Object.values(posMap).map(p => p.x);
             const svgW = Math.max(...allX) + CARD_W / 2 + 8;
@@ -648,33 +659,23 @@
                         onTouchEnd={handleTouchEnd}
                     >
                         <div style={{
-                            position: 'relative',
                             width: svgW, height: svgH,
                             transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
                             transformOrigin: 'top left'
                         }}>
                                 <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
-                                    {connGroupList.map((g, i) => {
-                                        const xs = g.children.map(c => c.x);
+                                    {lineGroups.map((g, i) => {
+                                        const xs = g.children.map(c => c.childX);
                                         const minX = Math.min(...xs);
                                         const maxX = Math.max(...xs);
                                         return (
                                             <g key={i}>
-                                                {/* 片親のみ：親カード下端からmidYへの縦線 */}
-                                                {!g.isPair && (
-                                                    <line x1={g.parentMidX} y1={g.py_bottom} x2={g.parentMidX} y2={g.midY} stroke="#525252" strokeWidth="1.5" />
-                                                )}
-                                                {/* midYの分岐横線（子が複数の場合） */}
+                                                {/* 分岐横線：婚姻ペアでは婚姻線中点から子の範囲、片親では親から子の範囲 */}
                                                 {g.children.length > 1 && (
                                                     <line x1={minX} y1={g.midY} x2={maxX} y2={g.midY} stroke="#525252" strokeWidth="1.5" />
                                                 )}
-                                                {/* 婚姻ペアで子が1人の場合：婚姻線中点からその子への縦線 */}
-                                                {g.isPair && g.children.length === 1 && (
-                                                    <line x1={g.parentMidX} y1={g.midY} x2={g.children[0].x} y2={g.midY} stroke="#525252" strokeWidth="1.5" />
-                                                )}
-                                                {/* 各子への縦線 */}
                                                 {g.children.map((c, j) => (
-                                                    <line key={j} x1={c.x} y1={g.midY} x2={c.x} y2={c.y2} stroke="#525252" strokeWidth="1.5" />
+                                                    <line key={j} x1={c.childX} y1={g.midY} x2={c.childX} y2={c.y2} stroke="#525252" strokeWidth="1.5" />
                                                 ))}
                                             </g>
                                         );
@@ -684,15 +685,24 @@
                             <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
                                 {marriagePairs.map((m, i) => (
                                     <React.Fragment key={`m${i}`}>
-                                        {/* 両親カード下端から婚姻線への縦線 */}
                                         <line x1={m.x1} y1={getRowY(m.rowIdx) + CARD_H} x2={m.x1} y2={m.y} stroke="#525252" strokeWidth="1.5" />
                                         <line x1={m.x2} y1={getRowY(m.rowIdx) + CARD_H} x2={m.x2} y2={m.y} stroke="#525252" strokeWidth="1.5" />
-                                        {/* 婚姻線本体 */}
                                         <line x1={m.x1} y1={m.y} x2={m.x2} y2={m.y} stroke="#525252" strokeWidth="1.5" />
-                                        {/* 婚姻線中点から分岐点（midY）への縦線 */}
-                                        <line x1={(m.x1+m.x2)/2} y1={m.y} x2={(m.x1+m.x2)/2} y2={m.y} stroke="#525252" strokeWidth="1.5" />
                                     </React.Fragment>
                                 ))}
+                                {lineGroups.map((g, i) => {
+                                    if (!g.isPair) {
+                                        // 片親：カード下端からmidYへの縦線
+                                        return <line key={`vg${i}`} x1={g.x1} y1={g.y1} x2={g.x1} y2={g.midY} stroke="#525252" strokeWidth="1.5" />;
+                                    }
+                                    if (g.children.length > 1) {
+                                        // 婚姻ペアで子複数：婚姻線中点からmidYへの縦線（婚姻線と同じY なので長さ0だが、将来の変更に備えて明示）
+                                        const xs = g.children.map(c => c.childX);
+                                        const midChildX = (Math.min(...xs) + Math.max(...xs)) / 2;
+                                        return <line key={`vg${i}`} x1={g.x1} y1={g.midY} x2={g.x1} y2={g.midY} stroke="#525252" strokeWidth="1.5" />;
+                                    }
+                                    return null;
+                                })}
                             </svg>
                         </div>
                     </div>
