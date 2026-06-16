@@ -356,7 +356,7 @@
 
                 posMap[m.id] = { x: mX, rowIdx };
                 posMap[f.id] = { x: fX, rowIdx };
-                marriagePairs.push({ x1: mX, x2: fX, y: rowIdx * (CARD_H + ROW_GAP) + CARD_H + ROW_GAP / 2 });
+                marriagePairs.push({ x1: mX, x2: fX, rowIdx, y: 0 }); // yは後で再計算
 
                 const pairCenterX = (mX + fX) / 2;
 
@@ -450,26 +450,7 @@
             });
 
             // 接続線：両親がいる場合は親の中間点から子へ1本、片親のみの場合はその親から子へ
-            const lines = [];
-            creatures.forEach(c => {
-                const cp = posMap[c.id];
-                if (!cp) return;
-                const parents = [getMale(c), getFemale(c)].filter(Boolean)
-                    .map(p => posMap[p.id]).filter(Boolean);
-                if (parents.length === 0) return;
-
-                const cy_top = cp.rowIdx * (CARD_H + ROW_GAP);
-                const midY = cy_top - ROW_GAP / 2;
-                const py_bottom = parents[0].rowIdx * (CARD_H + ROW_GAP) + CARD_H;
-
-                if (parents.length === 2) {
-                    const midX = (parents[0].x + parents[1].x) / 2;
-                    // 婚姻線の中点（カード下端の高さ）から子へ縦線を伸ばす
-                    lines.push({ x1: midX, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: true });
-                } else {
-                    lines.push({ x1: parents[0].x, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: false });
-                }
-            });
+            // linesはgetRowY定義後に計算（下に移動）
 
             // 深度1以降の婚姻ペア（共通の子を持つ同世代の2個体）も検出して線を追加
             {
@@ -492,15 +473,66 @@
                         marriagePairs.push({
                             x1: posMap[m.id].x,
                             x2: posMap[f.id].x,
-                            y: posMap[c.id].rowIdx * (CARD_H + ROW_GAP) + CARD_H + ROW_GAP / 2,
+                            rowIdx: posMap[c.id].rowIdx,
+                            y: 0, // yは後で再計算
                         });
                     });
                 });
             }
 
+            // 各rowIdx（世代）の最大子数を計算し、動的な行間を決定
+            const BASE_ROW_GAP = ROW_GAP; // 基本行間（子なし or 子1人）
+            const rowChildCount = {}; // rowIdx -> その世代の個体の最大子数
+            creatures.forEach(c => {
+                const pos = posMap[c.id];
+                if (!pos) return;
+                const childCount = getChildren(c).length;
+                const r = pos.rowIdx;
+                rowChildCount[r] = Math.max(rowChildCount[r] || 0, childCount);
+            });
+            // rowIdx r → r+1 の行間（子が多いほど広く）
+            const getRowGap = (r) => {
+                const childCount = rowChildCount[r] || 0;
+                if (childCount <= 1) return BASE_ROW_GAP;
+                return BASE_ROW_GAP + Math.min(childCount - 1, 8) * 16; // 子1人増えるごとに16px加算、最大+128px
+            };
+            // 各rowIdxの開始Y座標を累積計算
+            const rowYOffsets = [0]; // rowYOffsets[r] = rowIdx r のカード上端Y座標
+            for (let r = 0; r <= maxDepth; r++) {
+                rowYOffsets.push(rowYOffsets[r] + CARD_H + getRowGap(r));
+            }
+            const getRowY = (r) => rowYOffsets[r] || 0;
+
+            // marriagePairsのyを動的行間で再計算
+            marriagePairs.forEach(mp => {
+                mp.y = getRowY(mp.rowIdx) + CARD_H + getRowGap(mp.rowIdx) / 2;
+            });
+
+            // 接続線（getRowY定義後に計算）
+            const lines = [];
+            creatures.forEach(c => {
+                const cp = posMap[c.id];
+                if (!cp) return;
+                const parents = [getMale(c), getFemale(c)].filter(Boolean)
+                    .map(p => posMap[p.id]).filter(Boolean);
+                if (parents.length === 0) return;
+
+                const cy_top = getRowY(cp.rowIdx);
+                const parentRowIdx = parents[0].rowIdx;
+                const midY = cy_top - getRowGap(parentRowIdx) / 2;
+                const py_bottom = getRowY(parentRowIdx) + CARD_H;
+
+                if (parents.length === 2) {
+                    const midX = (parents[0].x + parents[1].x) / 2;
+                    lines.push({ x1: midX, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: true });
+                } else {
+                    lines.push({ x1: parents[0].x, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: false });
+                }
+            });
+
             const allX = Object.values(posMap).map(p => p.x);
             const svgW = Math.max(...allX) + CARD_W / 2 + 8;
-            const svgH = (maxDepth + 1) * (CARD_H + ROW_GAP);
+            const svgH = rowYOffsets[maxDepth + 1] || (maxDepth + 1) * (CARD_H + ROW_GAP);
             // 全体が画面に収まる基準スケール（拡大はしない）
             const baseScale = containerWidth > 0 ? Math.min(1, containerWidth / svgW) : 1;
             const scale = baseScale * zoomFactor;
@@ -574,7 +606,7 @@
                 return (
                     <div
                         onClick={() => onSelect(creature)}
-                        style={{ position: 'absolute', left: pos.x - CARD_W/2, top: pos.rowIdx*(CARD_H+ROW_GAP), width: CARD_W, height: CARD_H, borderTopWidth: 4, borderTopStyle: 'solid', borderTopColor: isMale(creature.sex) ? '#60a5fa' : '#f472b6' }}
+                        style={{ position: 'absolute', left: pos.x - CARD_W/2, top: getRowY(pos.rowIdx), width: CARD_W, height: CARD_H, borderTopWidth: 4, borderTopStyle: 'solid', borderTopColor: isMale(creature.sex) ? '#60a5fa' : '#f472b6' }}
                         className={`cursor-pointer rounded-lg border px-2 py-1.5 text-center transition-all hover:scale-105 select-none ${highlightId === creature.id ? 'bg-emerald-900 border-emerald-400' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-400'}`}
                     >
                         <div style={{color: sexColor(creature.sex)}} className="text-[9px] font-bold">
@@ -625,8 +657,8 @@
                                 {marriagePairs.map((m, i) => (
                                     <React.Fragment key={`m${i}`}>
                                         {/* 両親それぞれのカード下端から婚姻線まで縦線 */}
-                                        <line x1={m.x1} y1={m.y - ROW_GAP / 2} x2={m.x1} y2={m.y} stroke="#525252" strokeWidth="1.5" />
-                                        <line x1={m.x2} y1={m.y - ROW_GAP / 2} x2={m.x2} y2={m.y} stroke="#525252" strokeWidth="1.5" />
+                                        <line x1={m.x1} y1={getRowY(m.rowIdx) + CARD_H} x2={m.x1} y2={m.y} stroke="#525252" strokeWidth="1.5" />
+                                        <line x1={m.x2} y1={getRowY(m.rowIdx) + CARD_H} x2={m.x2} y2={m.y} stroke="#525252" strokeWidth="1.5" />
                                         {/* 婚姻線本体 */}
                                         <line x1={m.x1} y1={m.y} x2={m.x2} y2={m.y} stroke="#525252" strokeWidth="1.5" />
                                     </React.Fragment>
