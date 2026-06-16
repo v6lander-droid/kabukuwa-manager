@@ -665,13 +665,16 @@
                         }}>
                                 <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
                                     {lineGroups.map((g, i) => {
-                                        const xs = g.children.map(c => c.childX);
-                                        const minX = Math.min(...xs);
-                                        const maxX = Math.max(...xs);
+                                        const minX = Math.min(...g.children.map(c => c.childX));
+                                        const maxX = Math.max(...g.children.map(c => c.childX));
                                         return (
                                             <g key={i}>
-                                                {/* 分岐横線：婚姻ペアでは婚姻線中点から子の範囲、片親では親から子の範囲 */}
-                                                {g.children.length > 1 && (
+                                                {/* 婚姻ペア以外（片親のみ）の場合に分岐横線を描く */}
+                                                {!g.isPair && (
+                                                    <line x1={minX} y1={g.midY} x2={maxX} y2={g.midY} stroke="#525252" strokeWidth="1.5" />
+                                                )}
+                                                {/* 婚姻ペアで子が複数の場合は婚姻線中点から子の範囲への分岐横線 */}
+                                                {g.isPair && g.children.length > 1 && (
                                                     <line x1={minX} y1={g.midY} x2={maxX} y2={g.midY} stroke="#525252" strokeWidth="1.5" />
                                                 )}
                                                 {g.children.map((c, j) => (
@@ -690,19 +693,11 @@
                                         <line x1={m.x1} y1={m.y} x2={m.x2} y2={m.y} stroke="#525252" strokeWidth="1.5" />
                                     </React.Fragment>
                                 ))}
-                                {lineGroups.map((g, i) => {
-                                    if (!g.isPair) {
-                                        // 片親：カード下端からmidYへの縦線
-                                        return <line key={`vg${i}`} x1={g.x1} y1={g.y1} x2={g.x1} y2={g.midY} stroke="#525252" strokeWidth="1.5" />;
-                                    }
-                                    if (g.children.length > 1) {
-                                        // 婚姻ペアで子複数：婚姻線中点からmidYへの縦線（婚姻線と同じY なので長さ0だが、将来の変更に備えて明示）
-                                        const xs = g.children.map(c => c.childX);
-                                        const midChildX = (Math.min(...xs) + Math.max(...xs)) / 2;
-                                        return <line key={`vg${i}`} x1={g.x1} y1={g.midY} x2={g.x1} y2={g.midY} stroke="#525252" strokeWidth="1.5" />;
-                                    }
-                                    return null;
-                                })}
+                                {lineGroups.map((g, i) => (
+                                    !g.isPair && (
+                                        <line key={`vg${i}`} x1={g.x1} y1={g.y1} x2={g.x1} y2={g.midY} stroke="#525252" strokeWidth="1.5" />
+                                    )
+                                ))}
                             </svg>
                         </div>
                     </div>
