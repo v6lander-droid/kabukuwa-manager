@@ -669,14 +669,7 @@
                                         const maxX = Math.max(...g.children.map(c => c.childX));
                                         return (
                                             <g key={i}>
-                                                {/* 婚姻ペア以外（片親のみ）の場合に分岐横線を描く */}
-                                                {!g.isPair && (
-                                                    <line x1={minX} y1={g.midY} x2={maxX} y2={g.midY} stroke="#525252" strokeWidth="1.5" />
-                                                )}
-                                                {/* 婚姻ペアで子が複数の場合は婚姻線中点から子の範囲への分岐横線 */}
-                                                {g.isPair && g.children.length > 1 && (
-                                                    <line x1={minX} y1={g.midY} x2={maxX} y2={g.midY} stroke="#525252" strokeWidth="1.5" />
-                                                )}
+                                                <line x1={minX} y1={g.midY} x2={maxX} y2={g.midY} stroke="#525252" strokeWidth="1.5" />
                                                 {g.children.map((c, j) => (
                                                     <line key={j} x1={c.childX} y1={g.midY} x2={c.childX} y2={c.y2} stroke="#525252" strokeWidth="1.5" />
                                                 ))}
