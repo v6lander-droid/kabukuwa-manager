@@ -562,6 +562,11 @@
 
             // 接続線：両親がいる場合は親の中間点から子へ1本、片親のみの場合はその親から子へ
             const lines = [];
+            // デバッグ：全posMapをコンソール出力
+            console.log('posMap:', Object.entries(posMap).map(([id,p]) => {
+                const c = creatures.find(x=>x.id===id);
+                return c ? `${c.name}: x=${p.x}, row=${p.rowIdx}` : id;
+            }));
             creatures.forEach(c => {
                 const cp = posMap[c.id];
                 if (!cp) return;
