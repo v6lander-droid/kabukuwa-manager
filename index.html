@@ -350,13 +350,12 @@
                     (externalMarriageCount[a.id] || 0) - (externalMarriageCount[b.id] || 0)
                 );
 
-                // 子を葉の数に基づいた幅で配置（親の実際のX中心から展開）
-                const totalW = sortedChildren.reduce((s, ch) => s + Math.max(1, getLeafCount(ch)) * STEP, 0);
-                let left = safeX - totalW / 2 + STEP / 2;
-                // 子の開始位置が既存カードと重なる場合は右にシフト
+                // 子を左詰めで右隣に展開
                 const childRow = rowIdx + 1;
-                const minChildX = nextX[childRow] || 0;
-                if (left < minChildX) left = minChildX;
+                // 子の開始位置：既存カードの右端 or 親のX - 子の総幅/2 の大きい方
+                const totalW = sortedChildren.reduce((s, ch) => s + Math.max(1, getLeafCount(ch)) * STEP, 0);
+                const preferLeft = safeX - totalW / 2 + STEP / 2;
+                let left = Math.max(nextX[childRow] || 0, preferLeft);
                 sortedChildren.forEach(ch => {
                     const w = Math.max(1, getLeafCount(ch)) * STEP;
                     place(ch, left + w / 2 - STEP / 2, childRow, new Set(vis));
@@ -401,7 +400,8 @@
 
                 if (commonChildren.length > 0) {
                     const commonActualW = commonChildren.reduce((s, ch) => s + Math.max(1, getLeafCount(ch)) * STEP, 0);
-                    let left = pairCenterX - commonActualW / 2 + STEP / 2;
+                    const preferLeft = pairCenterX - commonActualW / 2 + STEP / 2;
+                    let left = Math.max(nextX[rowIdx + 1] || 0, preferLeft);
                     commonChildren.forEach(ch => {
                         const w = Math.max(1, getLeafCount(ch)) * STEP;
                         place(ch, left + w / 2 - STEP / 2, rowIdx + 1, new Set(vis));
