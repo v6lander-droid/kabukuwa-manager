@@ -222,7 +222,7 @@
             const H_GAP = 20;
             const ROW_GAP = 96;
             const STEP = CARD_W + H_GAP;
-            const MARRIAGE_GAP = 8; // 婚姻線と接続横線の間隔(px)
+            const MARRIAGE_GAP = ROW_GAP / 2; // 婚姻線と接続横線の間隔＝カード下端から婚姻線までの距離と同じ
 
             const getMale   = (c) => (c.maleParent   && c.maleParent   !== '-') ? creatures.find(x => x.name === c.maleParent)   : null;
             const getFemale = (c) => (c.femaleParent && c.femaleParent !== '-') ? creatures.find(x => x.name === c.femaleParent) : null;
@@ -655,7 +655,7 @@
                                             <line x1={m.x1} y1={cardBottom} x2={m.x1} y2={m.y} stroke="#525252" strokeWidth="1.5" />
                                             <line x1={m.x2} y1={cardBottom} x2={m.x2} y2={m.y} stroke="#525252" strokeWidth="1.5" />
                                             {/* 婚姻線（横） */}
-                                            <line x1={m.x1} y1={m.y} x2={m.x2} y2={m.y} stroke="#a3a3a3" strokeWidth="2" />
+                                            <line x1={m.x1} y1={m.y} x2={m.x2} y2={m.y} stroke="#525252" strokeWidth="1.5" />
                                             {/* 婚姻線中点→接続横線 縦線 */}
                                             <line x1={midX} y1={m.y} x2={midX} y2={branchY} stroke="#525252" strokeWidth="1.5" />
                                         </React.Fragment>
