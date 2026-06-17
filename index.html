@@ -316,10 +316,27 @@
             const marriagePairs = []; // 婚姻関係（横線でつなぐペア）
 
             // 再帰配置：centerXを受け取り自分を配置、子を下に等間隔展開
+            // 指定rowIdxで使用済みのX座標を避けて最小のXを返す
+            const getFreeX = (targetX, rowIdx) => {
+                const used = Object.values(posMap)
+                    .filter(p => p.rowIdx === rowIdx)
+                    .map(p => p.x)
+                    .sort((a, b) => a - b);
+                let x = targetX;
+                for (const usedX of used) {
+                    if (Math.abs(x - usedX) < STEP) {
+                        x = usedX + STEP;
+                    }
+                }
+                return x;
+            };
+
             const place = (c, cx, rowIdx, vis = new Set()) => {
                 if (vis.has(c.id)) return;
                 vis.add(c.id);
-                posMap[c.id] = { x: cx, rowIdx };
+                // 衝突を避けてX座標を確定
+                const safeX = getFreeX(cx, rowIdx);
+                posMap[c.id] = { x: safeX, rowIdx };
 
                 const children = getChildren(c);
                 if (!children.length) return;
@@ -329,9 +346,9 @@
                     (externalMarriageCount[a.id] || 0) - (externalMarriageCount[b.id] || 0)
                 );
 
-                // 子を1枚ずつSTEP間隔で並べる（子孫の幅は考慮しない）
+                // 子を1枚ずつSTEP間隔で並べる
                 const totalW = sortedChildren.length * STEP;
-                let left = cx - totalW / 2 + STEP / 2;
+                let left = safeX - totalW / 2 + STEP / 2;
                 sortedChildren.forEach(ch => {
                     place(ch, left, rowIdx + 1, new Set(vis));
                     left += STEP;
