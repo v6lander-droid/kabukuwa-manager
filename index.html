@@ -320,13 +320,12 @@
                     (externalMarriageCount[a.id] || 0) - (externalMarriageCount[b.id] || 0)
                 );
 
-                // 子の総幅
-                const totalW = sortedChildren.reduce((s, ch) => s + getLeaf(ch) * STEP, 0);
+                // 子を1枚ずつSTEP間隔で並べる（子孫の幅は考慮しない）
+                const totalW = sortedChildren.length * STEP;
                 let left = cx - totalW / 2 + STEP / 2;
                 sortedChildren.forEach(ch => {
-                    const w = getLeaf(ch) * STEP;
-                    place(ch, left + w / 2 - STEP / 2, rowIdx + 1, new Set(vis));
-                    left += w;
+                    place(ch, left, rowIdx + 1, new Set(vis));
+                    left += STEP;
                 });
             };
 
@@ -362,12 +361,12 @@
                 const pairCenterX = (mX + fX) / 2;
 
                 if (commonChildren.length > 0) {
-                    const commonActualW = commonChildren.reduce((s, ch) => s + getLeaf(ch) * STEP, 0);
+                    // 共通の子も1枚ずつSTEP間隔で並べる
+                    const commonActualW = commonChildren.length * STEP;
                     let left = pairCenterX - commonActualW / 2 + STEP / 2;
                     commonChildren.forEach(ch => {
-                        const w = getLeaf(ch) * STEP;
-                        place(ch, left + w / 2 - STEP / 2, rowIdx + 1, new Set(vis));
-                        left += w;
+                        place(ch, left, rowIdx + 1, new Set(vis));
+                        left += STEP;
                     });
                 }
                 if (mOnly.length > 0) {
