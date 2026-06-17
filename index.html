@@ -617,12 +617,31 @@
                             transformOrigin: 'top left'
                         }}>
                                 <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
-                                    {lines.map((l, i) => {
-                                        const branchY = l.isPair ? l.midY + MARRIAGE_GAP : l.midY;
-                                        return (
-                                            <path key={i} d={`M ${l.x1} ${branchY} L ${l.x2} ${branchY} L ${l.x2} ${l.y2}`} stroke="#525252" strokeWidth="1.5" fill="none" />
-                                        );
-                                    })}
+                                    {(() => {
+                                        // 同じ親（x1, midY）でグループ化してH字構造を描く
+                                        const groups = {};
+                                        lines.forEach(l => {
+                                            const key = `${l.x1.toFixed(1)}_${l.midY.toFixed(1)}`;
+                                            if (!groups[key]) groups[key] = { x1: l.x1, midY: l.midY, isPair: l.isPair, children: [] };
+                                            groups[key].children.push({ x: l.x2, y2: l.y2 });
+                                        });
+                                        return Object.values(groups).map((g, i) => {
+                                            const xs = g.children.map(c => c.x);
+                                            const minX = Math.min(...xs);
+                                            const maxX = Math.max(...xs);
+                                            const branchY = g.isPair ? g.midY + MARRIAGE_GAP : g.midY;
+                                            return (
+                                                <g key={i}>
+                                                    {/* 接続横線（子の範囲をカバー） */}
+                                                    <line x1={minX} y1={branchY} x2={maxX} y2={branchY} stroke="#525252" strokeWidth="1.5" />
+                                                    {/* 各子への縦線 */}
+                                                    {g.children.map((c, j) => (
+                                                        <line key={j} x1={c.x} y1={branchY} x2={c.x} y2={c.y2} stroke="#525252" strokeWidth="1.5" />
+                                                    ))}
+                                                </g>
+                                            );
+                                        });
+                                    })()}
                             </svg>
                             {creatures.map(c => <Card key={c.id} creature={c} />)}
                             <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
