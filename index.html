@@ -486,11 +486,12 @@
                         placePair(m, f, offsetX, 0, new Set());
                         updateOffsetX();
                     } else if (pair.male && pair.females.length > 1) {
-                        // ♂1枚＋複数♀：[♂][♀A子たち][♀B子たち]と配置
-                        // ♂から各♀へ婚姻線、各♀はそれぞれの子の中心に配置
+                        // ♂1枚＋複数♀：
+                        // 1頭目の♀ → ♂の隣（同じrow=0）に通常ペアとして配置
+                        // 2頭目以降の♀ → ♂の下（row=1）にY座標をずらして配置
                         const m = pair.male;
                         if (posMap[m.id]) return;
-                        // まず各♀ペアの子の幅を計算
+
                         const femaleGroups = pair.females.map(f => {
                             const ch = getChildren(m).filter(ch =>
                                 getChildren(f).some(c2 => c2.id === ch.id)
@@ -498,29 +499,40 @@
                             const chW = Math.max(STEP, ch.reduce((s, c) => s + Math.max(1, getLeafCount(c)) * STEP, 0));
                             return { f, ch, chW };
                         });
-                        const totalW = STEP + femaleGroups.reduce((s, g) => s + g.chW, 0);
-                        // ♂を一番左に
-                        const mX = offsetX + STEP / 2;
-                        posMap[m.id] = { x: mX, rowIdx: 0 };
-                        let childStartX = mX + STEP;
-                        femaleGroups.forEach(({ f, ch, chW }) => {
+
+                        // 1頭目の♀を♂と通常ペアで配置
+                        const firstGroup = femaleGroups[0];
+                        placePair(m, firstGroup.f, offsetX, 0, new Set());
+                        updateOffsetX();
+
+                        // 2頭目以降の♀をrow=1にずらして配置
+                        femaleGroups.slice(1).forEach(({ f, ch, chW }) => {
                             if (posMap[f.id]) return;
-                            // ♀をこのグループの子の中心に
-                            const fX = childStartX + chW / 2 - STEP / 2;
-                            posMap[f.id] = { x: fX, rowIdx: 0 };
-                            // ♂と♀の間に婚姻線
-                            const mfY = CARD_H + 48;
-                            marriagePairs.push({ x1: mX, x2: fX, y: mfY });
-                            // 子をchildStartXから順番に配置（placePairと同じrowIdx使用）
-                            let left = childStartX;
+                            const mPos = posMap[m.id];
+                            // ♂の下（row=1）の右端に配置
+                            const row1X = Object.values(posMap)
+                                .filter(p => p.rowIdx === 1)
+                                .map(p => p.x);
+                            const fX = row1X.length > 0
+                                ? Math.max(...row1X) + STEP
+                                : mPos.x;
+                            posMap[f.id] = { x: fX, rowIdx: 1 };
+                            // ♂(row=0)から♀(row=1)への婚姻線
+                            marriagePairs.push({
+                                x1: Math.min(mPos.x, fX),
+                                x2: Math.max(mPos.x, fX),
+                                y: 1 * (CARD_H + ROW_GAP) + CARD_H + 48,
+                                rowIdx: 1
+                            });
+                            // 子を♀の下（row=2）に配置
+                            let left = fX - chW / 2 + STEP / 2;
                             ch.forEach(child => {
                                 const w = Math.max(1, getLeafCount(child)) * STEP;
                                 place(child, left + w / 2 - STEP / 2, depthMap[child.id], new Set());
                                 left += w;
                             });
-                            childStartX += chW;
+                            updateOffsetX();
                         });
-                        updateOffsetX();
                     }
                 });
 
