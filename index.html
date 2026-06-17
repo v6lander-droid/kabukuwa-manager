@@ -406,6 +406,7 @@
 
             // 各グループのルート（祖先=深度0）から配置
             let offsetX = CARD_W / 2;
+            const allExternalPairs = []; // 全グループの外部個体を収集
             groups.forEach(group => {
                 const roots = group.filter(c => depthMap[c.id] === 0);
 
@@ -534,22 +535,9 @@
                 });
 
                 // 外部個体（depth=0だが婚姻相手がdepth>0）を相手の隣に配置
+                // 外部個体は第2パス後に配置するため収集のみ
                 externalPairs.forEach(({ external, partner }) => {
-                    if (!posMap[partner.id]) return;
-                    const partnerPos = posMap[partner.id];
-                    // 相手の右隣に配置（オスなら左、メスなら右）
-                    const extX = isMale(external.sex)
-                        ? partnerPos.x - STEP
-                        : partnerPos.x + STEP;
-                    posMap[external.id] = { x: extX, rowIdx: partnerPos.rowIdx };
-                    // 婚姻線を追加
-                    const [mx, fx] = isMale(external.sex)
-                        ? [extX, partnerPos.x]
-                        : [partnerPos.x, extX];
-                    marriagePairs.push({
-                        x1: mx, x2: fx,
-                        y: partnerPos.rowIdx * (CARD_H + ROW_GAP) + CARD_H + 48
-                    });
+                    allExternalPairs.push({ external, partner });
                 });
 
                 // グループ全体（全世代）の最大X座標で次グループ開始位置を確定
@@ -657,30 +645,47 @@
                 }
             }
 
-            // 第2パス：全カードをX座標でソートし、重なりを左から解消
-            // 子孫ごとサブツリー全体をシフトして親子線を保持
-            const allCards = Object.entries(posMap)
-                .map(([id, p]) => ({ id, ...p }))
-                .sort((a, b) => a.x - b.x || a.rowIdx - b.rowIdx);
-            const shifted = new Set();
-            const shiftSubtree = (id, dx) => {
-                if (!posMap[id] || dx === 0) return;
-                posMap[id].x += dx;
-                const c = creatures.find(c => c.id === id);
-                if (c) getChildren(c).forEach(ch => shiftSubtree(ch.id, dx));
-            };
-            let curMinX = CARD_W / 2;
-            // rowIdxごとに独立してminXを管理
-            const rowMinX = {};
-            allCards.sort((a, b) => a.rowIdx - b.rowIdx || a.x - b.x).forEach(card => {
-                const row = card.rowIdx;
-                if (!rowMinX[row]) rowMinX[row] = CARD_W / 2;
-                const curX = posMap[card.id].x;
-                if (curX < rowMinX[row]) {
-                    const dx = rowMinX[row] - curX;
-                    shiftSubtree(card.id, dx);
-                }
-                rowMinX[row] = Math.max(rowMinX[row], posMap[card.id].x + STEP);
+            // 第2パス：行ごとに左から右へソートし、重なりを解消
+            // 各カードをできるだけ左に、ただし接続線のため親との相対位置は保持
+            const rowCards = {};
+            Object.entries(posMap).forEach(([id, p]) => {
+                if (!rowCards[p.rowIdx]) rowCards[p.rowIdx] = [];
+                rowCards[p.rowIdx].push({ id, ...p });
+            });
+            Object.keys(rowCards).sort((a, b) => Number(a) - Number(b)).forEach(rowIdx => {
+                const cards = rowCards[rowIdx].sort((a, b) => a.x - b.x);
+                let minX = CARD_W / 2;
+                cards.forEach(card => {
+                    if (card.x < minX) {
+                        // シフト量を計算し、その子孫も同じ量シフト
+                        const shift = minX - card.x;
+                        const shiftSubtree = (id) => {
+                            if (!posMap[id]) return;
+                            posMap[id].x += shift;
+                            const c = creatures.find(c => c.id === id);
+                            if (c) getChildren(c).forEach(ch => shiftSubtree(ch.id));
+                        };
+                        shiftSubtree(card.id);
+                    }
+                    minX = Math.max(minX, posMap[card.id].x + STEP);
+                });
+            });
+
+            // 第2パス後：外部個体をパートナーの隣に配置（第2パスのシフト後の位置を使用）
+            allExternalPairs.forEach(({ external, partner }) => {
+                if (!posMap[partner.id]) return;
+                const partnerPos = posMap[partner.id];
+                const extX = isMale(external.sex)
+                    ? partnerPos.x - STEP
+                    : partnerPos.x + STEP;
+                posMap[external.id] = { x: extX, rowIdx: partnerPos.rowIdx };
+                const [mx, fx] = isMale(external.sex)
+                    ? [extX, partnerPos.x]
+                    : [partnerPos.x, extX];
+                marriagePairs.push({
+                    x1: mx, x2: fx,
+                    y: partnerPos.rowIdx * (CARD_H + ROW_GAP) + CARD_H + 48
+                });
             });
 
             const allX = Object.values(posMap).map(p => p.x);
