@@ -565,20 +565,26 @@
             creatures.forEach(c => {
                 const cp = posMap[c.id];
                 if (!cp) return;
-                const parents = [getMale(c), getFemale(c)].filter(Boolean)
-                    .map(p => posMap[p.id]).filter(Boolean);
-                if (parents.length === 0) return;
+                // 実際の親オブジェクトを取得
+                const maleParent = getMale(c);
+                const femaleParent = getFemale(c);
+                const malePos = maleParent ? posMap[maleParent.id] : null;
+                const femalePos = femaleParent ? posMap[femaleParent.id] : null;
 
+                if (!malePos && !femalePos) return;
+
+                const parentRowIdx = (malePos || femalePos).rowIdx;
                 const cy_top = cp.rowIdx * (CARD_H + ROW_GAP);
-                const midY = cy_top - 48 - MARRIAGE_GAP; // 接続縦線=48px確保
-                const py_bottom = parents[0].rowIdx * (CARD_H + ROW_GAP) + CARD_H;
+                const midY = cy_top - 48 - MARRIAGE_GAP;
+                const py_bottom = parentRowIdx * (CARD_H + ROW_GAP) + CARD_H;
 
-                if (parents.length === 2) {
-                    const midX = (parents[0].x + parents[1].x) / 2;
-                    // 婚姻線の中点（カード下端の高さ）から子へ縦線を伸ばす
+                if (malePos && femalePos) {
+                    // 両親のX座標の中点（♀ごとに異なるため確実に別グループになる）
+                    const midX = (malePos.x + femalePos.x) / 2;
                     lines.push({ x1: midX, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: true });
                 } else {
-                    lines.push({ x1: parents[0].x, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: false });
+                    const parentX = (malePos || femalePos).x;
+                    lines.push({ x1: parentX, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: false });
                 }
             });
 
