@@ -617,34 +617,31 @@
                 });
             });
 
-            // 第2パス後：外部個体を「子のrow - 1」のrowに配置
-            // これにより♀Aも♀Bも同じrow（子世代の1つ上）に並ぶ
+            // 第2パス後：外部個体をrowIdx=0（♂と同じ行）に配置
             allExternalPairs.forEach(({ external, partner }) => {
-                // 外部個体の子を探してそのrowIdxを取得
-                const extChildren = getChildren(external);
-                const childRowIdx = extChildren.length > 0 && posMap[extChildren[0].id]
-                    ? posMap[extChildren[0].id].rowIdx
-                    : (posMap[partner.id] ? posMap[partner.id].rowIdx + 1 : 1);
-                const targetRowIdx = childRowIdx - 1;
-
-                // 同じrowIdxで最大のXの右隣に配置
-                const sameRowX = Object.values(posMap)
-                    .filter(p => p.rowIdx === targetRowIdx)
+                // rowIdx=0の既存カードの最大X右隣に配置
+                const row0X = Object.values(posMap)
+                    .filter(p => p.rowIdx === 0)
                     .map(p => p.x);
-                const extX = sameRowX.length > 0
-                    ? Math.max(...sameRowX) + STEP
+                const extX = row0X.length > 0
+                    ? Math.max(...row0X) + STEP
                     : CARD_W / 2;
-                posMap[external.id] = { x: extX, rowIdx: targetRowIdx };
+                posMap[external.id] = { x: extX, rowIdx: 0 };
 
-                // 婚姻相手（partner）のX座標
+                // 婚姻相手（partner）を探す：共通の子を持つdepth>0の個体
                 const partnerPos = posMap[partner.id];
                 if (!partnerPos) return;
+
+                // 婚姻線：外部個体(rowIdx=0)からpartnerへ
+                // partnerがrowIdx>0なので、婚姻線はrowIdx=0のカード下端から
                 const [mx, fx] = isMale(external.sex)
                     ? [extX, partnerPos.x]
                     : [partnerPos.x, extX];
                 marriagePairs.push({
-                    x1: mx, x2: fx,
-                    y: targetRowIdx * (CARD_H + ROW_GAP) + CARD_H + 48
+                    x1: Math.min(mx, fx),
+                    x2: Math.max(mx, fx),
+                    y: 0 * (CARD_H + ROW_GAP) + CARD_H + 48,
+                    rowIdx: 0
                 });
             });
 
