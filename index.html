@@ -314,7 +314,6 @@
             // 配置
             const posMap = {};
             const marriagePairs = []; // 婚姻関係（横線でつなぐペア）
-            let marriagePairIdCounter = 0;
 
             // 再帰配置：centerXを受け取り自分を配置、子を下に等間隔展開
             // 子孫の葉の数（重複なし）を返す
@@ -374,7 +373,7 @@
 
                 posMap[m.id] = { x: mX, rowIdx };
                 posMap[f.id] = { x: fX, rowIdx };
-                marriagePairs.push({ x1: mX, x2: fX, y: rowIdx * (CARD_H + ROW_GAP) + CARD_H + 48 , pairId: marriagePairIdCounter++ });
+                marriagePairs.push({ x1: mX, x2: fX, y: rowIdx * (CARD_H + ROW_GAP) + CARD_H + 48 });
 
                 const pairCenterX = (mX + fX) / 2;
 
@@ -510,7 +509,7 @@
                             posMap[f.id] = { x: fX, rowIdx: 0 };
                             // ♂と♀の間に婚姻線
                             const mfY = CARD_H + 48;
-                            marriagePairs.push({ x1: mX, x2: fX, y: mfY , pairId: marriagePairIdCounter++ });
+                            marriagePairs.push({ x1: mX, x2: fX, y: mfY });
                             // 子をchildStartXから順番に配置（placePairと同じrowIdx使用）
                             let left = childStartX;
                             ch.forEach(child => {
@@ -550,7 +549,7 @@
                     marriagePairs.push({
                         x1: mx, x2: fx,
                         y: partnerPos.rowIdx * (CARD_H + ROW_GAP) + CARD_H + 48
-                    , pairId: marriagePairIdCounter++ });
+                    });
                 });
 
                 // グループ全体（全世代）の最大X座標で次グループ開始位置を確定
@@ -581,7 +580,6 @@
 
                 if (malePos && femalePos) {
                     const midX = (malePos.x + femalePos.x) / 2;
-                    // pairIdでグループ化：同じ♂♀ペアの子のみを同グループに
                     const pairKey = `${malePos.x.toFixed(1)}_${femalePos.x.toFixed(1)}_${midY.toFixed(1)}`;
                     lines.push({ x1: midX, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: true, pairKey });
                 } else {
@@ -613,7 +611,7 @@
                             x1: posMap[m.id].x,
                             x2: posMap[f.id].x,
                             y: posMap[c.id].rowIdx * (CARD_H + ROW_GAP) + CARD_H + 48,
-                        , pairId: marriagePairIdCounter++ });
+                        });
                     });
                 });
             }
