@@ -403,11 +403,12 @@
 
                 // ルートをペア化：同じ子を持つ2個体は1組として扱う
                 const placed = new Set();
-                const pairs = []; // [{members:[c]|[c1,c2], leaf: total}]
+                const pairs = [];
+                const externalPairs = []; // depth=0だが婚姻相手がdepth>0の外部個体
                 roots.forEach(r => {
                     if (placed.has(r.id)) return;
                     const children = getChildren(r);
-                    // rと同じ子を持つ別のルートを探す（婚姻ペア）
+                    // depth=0同士の婚姻ペアを探す
                     const partner = roots.find(other =>
                         other.id !== r.id && !placed.has(other.id) &&
                         getChildren(other).some(ch => children.some(c2 => c2.id === ch.id))
@@ -415,31 +416,21 @@
                     if (partner) {
                         placed.add(r.id);
                         placed.add(partner.id);
-                        // オスを左、メスを右の順に
                         const members = isMale(r.sex) ? [r, partner] : [partner, r];
                         pairs.push({ members, leaf: getLeaf(r) + getLeaf(partner) });
                     } else {
-                        placed.add(r.id);
-                        pairs.push({ members: [r], leaf: getLeaf(r) });
-                    }
-                });
-
-                // depth=0だが婚姻相手がdepth>0の外部個体を特定（後で隣接配置）
-                const externalPairs = [];
-                roots.forEach(r => {
-                    if (placed.has(r.id)) return;
-                    const children = getChildren(r);
-                    // 同グループ内でdepth>0の婚姻相手を探す
-                    const partner = group.find(other =>
-                        other.id !== r.id && depthMap[other.id] > 0 &&
-                        getChildren(other).some(ch => children.some(c2 => c2.id === ch.id))
-                    );
-                    if (partner) {
-                        placed.add(r.id);
-                        externalPairs.push({ external: r, partner });
-                    } else {
-                        placed.add(r.id);
-                        pairs.push({ members: [r], leaf: getLeaf(r) });
+                        // depth>0の婚姻相手（繁殖個体）を探す
+                        const deepPartner = group.find(other =>
+                            other.id !== r.id && depthMap[other.id] > 0 &&
+                            getChildren(other).some(ch => children.some(c2 => c2.id === ch.id))
+                        );
+                        if (deepPartner) {
+                            placed.add(r.id);
+                            externalPairs.push({ external: r, partner: deepPartner });
+                        } else {
+                            placed.add(r.id);
+                            pairs.push({ members: [r], leaf: getLeaf(r) });
+                        }
                     }
                 });
 
