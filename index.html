@@ -1,20 +1,1582 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
-<meta charset="UTF-8">
-<title>Test</title>
-<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beetle Base</title>
+    <link id="favicon" rel="icon" type="image/png" href="">
+    <link id="apple-touch-icon" rel="apple-touch-icon" href="">
+    <script>
+        (function() {
+            const icon = localStorage.getItem('beetle_icon');
+            if (icon) {
+                document.getElementById('favicon').href = icon;
+                document.getElementById('apple-touch-icon').href = icon;
+            }
+        })();
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        .sticky-col-1 { position: sticky; left: 0; z-index: 20; background-color: #171717; }
+        .sticky-col-2 { position: sticky; left: 44px; z-index: 20; background-color: #171717; }
+        thead th.sticky-col-1, thead th.sticky-col-2 { background-color: #262626; z-index: 30; }
+        tbody tr .sticky-col-1, tbody tr .sticky-col-2 { background-color: #171717; }
+        tbody tr:hover .sticky-col-1, tbody tr:hover .sticky-col-2 { background-color: #262626; }
+        .bg-neutral-900 { background-color: #171717; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0a0a0a; }
+        ::-webkit-scrollbar-thumb { background: #404040; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #525252; }
+        .compare-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px 2px 6px;
+            border-radius: 9999px;
+            font-size: 10px;
+            font-weight: bold;
+            border: 1px solid;
+        }
+        input[type="date"] {
+            color-scheme: dark;
+            text-align: left;
+            direction: ltr;
+        }
+    </style>
 </head>
-<body style="background:#000;color:#0f0;font-size:24px;">
-<div id="root"></div>
-<script type="text/babel">
-function App() {
-  return <div style={{color:'lime',padding:40}}>✅ React動作中</div>;
-}
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App />);
-</script>
+<body class="bg-neutral-950 text-white font-sans">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        const COMPARE_COLORS = [
+            { border: '#10b981', bg: 'rgba(16,185,129,0.15)', text: '#10b981', label: 'emerald' },
+            { border: '#f59e0b', bg: 'rgba(245,158,11,0.15)', text: '#f59e0b', label: 'amber' },
+            { border: '#3b82f6', bg: 'rgba(59,130,246,0.15)', text: '#3b82f6', label: 'blue' },
+            { border: '#ec4899', bg: 'rgba(236,72,153,0.15)', text: '#ec4899', label: 'pink' },
+            { border: '#a855f7', bg: 'rgba(168,85,247,0.15)', text: '#a855f7', label: 'purple' },
+            { border: '#ef4444', bg: 'rgba(239,68,68,0.15)', text: '#ef4444', label: 'red' },
+            { border: '#06b6d4', bg: 'rgba(6,182,212,0.15)', text: '#06b6d4', label: 'cyan' },
+            { border: '#84cc16', bg: 'rgba(132,204,22,0.15)', text: '#84cc16', label: 'lime' },
+        ];
+
+        // ========== 遺伝計算ユーティリティ ==========
+        function getAncestors(name, nameMap, depth = 0, visited = new Map()) {
+            if (depth > 6) return visited;
+            const c = nameMap[name];
+            if (!c) return visited;
+            if (!visited.has(name)) visited.set(name, []);
+            visited.get(name).push(depth);
+            getAncestors(c.maleParent, nameMap, depth + 1, visited);
+            getAncestors(c.femaleParent, nameMap, depth + 1, visited);
+            return visited;
+        }
+
+        function calcF(maleParentName, femaleParentName, nameMap) {
+            if (!maleParentName || maleParentName === '-' || !femaleParentName || femaleParentName === '-') return 0;
+            const mAnc = getAncestors(maleParentName, nameMap);
+            const fAnc = getAncestors(femaleParentName, nameMap);
+            let F = 0;
+            mAnc.forEach((mDepths, name) => {
+                if (fAnc.has(name)) {
+                    fAnc.get(name).forEach(n2 => {
+                        mDepths.forEach(n1 => { F += Math.pow(0.5, n1 + n2 + 1); });
+                    });
+                }
+            });
+            return Math.min(F, 1);
+        }
+
+        function calcSelfF(creature, nameMap) {
+            return calcF(creature.maleParent, creature.femaleParent, nameMap);
+        }
+
+        function calcR(nameA, nameB, nameMap) {
+            if (!nameA || !nameB || nameA === nameB) return nameA === nameB ? 1 : 0;
+            const ancA = getAncestors(nameA, nameMap, 0);
+            const ancB = getAncestors(nameB, nameMap, 0);
+            ancA.set(nameA, [0]);
+            ancB.set(nameB, [0]);
+            let r = 0;
+            ancA.forEach((dA, name) => {
+                if (ancB.has(name)) {
+                    ancB.get(name).forEach(dB => {
+                        dA.forEach(dAv => { r += Math.pow(0.5, dAv + dB); });
+                    });
+                }
+            });
+            return Math.min(r, 1);
+        }
+
+        function fRiskInfo(F) {
+            const col = gradColor(F, 0.25);
+            if (F === 0)       return { label: '血縁なし',                        color: col };
+            if (F < 0.0625)    return { label: '低度',                            color: col };
+            if (F < 0.125)     return { label: '中度（いとこ交配相当）',           color: col };
+            if (F < 0.25)      return { label: '高度（半きょうだい交配相当）',     color: col };
+            return               { label: '非常に高度（きょうだい・親子交配相当）', color: col };
+        }
+
+        function fRiskDesc(F) {
+            if (F === 0)    return '登録されている血統情報の範囲内では共通祖先が確認されません。遺伝的多様性が高い交配です。';
+            if (F < 0.0625) return '近親交配係数は低く、遺伝的健康度は良好です。';
+            if (F < 0.125)  return 'いとこ交配（F=6.25%）に相当する近親度です。形質固定の効果はありますが、累代が進むにつれリスクが蓄積します。';
+            if (F < 0.25)   return '半きょうだい交配（F=12.5%）相当です。有害遺伝子が顕在化するリスクが高まります。累代には注意が必要です。';
+            return 'きょうだいまたは親子交配（F=25%以上）相当です。累代障害のリスクが非常に高く、系統外交配を強く推奨します。';
+        }
+
+        function gradColor(v, max) {
+            const t = Math.min(v / max, 1);
+            let r, g, b;
+            if (t < 0.5) {
+                const s = t / 0.5;
+                r = Math.round(16  + (234 - 16)  * s);
+                g = Math.round(185 + (179 - 185) * s);
+                b = Math.round(129 + (8   - 129) * s);
+            } else {
+                const s = (t - 0.5) / 0.5;
+                r = Math.round(234 + (239 - 234) * s);
+                g = Math.round(179 + (68  - 179) * s);
+                b = Math.round(8   + (68  - 8)   * s);
+            }
+            return `rgb(${r},${g},${b})`;
+        }
+
+        function barColor(v, max = 0.25) {
+            return gradColor(v, max);
+        }
+
+        // 性別判定ヘルパー（オス/雄/♂ → blue, メス/雌/♀ → pink）
+        function sexColor(sex) {
+            if (!sex) return '#ffffff';
+            if (sex === 'オス' || sex === '雄' || sex === '♂') return '#60a5fa';
+            if (sex === 'メス' || sex === '雌' || sex === '♀') return '#f472b6';
+            if (sex.indexOf('オス') !== -1 || sex.indexOf('雄') !== -1 || sex.indexOf('♂') !== -1) return '#60a5fa';
+            if (sex.indexOf('メス') !== -1 || sex.indexOf('雌') !== -1 || sex.indexOf('♀') !== -1) return '#f472b6';
+            return '#ffffff';
+        }
+        function isMale(sex) {
+            if (!sex) return false;
+            return sex === 'オス' || sex === '雄' || sex === '♂' ||
+                   sex.indexOf('オス') !== -1 || sex.indexOf('雄') !== -1 || sex.indexOf('♂') !== -1;
+        }
+        function isFemale(sex) {
+            if (!sex) return false;
+            return sex === 'メス' || sex === '雌' || sex === '♀' ||
+                   sex.indexOf('メス') !== -1 || sex.indexOf('雌') !== -1 || sex.indexOf('♀') !== -1;
+        }
+
+        // 重複IDを検出し、重複している個体に新しいIDを振り直す
+        // （オス親・メス親の参照は個体名で行っているため、IDの変更による影響はない）
+        function dedupeIds(creatures) {
+            const seen = new Set();
+            let changed = false;
+            const result = creatures.map((c, i) => {
+                let id = c.id != null ? String(c.id) : '';
+                if (!id || seen.has(id)) {
+                    id = `${Date.now().toString()}_${i}_${Math.random().toString(36).slice(2, 8)}`;
+                    changed = true;
+                }
+                seen.add(id);
+                return id === c.id ? c : { ...c, id };
+            });
+            if (changed) {
+                console.warn('重複したID、または未設定のIDを検出したため、自動的に修正しました。');
+            }
+            return result;
+        }
+
+        // =============================================
+
+        function PedigreeView({ creatures, highlightId, onSelect }) {
+            if (creatures.length === 0) return (
+                <div className="bg-neutral-900 p-8 rounded-lg text-center text-neutral-500 text-sm">個体が登録されていません</div>
+            );
+
+            const containerRef = useRef(null);
+            const contentRef = useRef(null);
+            const [containerWidth, setContainerWidth] = useState(0);
+            const [zoomFactor, setZoomFactor] = useState(1);
+            const [pan, setPan] = useState({ x: 0, y: 0 });
+            const touchState = useRef({ mode: null, startDist: 0, startZoom: 1, startPan: {x:0,y:0}, startMid: {x:0,y:0}, startSingle: {x:0,y:0} });
+
+            useEffect(() => {
+                const updateWidth = () => {
+                    if (containerRef.current) {
+                        setContainerWidth(containerRef.current.clientWidth);
+                    }
+                };
+                updateWidth();
+                window.addEventListener('resize', updateWidth);
+                return () => window.removeEventListener('resize', updateWidth);
+            }, []);
+
+            const CARD_W = 112;
+            const CARD_H = 72;
+            const H_GAP = 20;
+            const ROW_GAP = 96;
+            const STEP = CARD_W + H_GAP;
+
+            const getMale   = (c) => (c.maleParent   && c.maleParent   !== '-') ? creatures.find(x => x.name === c.maleParent)   : null;
+            const getFemale = (c) => (c.femaleParent && c.femaleParent !== '-') ? creatures.find(x => x.name === c.femaleParent) : null;
+            const getChildren = (c) => creatures.filter(ch => ch.maleParent === c.name || ch.femaleParent === c.name);
+
+            // 世代深度（祖先=0、子孫ほど大きい）
+            const depthMap = {};
+            const getDepth = (c, vis = new Set()) => {
+                if (depthMap[c.id] != null) return depthMap[c.id];
+                if (vis.has(c.id)) return 0;
+                vis.add(c.id);
+                const parents = [getMale(c), getFemale(c)].filter(Boolean);
+                depthMap[c.id] = parents.length
+                    ? Math.max(...parents.map(p => getDepth(p, new Set(vis)) + 1))
+                    : 0;
+                return depthMap[c.id];
+            };
+            creatures.forEach(c => getDepth(c));
+            const maxDepth = Math.max(...Object.values(depthMap));
+
+            // 子孫リーフ数（子を持たない=1、子がいれば子のリーフ数合計）
+            // これが各個体の「占有幅」の単位になる
+            const leafCount = {};
+            const getLeaf = (c, vis = new Set()) => {
+                if (leafCount[c.id] != null) return leafCount[c.id];
+                if (vis.has(c.id)) return 1;
+                vis.add(c.id);
+                const ch = getChildren(c);
+                leafCount[c.id] = ch.length ? ch.reduce((s, x) => s + getLeaf(x, new Set(vis)), 0) : 1;
+                return leafCount[c.id];
+            };
+            creatures.forEach(c => getLeaf(c));
+
+            // 各個体について、婚姻パートナー（共通の子を持つ別個体）を事前計算
+            const partnerMap = {};
+            creatures.forEach(c => {
+                const myChildren = getChildren(c);
+                if (!myChildren.length) return;
+                const partner = creatures.find(other =>
+                    other.id !== c.id &&
+                    getChildren(other).some(ch => myChildren.some(c2 => c2.id === ch.id))
+                );
+                if (partner) partnerMap[c.id] = partner.id;
+            });
+
+            // 部分木（自分＋子孫）の中に、婚姻パートナーを持つ個体がいくつ含まれるかをカウント
+            // （線の交差を減らすため、この数が多い子を配置順の末尾に寄せる）
+            const externalMarriageCount = {};
+            const countExternalMarriage = (c, vis = new Set()) => {
+                if (externalMarriageCount[c.id] != null) return externalMarriageCount[c.id];
+                if (vis.has(c.id)) return 0;
+                vis.add(c.id);
+                let count = partnerMap[c.id] != null ? 1 : 0;
+                getChildren(c).forEach(ch => {
+                    count += countExternalMarriage(ch, new Set(vis));
+                });
+                externalMarriageCount[c.id] = count;
+                return count;
+            };
+            creatures.forEach(c => countExternalMarriage(c));
+
+            // Union-Find でグループ分け
+            const uf = {};
+            creatures.forEach(c => { uf[c.id] = c.id; });
+            const find = (id) => { if (uf[id] !== id) uf[id] = find(uf[id]); return uf[id]; };
+            const union = (a, b) => { uf[find(a)] = find(b); };
+            creatures.forEach(c => {
+                const mp = getMale(c), fp = getFemale(c);
+                if (mp) union(c.id, mp.id);
+                if (fp) union(c.id, fp.id);
+            });
+            const groupMap = {};
+            creatures.forEach(c => {
+                const g = find(c.id);
+                if (!groupMap[g]) groupMap[g] = [];
+                groupMap[g].push(c);
+            });
+            const groups = Object.values(groupMap).sort((a, b) => b.length - a.length);
+
+            // 配置
+            const posMap = {};
+            const marriagePairs = []; // 婚姻関係（横線でつなぐペア）
+
+            // 再帰配置：centerXを受け取り自分を配置、子を下に等間隔展開
+            const place = (c, cx, rowIdx, vis = new Set()) => {
+                if (vis.has(c.id)) return;
+                vis.add(c.id);
+                posMap[c.id] = { x: cx, rowIdx };
+
+                const children = getChildren(c);
+                if (!children.length) return;
+
+                // 線の交差を減らすため、子孫に婚姻関係を多く持つ子を右側（末尾）に配置
+                const sortedChildren = [...children].sort((a, b) =>
+                    (externalMarriageCount[a.id] || 0) - (externalMarriageCount[b.id] || 0)
+                );
+
+                // 子の総幅
+                const totalW = sortedChildren.reduce((s, ch) => s + getLeaf(ch) * STEP, 0);
+                let left = cx - totalW / 2 + STEP / 2;
+                sortedChildren.forEach(ch => {
+                    const w = getLeaf(ch) * STEP;
+                    place(ch, left + w / 2 - STEP / 2, rowIdx + 1, new Set(vis));
+                    left += w;
+                });
+            };
+
+            // ペア配置：両親2枚を隣接配置し、共通の子をペアの中央から展開
+            const placePair = (m, f, leftX, rowIdx, vis = new Set()) => {
+                vis.add(m.id); vis.add(f.id);
+
+                const sortByMarriage = (arr) => [...arr].sort((a, b) =>
+                    (externalMarriageCount[a.id] || 0) - (externalMarriageCount[b.id] || 0)
+                );
+                const commonChildren = sortByMarriage(getChildren(m).filter(ch =>
+                    getChildren(f).some(c2 => c2.id === ch.id)
+                ));
+                const mOnly = sortByMarriage(getChildren(m).filter(ch => !commonChildren.some(c2 => c2.id === ch.id)));
+                const fOnly = sortByMarriage(getChildren(f).filter(ch => !commonChildren.some(c2 => c2.id === ch.id)));
+
+                // 各親自身は1枚分(STEP)、共通の子・単独の子はそれぞれの幅を加算
+                const mOwnW = STEP;
+                const fOwnW = STEP;
+                // 両親間の隙間：子世代と同じH_GAP
+                const commonW = H_GAP;
+                const mOnlyW = mOnly.reduce((s, ch) => s + getLeaf(ch) * STEP, 0);
+                const fOnlyW = fOnly.reduce((s, ch) => s + getLeaf(ch) * STEP, 0);
+
+                // ペア全体の幅 = mOnly分 + mカード + common分 + fカード + fOnly分 の最大値で配置
+                const mX = leftX + mOnlyW + mOwnW / 2;
+                const fX = leftX + mOnlyW + mOwnW + commonW + fOwnW / 2;
+
+                posMap[m.id] = { x: mX, rowIdx };
+                posMap[f.id] = { x: fX, rowIdx };
+                marriagePairs.push({ x1: mX, x2: fX, y: rowIdx * (CARD_H + ROW_GAP) + CARD_H + ROW_GAP / 2 });
+
+                const pairCenterX = (mX + fX) / 2;
+
+                if (commonChildren.length > 0) {
+                    const commonActualW = commonChildren.reduce((s, ch) => s + getLeaf(ch) * STEP, 0);
+                    let left = pairCenterX - commonActualW / 2 + STEP / 2;
+                    commonChildren.forEach(ch => {
+                        const w = getLeaf(ch) * STEP;
+                        place(ch, left + w / 2 - STEP / 2, rowIdx + 1, new Set(vis));
+                        left += w;
+                    });
+                }
+                if (mOnly.length > 0) {
+                    let cursor = leftX;
+                    mOnly.forEach(ch => {
+                        const w = getLeaf(ch) * STEP;
+                        place(ch, cursor + w / 2 - STEP / 2, rowIdx + 1, new Set(vis));
+                        cursor += w;
+                    });
+                }
+                if (fOnly.length > 0) {
+                    let cursor = fX + STEP / 2;
+                    fOnly.forEach(ch => {
+                        const w = getLeaf(ch) * STEP;
+                        place(ch, cursor + w / 2 - STEP / 2, rowIdx + 1, new Set(vis));
+                        cursor += w;
+                    });
+                }
+            };
+
+            // 各グループのルート（祖先=深度0）から配置
+            let offsetX = CARD_W / 2;
+            groups.forEach(group => {
+                const roots = group.filter(c => depthMap[c.id] === 0);
+
+                // ルートをペア化：同じ子を持つ2個体は1組として扱う
+                const placed = new Set();
+                const pairs = []; // [{members:[c]|[c1,c2], leaf: total}]
+                roots.forEach(r => {
+                    if (placed.has(r.id)) return;
+                    const children = getChildren(r);
+                    // rと同じ子を持つ別のルートを探す（婚姻ペア）
+                    const partner = roots.find(other =>
+                        other.id !== r.id && !placed.has(other.id) &&
+                        getChildren(other).some(ch => children.some(c2 => c2.id === ch.id))
+                    );
+                    if (partner) {
+                        placed.add(r.id);
+                        placed.add(partner.id);
+                        // オスを左、メスを右の順に
+                        const members = isMale(r.sex) ? [r, partner] : [partner, r];
+                        pairs.push({ members, leaf: getLeaf(r) + getLeaf(partner) });
+                    } else {
+                        placed.add(r.id);
+                        pairs.push({ members: [r], leaf: getLeaf(r) });
+                    }
+                });
+
+                pairs.forEach(pair => {
+                    if (pair.members.length === 2) {
+                        // 婚姻ペア：2枚を隙間なく隣接配置
+                        const [m, f] = pair.members;
+                        if (posMap[m.id] || posMap[f.id]) return;
+                        placePair(m, f, offsetX, 0, new Set());
+                        // 配置後の最大X座標を取得してoffsetXを更新
+                        const allPlacedX = Object.values(posMap).map(p => p.x);
+                        offsetX = Math.max(...allPlacedX, offsetX) + CARD_W / 2 + H_GAP;
+                    } else {
+                        const root = pair.members[0];
+                        if (posMap[root.id]) return;
+                        const w = getLeaf(root) * STEP;
+                        place(root, offsetX + w / 2 - STEP / 2, 0, new Set());
+                        offsetX += w + H_GAP;
+                    }
+                });
+
+                // フォールバック
+                group.forEach(c => {
+                    if (!posMap[c.id]) {
+                        const usedX = Object.values(posMap).filter(p => p.rowIdx === depthMap[c.id]).map(p => p.x);
+                        const x = usedX.length ? Math.max(...usedX) + STEP : offsetX;
+                        posMap[c.id] = { x, rowIdx: depthMap[c.id] };
+                        offsetX = Math.max(offsetX, x + STEP + H_GAP);
+                    }
+                });
+
+                // グループ全体（祖先〜子孫すべて）の最大X座標を基準に、次グループの開始位置を確定
+                // （婚姻ペアの子孫など、placePair直後には考慮されていなかった子孫の幅も含める）
+                const groupMaxX = Math.max(...group.map(c => posMap[c.id] ? posMap[c.id].x : -Infinity));
+                offsetX = Math.max(offsetX, groupMaxX + CARD_W / 2 + H_GAP);
+            });
+
+            // 接続線：両親がいる場合は親の中間点から子へ1本、片親のみの場合はその親から子へ
+            const lines = [];
+            creatures.forEach(c => {
+                const cp = posMap[c.id];
+                if (!cp) return;
+                const parents = [getMale(c), getFemale(c)].filter(Boolean)
+                    .map(p => posMap[p.id]).filter(Boolean);
+                if (parents.length === 0) return;
+
+                const cy_top = cp.rowIdx * (CARD_H + ROW_GAP);
+                const midY = cy_top - ROW_GAP / 2;
+                const py_bottom = parents[0].rowIdx * (CARD_H + ROW_GAP) + CARD_H;
+
+                if (parents.length === 2) {
+                    const midX = (parents[0].x + parents[1].x) / 2;
+                    // 婚姻線の中点（カード下端の高さ）から子へ縦線を伸ばす
+                    lines.push({ x1: midX, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: true });
+                } else {
+                    lines.push({ x1: parents[0].x, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: false });
+                }
+            });
+
+            // 深度1以降の婚姻ペア（共通の子を持つ同世代の2個体）も検出して線を追加
+            {
+                const alreadyPaired = new Set();
+                creatures.forEach(c => {
+                    if (!posMap[c.id]) return;
+                    creatures.forEach(other => {
+                        if (other.id === c.id || !posMap[other.id]) return;
+                        if (posMap[c.id].rowIdx !== posMap[other.id].rowIdx) return;
+                        const pairKey = [c.id, other.id].sort().join('|');
+                        if (alreadyPaired.has(pairKey)) return;
+                        const cChildren = getChildren(c);
+                        const otherChildren = getChildren(other);
+                        const hasCommon = cChildren.some(ch => otherChildren.some(c2 => c2.id === ch.id));
+                        if (!hasCommon) return;
+                        alreadyPaired.add(pairKey);
+                        // 深度0のペアはplacePairで既に追加済みなのでスキップ
+                        if (posMap[c.id].rowIdx === 0) return;
+                        const [m, f] = isMale(c.sex) ? [c, other] : [other, c];
+                        marriagePairs.push({
+                            x1: posMap[m.id].x,
+                            x2: posMap[f.id].x,
+                            y: posMap[c.id].rowIdx * (CARD_H + ROW_GAP) + CARD_H + ROW_GAP / 2,
+                        });
+                    });
+                });
+            }
+
+            const allX = Object.values(posMap).map(p => p.x);
+            const svgW = Math.max(...allX) + CARD_W / 2 + 8;
+            const svgH = (maxDepth + 1) * (CARD_H + ROW_GAP);
+            // 全体が画面に収まる基準スケール（拡大はしない）
+            const baseScale = containerWidth > 0 ? Math.min(1, containerWidth / svgW) : 1;
+            const scale = baseScale * zoomFactor;
+
+            const getTouchDist = (touches) => {
+                const dx = touches[0].clientX - touches[1].clientX;
+                const dy = touches[0].clientY - touches[1].clientY;
+                return Math.sqrt(dx * dx + dy * dy);
+            };
+            const getTouchMid = (touches) => ({
+                x: (touches[0].clientX + touches[1].clientX) / 2,
+                y: (touches[0].clientY + touches[1].clientY) / 2,
+            });
+
+            const handleTouchStart = (e) => {
+                if (e.touches.length === 2) {
+                    touchState.current.mode = 'pinch';
+                    touchState.current.startDist = getTouchDist(e.touches);
+                    touchState.current.startZoom = zoomFactor;
+                    touchState.current.startPan = { ...pan };
+                    const mid = getTouchMid(e.touches);
+                    const rect = containerRef.current.getBoundingClientRect();
+                    // コンテナ左上を基準にした中点座標（pan/scale適用前のスクリーン座標系）
+                    touchState.current.startMid = { x: mid.x - rect.left, y: mid.y - rect.top };
+                } else if (e.touches.length === 1) {
+                    touchState.current.mode = 'pan';
+                    touchState.current.startPan = { ...pan };
+                    touchState.current.startSingle = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                }
+            };
+
+            const handleTouchMove = (e) => {
+                if (touchState.current.mode === 'pinch' && e.touches.length === 2) {
+                    e.preventDefault();
+                    const dist = getTouchDist(e.touches);
+                    const ratio = dist / touchState.current.startDist;
+                    const newZoom = Math.min(20, Math.max(0.3, touchState.current.startZoom * ratio));
+
+                    const oldScale = baseScale * touchState.current.startZoom;
+                    const newScale = baseScale * newZoom;
+                    const mid = touchState.current.startMid;
+                    const startPan = touchState.current.startPan;
+                    // 中点が指していたコンテンツ座標を求め、ズーム後も同じ画面位置に来るようpanを調整
+                    const contentX = (mid.x - startPan.x) / oldScale;
+                    const contentY = (mid.y - startPan.y) / oldScale;
+                    const newPanX = mid.x - contentX * newScale;
+                    const newPanY = mid.y - contentY * newScale;
+
+                    setZoomFactor(newZoom);
+                    setPan({ x: newPanX, y: newPanY });
+                } else if (touchState.current.mode === 'pan' && e.touches.length === 1) {
+                    const dx = e.touches[0].clientX - touchState.current.startSingle.x;
+                    const dy = e.touches[0].clientY - touchState.current.startSingle.y;
+                    setPan({ x: touchState.current.startPan.x + dx, y: touchState.current.startPan.y + dy });
+                }
+            };
+
+            const handleTouchEnd = (e) => {
+                if (e.touches.length === 0) {
+                    touchState.current.mode = null;
+                } else if (e.touches.length === 1) {
+                    touchState.current.mode = 'pan';
+                    touchState.current.startPan = { ...pan };
+                    touchState.current.startSingle = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                }
+            };
+
+            const Card = ({ creature }) => {
+                const pos = posMap[creature.id];
+                if (!pos) return null;
+                return (
+                    <div
+                        onClick={() => onSelect(creature)}
+                        style={{ position: 'absolute', left: pos.x - CARD_W/2, top: pos.rowIdx*(CARD_H+ROW_GAP), width: CARD_W, height: CARD_H, borderTopWidth: 4, borderTopStyle: 'solid', borderTopColor: isMale(creature.sex) ? '#60a5fa' : '#f472b6' }}
+                        className={`cursor-pointer rounded-lg border px-2 py-1.5 text-center transition-all hover:scale-105 select-none ${highlightId === creature.id ? 'bg-emerald-900 border-emerald-400' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-400'}`}
+                    >
+                        <div style={{color: sexColor(creature.sex)}} className="text-[9px] font-bold">
+                            <i className={`fa-solid ${isMale(creature.sex) ? 'fa-mars' : 'fa-venus'}`}></i>
+                        </div>
+                        <div className="font-bold text-[11px] text-white leading-tight truncate mt-0.5">{creature.name}</div>
+                        <div className="text-[9px] text-neutral-400">{creature.generation}</div>
+                        <div className="text-[9px] text-neutral-300">{creature.stage}</div>
+                    </div>
+                );
+            };
+
+            return (
+                <div className="bg-neutral-900 p-4 rounded-lg">
+                    <div className="flex items-center gap-3 mb-4">
+                        <h3 className="font-bold text-emerald-400 text-sm">血統図</h3>
+                        <span className="text-[10px] text-neutral-500">上が祖先・下が子孫</span>
+                        <span className="text-[10px] flex items-center gap-1"><span className="inline-block w-3 h-0.5" style={{backgroundColor:'#60a5fa'}}></span>オス</span>
+                        <span className="text-[10px] flex items-center gap-1"><span className="inline-block w-3 h-0.5" style={{backgroundColor:'#f472b6'}}></span>メス</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="text-[10px] text-neutral-500">2本指で拡大・縮小、1本指でドラッグして移動できます</span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-neutral-400">{Math.round(zoomFactor * 100)}%</span>
+                            <button onClick={() => { setZoomFactor(1); setPan({x:0,y:0}); }} className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 rounded text-[10px] text-white border border-neutral-700">リセット</button>
+                        </div>
+                    </div>
+                    <div
+                        className="border border-neutral-800 rounded"
+                        ref={containerRef}
+                        style={{ height: 500, overflow: 'hidden', touchAction: 'none' }}
+                        onTouchStart={handleTouchStart}
+                        onTouchMove={handleTouchMove}
+                        onTouchEnd={handleTouchEnd}
+                    >
+                        <div style={{
+                            width: svgW, height: svgH,
+                            transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
+                            transformOrigin: 'top left'
+                        }}>
+                                <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
+                                    {lines.map((l, i) => (
+                                        <path key={i} d={`M ${l.x1} ${l.midY} L ${l.x1} ${l.midY} L ${l.x2} ${l.midY} L ${l.x2} ${l.y2}`} stroke="#525252" strokeWidth="1.5" fill="none" />
+                                ))}
+                            </svg>
+                            {creatures.map(c => <Card key={c.id} creature={c} />)}
+                            <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
+                                {marriagePairs.map((m, i) => (
+                                    <React.Fragment key={`m${i}`}>
+                                        {/* 両親それぞれのカード下端から婚姻線まで縦線 */}
+                                        <line x1={m.x1} y1={m.y - ROW_GAP / 2} x2={m.x1} y2={m.y} stroke="#525252" strokeWidth="1.5" />
+                                        <line x1={m.x2} y1={m.y - ROW_GAP / 2} x2={m.x2} y2={m.y} stroke="#525252" strokeWidth="1.5" />
+                                        {/* 婚姻線本体 */}
+                                        <line x1={m.x1} y1={m.y} x2={m.x2} y2={m.y} stroke="#525252" strokeWidth="1.5" />
+                                    </React.Fragment>
+                                ))}
+                                {lines.map((l, i) => (
+                                    <React.Fragment key={`vfrag${i}`}>
+                                        {/* 片親のみの場合：親カード下端からmidYまでの区間を補完 */}
+                                        {!l.isPair && (
+                                            <line x1={l.x1} y1={l.y1} x2={l.x1} y2={l.midY} stroke="#525252" strokeWidth="1.5" />
+                                        )}
+                                        {/* 子側：midYから子カード上端まで */}
+                                        <line x1={l.x2} y1={l.midY} x2={l.x2} y2={l.y2} stroke="#525252" strokeWidth="1.5" />
+                                    </React.Fragment>
+                                ))}
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // ---- 日付入力コンポーネント（不明対応）----
+        // ---- 日付入力コンポーネント（不明対応）----
+        // ---- 日付入力コンポーネント（不明対応）----
+        // ---- 日付入力コンポーネント（不明対応）----
+        // ---- 日付入力コンポーネント（不明対応）----
+        // ---- 日付入力コンポーネント（不明対応）----
+        // ---- 日付入力コンポーネント（不明対応）----
+        // ---- 日付入力コンポーネント（不明対応）----
+        // ---- 日付入力コンポーネント（不明対応）----
+        // ---- 日付入力コンポーネント（不明対応）----
+        // ---- 日付入力コンポーネント（不明対応）----
+        function DateInput({ value, onChange, className }) {
+            const isUnknown = value === '-';
+            return (
+                <div className="flex items-center gap-2">
+                    <input
+                        type="date"
+                        className={className + (isUnknown ? ' opacity-40' : '')}
+                        value={isUnknown ? '' : (value || '')}
+                        disabled={isUnknown}
+                        onChange={e => onChange(e.target.value || '')}
+                    />
+                    <label className="flex items-center gap-1 text-xs text-neutral-400 whitespace-nowrap cursor-pointer select-none">
+                        <input
+                            type="checkbox"
+                            checked={isUnknown}
+                            onChange={e => onChange(e.target.checked ? '-' : '')}
+                            className="accent-emerald-500"
+                        />
+                        不明
+                    </label>
+                </div>
+            );
+        }
+
+        function App() {
+            const [selectedCreature, setSelectedCreature] = useState(null);
+            const [activeTab, setActiveTab] = useState('一覧');
+            const [highlightId, setHighlightId] = useState(null);
+            const [showAddModal, setShowAddModal] = useState(false);
+            const [newCreatureData, setNewCreatureData] = useState({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '', femaleParent: '', stage: '幼虫', saleStatus: '使用', sex: 'オス', emergenceSize: '' });
+            const [maleSelection, setMaleSelection] = useState('');
+            const [femaleSelection, setFemaleSelection] = useState('');
+            const [saveError, setSaveError] = useState(false);
+            const [loadFailed, setLoadFailed] = useState(false);
+
+            const [creatures, setCreatures] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('beetle_data');
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        if (Array.isArray(parsed)) return dedupeIds(parsed);
+                    }
+                } catch (e) {
+                    console.warn('保存データの読み込みに失敗しました。', e);
+                }
+                const sampleStages = ['孵化', '1令', '2令', '3令', '蛹', '成虫'];
+                return Array.from({ length: 10 }, (_, i) => {
+                    const historyLength = 2 + Math.floor(Math.random() * 4);
+                    const history = Array.from({ length: historyLength }, (_, j) => ({
+                        item: sampleStages[j] || '経過',
+                        date: `2026-04-${String(10 + j).padStart(2,'0')}`,
+                        size: `${1 + j * 5}g`,
+                        temp: `${22 + (i % 5)}℃`
+                    }));
+                    return {
+                        id: (i + 1).toString(),
+                        name: `個体 ${i + 1}号`,
+                        alias: i < 5 ? 'Aライン' : 'Bライン',
+                        origin: '福岡県久留米市',
+                        generation: `F${(i % 5) + 1}`,
+                        maleParent: '',
+                        femaleParent: '',
+                        stage: history[history.length - 1].item,
+                        saleStatus: '使用',
+                        hatchDate: '2026-04-01',
+                        emergenceDate: '-',
+                        emergenceSize: '',
+                        history,
+                        sex: i % 2 === 0 ? 'オス' : 'メス'
+                    };
+                });
+            });
+
+            const [sort, setSort] = useState({ key: 'id', direction: 'asc' });
+            const [filters, setFilters] = useState({ name: '', sex: '', saleStatus: '', stage: '', alias: '', generation: '' });
+            const [showFilter, setShowFilter] = useState(false);
+            const [agreedToTerms, setAgreedToTerms] = useState(() => localStorage.getItem('beetle_agreed') === 'true');
+            const [termsTab, setTermsTab] = useState('使用方法');
+            const [appIcon, setAppIcon] = useState(() => localStorage.getItem('beetle_icon') || '');
+            const [showIconModal, setShowIconModal] = useState(false);
+
+            const nameMap = useMemo(() => {
+                const m = {};
+                creatures.forEach(c => { m[c.name] = c; });
+                return m;
+            }, [creatures]);
+
+            const processedCreatures = useMemo(() => {
+                return [...creatures]
+                    .filter(c => {
+                        if (filters.name && !c.name.includes(filters.name)) return false;
+                        if (filters.sex && c.sex !== filters.sex) return false;
+                        if (filters.saleStatus && c.saleStatus !== filters.saleStatus) return false;
+                        if (filters.stage && c.stage !== filters.stage) return false;
+                        if (filters.alias && c.alias !== filters.alias) return false;
+                        if (filters.generation && c.generation !== filters.generation) return false;
+                        return true;
+                    })
+                    .sort((a, b) => (a[sort.key] < b[sort.key] ? -1 : 1) * (sort.direction === 'asc' ? 1 : -1));
+            }, [creatures, filters, sort]);
+
+            const sim = useMemo(() => {
+                const m = creatures.find(c => c.id === maleSelection);
+                const f = creatures.find(c => c.id === femaleSelection);
+                if (!m || !f) return null;
+                const F = calcF(m.name, f.name, nameMap);
+                const r = calcR(m.name, f.name, nameMap);
+                const Fpct = (F * 100).toFixed(2);
+                const Rpct = (r * 100).toFixed(2);
+                const risk = fRiskInfo(F);
+                const desc = fRiskDesc(F);
+                const mAnc = getAncestors(m.name, nameMap, 0);
+                const fAnc = getAncestors(f.name, nameMap, 0);
+                const commonAncestors = [];
+                mAnc.forEach((_, name) => { if (fAnc.has(name)) commonAncestors.push(name); });
+                return { F, Fpct, r, Rpct, riskLabel: risk.label, desc, commonAncestors };
+            }, [maleSelection, femaleSelection, nameMap]);
+
+            useEffect(() => {
+                if (loadFailed) return;
+                try {
+                    localStorage.setItem('beetle_data', JSON.stringify(creatures));
+                    setSaveError(false);
+                } catch (e) {
+                    console.error('データの保存に失敗しました。', e);
+                    setSaveError(true);
+                }
+            }, [creatures, loadFailed]);
+
+            const resetFilters = () => setFilters({ name: '', sex: '', saleStatus: '', stage: '', alias: '', generation: '' });
+            const activeFilterCount = Object.values(filters).filter(v => v !== '').length;
+            const toggleSaleStatus = (id, e) => {
+                e.stopPropagation();
+                const statuses = ['使用', '予備', '不要'];
+                setCreatures(creatures.map(c => c.id === id ? { ...c, saleStatus: statuses[(statuses.indexOf(c.saleStatus) + 1) % 3] } : c));
+            };
+            const confirmAdd = () => {
+                const newCreature = { ...newCreatureData, id: `${Date.now().toString()}_${Math.random().toString(36).slice(2, 8)}`, history: [] };
+                setCreatures([newCreature, ...creatures]);
+                setShowAddModal(false);
+                setNewCreatureData({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '', femaleParent: '', stage: '幼虫', saleStatus: '使用', sex: 'オス', emergenceSize: '' });
+            };
+            const updateCreature = (updated) => {
+                setCreatures(creatures.map(c => c.id === updated.id ? updated : c));
+                setSelectedCreature(updated);
+            };
+            const updateAppIcon = (base64) => {
+                localStorage.setItem('beetle_icon', base64);
+                setAppIcon(base64);
+                document.getElementById('favicon').href = base64;
+                document.getElementById('apple-touch-icon').href = base64;
+            };
+            const removeAppIcon = () => {
+                localStorage.removeItem('beetle_icon');
+                setAppIcon('');
+                document.getElementById('favicon').href = '';
+                document.getElementById('apple-touch-icon').href = '';
+            };
+            const agreeToTerms = () => {
+                localStorage.setItem('beetle_agreed', 'true');
+                setAgreedToTerms(true);
+            };
+
+            if (!agreedToTerms) return (
+                <div className="min-h-screen flex items-center justify-center p-4 bg-neutral-950">
+                    <div className="bg-neutral-900 border border-neutral-700 rounded-xl w-full max-w-lg shadow-2xl text-white">
+                        <div className="p-6 border-b border-neutral-700">
+                            <h1 className="text-lg font-bold text-emerald-400">Beetle Base</h1>
+                            <p className="text-xs text-neutral-400 mt-1">ご利用前に以下をお読みください</p>
+                        </div>
+                        <div className="flex border-b border-neutral-700">
+                            {['使用方法', '利用規約'].map(t => (
+                                <button key={t} onClick={() => setTermsTab(t)} className={`px-5 py-2 text-sm font-bold ${termsTab === t ? 'text-emerald-400 border-b-2 border-emerald-400' : 'text-neutral-400'}`}>{t}</button>
+                            ))}
+                        </div>
+                        <div className="p-6 h-96 overflow-y-auto text-sm space-y-4">
+                            {termsTab === '使用方法' ? (
+                                <>
+                                    <section className="space-y-2">
+                                        <h2 className="font-bold text-emerald-400">基本操作</h2>
+                                        <p className="text-neutral-300 leading-relaxed">「一覧」タブで個体を管理します。行をタップすると詳細画面へ移動します。「追加」ボタンで新規個体を登録できます。</p>
+                                    </section>
+                                    <section className="space-y-2">
+                                        <h2 className="font-bold text-emerald-400">血統図</h2>
+                                        <p className="text-neutral-300 leading-relaxed">「血統図」タブで親子関係を視覚的に確認できます。各個体の詳細編集画面でオス親・メス親を登録することで自動的に接続されます。</p>
+                                    </section>
+                                    <section className="space-y-2">
+                                        <h2 className="font-bold text-emerald-400">交配シミュレーション</h2>
+                                        <p className="text-neutral-300 leading-relaxed">「交配」タブでオス・メスを選択すると、ライト係数法に基づく近親交配係数（F値）と血縁係数（r値）を計算します。登録されている血統情報の範囲内（最大6世代）での計算となります。</p>
+                                    </section>
+                                    <section className="space-y-2">
+                                        <h2 className="font-bold text-white bg-red-800/50 border border-red-600 rounded px-3 py-2">⚠ データ消失について（必読）</h2>
+                                        <ul className="text-neutral-300 leading-relaxed space-y-1.5 list-none">
+                                            <li>・ データはお使いのブラウザ内（localStorage）にのみ保存されます。</li>
+                                            <li>・ <span className="text-red-400 font-bold">ブラウザのキャッシュ・履歴・Cookieを削除するとデータが完全に消失します。</span></li>
+                                            <li>・ <span className="text-red-400 font-bold">ブラウザの変更・PCの買い替え・OSの再インストール時もデータは引き継がれません。</span></li>
+                                            <li>・ ストレージ容量が不足した場合、保存に失敗することがあります。</li>
+                                            <li>・ 上記リスクを避けるため、ヘッダーの「<span className="text-emerald-400 font-bold">保存</span>」ボタンから定期的にJSONファイルへバックアップしてください。</li>
+                                            <li>・ バックアップファイルは「<span className="text-emerald-400 font-bold">読込</span>」ボタンから復元できます。</li>
+                                        </ul>
+                                    </section>
+                                </>
+                            ) : (
+                                <>
+                                    <section className="space-y-2">
+                                        <h2 className="font-bold text-emerald-400">第1条（自己責任）</h2>
+                                        <p className="text-neutral-300 leading-relaxed">本アプリの利用により生じたいかなる損害・損失（データの消失、飼育個体への影響、交配判断の結果等を含む）についても、開発者は一切の責任を負いません。利用者は全て自己の責任においてご利用ください。</p>
+                                    </section>
+                                    <section className="space-y-2">
+                                        <h2 className="font-bold text-emerald-400">第2条（データの管理）</h2>
+                                        <p className="text-neutral-300 leading-relaxed">本アプリに入力したデータはお使いの端末のブラウザ内にのみ保存されます。開発者はデータの保全・復旧に関して一切の責任を負いません。データの管理・バックアップは利用者自身の責任で行ってください。</p>
+                                    </section>
+                                    <section className="space-y-2">
+                                        <h2 className="font-bold text-emerald-400">第3条（計算結果の免責）</h2>
+                                        <p className="text-neutral-300 leading-relaxed">近親交配係数（F値）・血縁係数（r値）等の計算結果は、登録された血統情報の範囲内での推定値です。計算結果の正確性・完全性を保証するものではなく、これらを根拠とした交配判断の結果について開発者は責任を負いません。</p>
+                                    </section>
+                                    <section className="space-y-2">
+                                        <h2 className="font-bold text-emerald-400">第4条（規約の変更）</h2>
+                                        <p className="text-neutral-300 leading-relaxed">本規約は予告なく変更される場合があります。変更後も本アプリを使用した場合、変更後の規約に同意したものとみなします。</p>
+                                    </section>
+                                </>
+                            )}
+                        </div>
+                        <div className="p-6 border-t border-neutral-700 space-y-3">
+                            <p className="text-[11px] text-neutral-400 text-center">「同意して始める」を押すと利用規約・使用方法に同意したものとみなします</p>
+                            <button onClick={agreeToTerms} className="w-full bg-emerald-600 py-3 rounded-lg font-bold text-white text-sm hover:bg-emerald-500 transition-colors">同意して始める</button>
+                        </div>
+                    </div>
+                </div>
+            );
+
+            if (selectedCreature) return (
+                <DetailView
+                    creature={selectedCreature}
+                    allCreatures={creatures}
+                    nameMap={nameMap}
+                    onBack={() => setSelectedCreature(null)}
+                    onUpdate={updateCreature}
+                    onGoToTree={(id) => { setHighlightId(id); setActiveTab('血統図'); setSelectedCreature(null); }}
+                />
+            );
+
+            // 一覧テーブルヘッダー（「サイズ」→「体重」、「羽化サイズ」追加）
+            const tableHeaders = [
+                {k:'saleStatus',l:'計画'}, {k:'name',l:'個体名'}, {k:'sex',l:'性別'}, {k:'alias',l:'名称'}, {k:'origin',l:'産地'},
+                {k:'generation',l:'累代'}, {k:'size',l:'体重'}, {k:'hatchDate',l:'孵化日'}, {k:'stage',l:'ステージ'},
+                {k:'temp',l:'温度'}, {k:'emergenceDate',l:'羽化日'}, {k:'emergenceSize',l:'羽化サイズ'},
+                {k:'maleParent',l:'オス親'}, {k:'femaleParent',l:'メス親'}, {k:'selfF',l:'累積F値'}
+            ];
+
+            const formFields = [
+                {key:'name', label:'個体名'}, {key:'sex', label:'性別'}, {key:'alias', label:'名称'}, {key:'origin', label:'産地'},
+                {key:'generation', label:'累代'}, {key:'hatchDate', label:'孵化日', isDate:true}, {key:'emergenceDate', label:'羽化日', isDate:true},
+                {key:'emergenceSize', label:'羽化サイズ（mm）', isNumber:true},
+                {key:'maleParent', label:'オス親'}, {key:'femaleParent', label:'メス親'}, {key:'stage', label:'ステージ'}
+            ];
+
+            return (
+                <div className="min-h-screen p-4">
+                    <nav className="mb-4 font-bold text-emerald-400">
+                        <div className="flex justify-between items-center mb-2">
+                            <div className="flex items-center gap-2">
+                                {appIcon && <img src={appIcon} alt="icon" className="w-8 h-8 rounded-lg object-cover" />}
+                                <div className="flex flex-col"><span>Beetle Base</span><span className="text-[10px] text-white">made by ＭＨ</span></div>
+                            </div>
+                            {activeTab === '一覧' && <button onClick={() => setShowAddModal(true)} className="bg-emerald-600 px-4 py-2 rounded text-sm text-white font-bold">追加</button>}
+                        </div>
+                        <div className="flex gap-2">
+                            <button onClick={() => setAgreedToTerms(false)} className="flex-1 bg-neutral-700 py-2 rounded text-xs text-white font-bold hover:bg-neutral-600 transition-colors"><i className="fa-solid fa-file-lines mr-1"></i>規約</button>
+                            <button onClick={() => {
+                                const json = JSON.stringify(creatures, null, 2);
+                                const blob = new Blob([json], { type: 'application/json' });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `beetle_backup_${new Date().toISOString().slice(0,10)}.json`;
+                                a.click();
+                                URL.revokeObjectURL(url);
+                            }} className="flex-1 bg-neutral-700 py-2 rounded text-xs text-white font-bold hover:bg-neutral-600 transition-colors">
+                                <i className="fa-solid fa-download mr-1"></i>保存
+                            </button>
+                            <label className="flex-1 bg-neutral-700 py-2 rounded text-xs text-white font-bold cursor-pointer hover:bg-neutral-600 transition-colors text-center">
+                                <i className="fa-solid fa-upload mr-1"></i>読込
+                                <input type="file" accept=".json" className="hidden" onChange={e => {
+                                    const file = e.target.files[0];
+                                    if (!file) return;
+                                    const reader = new FileReader();
+                                    reader.onload = ev => {
+                                        try {
+                                            const data = JSON.parse(ev.target.result);
+                                            if (!Array.isArray(data)) throw new Error('不正な形式');
+                                            if (confirm(`${data.length}件のデータを読み込みます。現在のデータは上書きされます。よろしいですか？`)) {
+                                                setCreatures(dedupeIds(data));
+                                            }
+                                        } catch (err) {
+                                            alert('ファイルの読み込みに失敗しました。正しいバックアップファイルか確認してください。');
+                                        }
+                                    };
+                                    reader.readAsText(file);
+                                    e.target.value = '';
+                                }} />
+                            </label>
+                            <button onClick={() => setShowIconModal(true)} className="flex-1 bg-neutral-700 py-2 rounded text-xs text-white font-bold hover:bg-neutral-600 transition-colors">
+                                <i className="fa-solid fa-image mr-1"></i>アイコン
+                            </button>
+                        </div>
+                    </nav>
+
+                    {showIconModal && (
+                        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+                            <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4">
+                                <h3 className="font-bold text-white">アイコン設定</h3>
+                                {appIcon && (
+                                    <div className="flex justify-center">
+                                        <img src={appIcon} alt="現在のアイコン" className="w-24 h-24 rounded-2xl object-cover border border-neutral-600" />
+                                    </div>
+                                )}
+                                <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-neutral-600 rounded-lg cursor-pointer hover:border-emerald-500 transition-colors bg-neutral-800/50">
+                                    <i className="fa-solid fa-image text-2xl text-neutral-500 mb-1"></i>
+                                    <span className="text-xs text-neutral-500">{appIcon ? '画像を変更' : '画像を選択'}</span>
+                                    <input type="file" accept="image/*" className="hidden" onChange={e => {
+                                        const file = e.target.files[0];
+                                        if (!file) return;
+                                        const reader = new FileReader();
+                                        reader.onload = ev => {
+                                            const img = new Image();
+                                            img.onload = () => {
+                                                const SIZE = 512;
+                                                const canvas = document.createElement('canvas');
+                                                canvas.width = SIZE; canvas.height = SIZE;
+                                                const ctx = canvas.getContext('2d');
+                                                const min = Math.min(img.width, img.height);
+                                                const sx = (img.width - min) / 2;
+                                                const sy = (img.height - min) / 2;
+                                                ctx.drawImage(img, sx, sy, min, min, 0, 0, SIZE, SIZE);
+                                                const compressed = canvas.toDataURL('image/png');
+                                                updateAppIcon(compressed);
+                                                setShowIconModal(false);
+                                            };
+                                            img.src = ev.target.result;
+                                        };
+                                        reader.readAsDataURL(file);
+                                        e.target.value = '';
+                                    }} />
+                                </label>
+                                <p className="text-[10px] text-neutral-500">※ 正方形にトリミングされます。iPhoneのホーム画面に追加するとアイコンとして表示されます。</p>
+                                <div className="flex gap-2">
+                                    <button onClick={() => setShowIconModal(false)} className="flex-1 bg-neutral-700 py-2 rounded font-bold text-white text-sm">閉じる</button>
+                                    {appIcon && <button onClick={() => { removeAppIcon(); setShowIconModal(false); }} className="flex-1 bg-red-800 py-2 rounded font-bold text-white text-sm">削除</button>}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {saveError && (
+                        <div className="mb-3 p-3 bg-red-900/60 border border-red-500 rounded text-red-300 text-xs">
+                            ⚠ データの保存に失敗しました。ストレージの空き容量を確認してください。
+                        </div>
+                    )}
+
+                    <div className="flex border-b border-neutral-800 mb-4">
+                        {['一覧', '血統図', '交配'].map(tab => (
+                            <button key={tab} onClick={() => { setActiveTab(tab); setHighlightId(null); }} className={`px-4 py-2 text-sm font-bold ${activeTab === tab ? 'text-emerald-400 border-b-2 border-emerald-400' : 'text-neutral-200'}`}>{tab}</button>
+                        ))}
+                    </div>
+
+                    {activeTab === '一覧' ? (
+                        <>
+                            {showAddModal && (
+                                <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+                                    <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4 overflow-y-auto max-h-[90vh]">
+                                        <h3 className="font-bold text-white">新規個体追加</h3>
+                                        {formFields.map(f => (
+                                            <div key={f.key}>
+                                                <p className="text-[10px] text-white mb-1">{f.label}</p>
+                                                {f.key === 'maleParent' ? (
+                                                    <select className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" value={newCreatureData[f.key] || ''} onChange={e => setNewCreatureData({...newCreatureData, [f.key]: e.target.value})}>
+                                                        <option value="">未設定</option>
+                                                        {creatures.filter(c => isMale(c.sex)).map(c => <option key={c.id} value={c.name}>{c.name}（{c.generation}）</option>)}
+                                                    </select>
+                                                ) : f.key === 'femaleParent' ? (
+                                                    <select className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" value={newCreatureData[f.key] || ''} onChange={e => setNewCreatureData({...newCreatureData, [f.key]: e.target.value})}>
+                                                        <option value="">未設定</option>
+                                                        {creatures.filter(c => isFemale(c.sex)).map(c => <option key={c.id} value={c.name}>{c.name}（{c.generation}）</option>)}
+                                                    </select>
+                                                ) : f.isDate ? (
+                                                    <DateInput
+                                                        value={newCreatureData[f.key]}
+                                                        onChange={v => setNewCreatureData({...newCreatureData, [f.key]: v})}
+                                                        className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700"
+                                                    />
+                                                ) : f.isNumber ? (
+                                                    <div className="flex items-center gap-1">
+                                                        <input type="number" min="0" step="0.1" className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" value={newCreatureData[f.key] || ''} onChange={e => setNewCreatureData({...newCreatureData, [f.key]: e.target.value})} placeholder="例: 78.5" />
+                                                        <span className="text-xs text-neutral-400">mm</span>
+                                                    </div>
+                                                ) : (
+                                                    <input type="text" className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" value={newCreatureData[f.key] === '-' ? '' : (newCreatureData[f.key] || '')} onChange={e => setNewCreatureData({...newCreatureData, [f.key]: e.target.value || '-'})} />
+                                                )}
+                                            </div>
+                                        ))}
+                                        <div className="flex gap-2">
+                                            <button onClick={() => setShowAddModal(false)} className="w-full bg-neutral-700 py-2 rounded font-bold text-white">キャンセル</button>
+                                            <button onClick={confirmAdd} className="w-full bg-emerald-600 py-2 rounded font-bold text-white">保存</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                            <div className="mb-3">
+                                <div className="flex gap-2 items-center mb-2">
+                                    <button onClick={() => setShowFilter(!showFilter)} className={`flex items-center gap-1 px-3 py-1.5 rounded text-xs font-bold transition-colors ${showFilter ? 'bg-emerald-600 text-white' : 'bg-neutral-700 text-white hover:bg-neutral-600'}`}>
+                                        <i className="fa-solid fa-filter"></i>
+                                        フィルター
+                                        {activeFilterCount > 0 && <span className="bg-emerald-400 text-black rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-bold">{activeFilterCount}</span>}
+                                    </button>
+                                    {activeFilterCount > 0 && <button onClick={resetFilters} className="text-xs text-neutral-400 hover:text-white transition-colors"><i className="fa-solid fa-xmark mr-1"></i>リセット</button>}
+                                    <span className="text-xs text-neutral-500 ml-auto">{processedCreatures.length} / {creatures.length} 件</span>
+                                </div>
+                                {showFilter && (
+                                    <div className="bg-neutral-800 rounded-lg p-3 space-y-2 border border-neutral-700">
+                                        <input type="text" placeholder="個体名で検索..." value={filters.name} onChange={e => setFilters({...filters, name: e.target.value})} className="w-full bg-neutral-700 text-white text-xs rounded px-2 py-1.5 border border-neutral-600 focus:outline-none focus:border-emerald-500" />
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {[
+                                                { key: 'sex', label: '性別', options: ['オス', 'メス'] },
+                                                { key: 'saleStatus', label: '計画', options: ['使用', '予備', '不要'] },
+                                                { key: 'stage', label: 'ステージ', options: [...new Set(creatures.map(c => c.stage).filter(Boolean))] },
+                                                { key: 'alias', label: '名称', options: [...new Set(creatures.map(c => c.alias).filter(Boolean))] },
+                                                { key: 'generation', label: '累代', options: [...new Set(creatures.map(c => c.generation).filter(Boolean))].sort() },
+                                            ].map(f => (
+                                                <select key={f.key} value={filters[f.key]} onChange={e => setFilters({...filters, [f.key]: e.target.value})} className="bg-neutral-700 text-white text-xs rounded px-2 py-1.5 border border-neutral-600 focus:outline-none focus:border-emerald-500">
+                                                    <option value="">全て（{f.label}）</option>
+                                                    {f.options.map(o => <option key={o} value={o}>{o}</option>)}
+                                                </select>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="overflow-x-auto bg-neutral-900 rounded-lg shadow-xl">
+                                <table className="w-full text-sm border-collapse whitespace-nowrap">
+                                    <thead className="bg-neutral-800">
+                                        <tr>
+                                            {tableHeaders.map((h, i) => (
+                                                <th key={h.k} className={`p-3 cursor-pointer hover:bg-neutral-700 select-none ${i < 2 ? `sticky-col-${i+1}` : ''}`} onClick={() => setSort({key:h.k, direction: sort.key===h.k && sort.direction==='asc'?'desc':'asc'})}>
+                                                    <span className="flex items-center justify-center gap-1">
+                                                        {h.l}
+                                                        <span className="flex flex-col leading-none">
+                                                            <i className={`fa-solid fa-caret-up text-[8px] ${sort.key === h.k && sort.direction === 'asc' ? 'text-emerald-400' : 'text-neutral-600'}`}></i>
+                                                            <i className={`fa-solid fa-caret-down text-[8px] ${sort.key === h.k && sort.direction === 'desc' ? 'text-emerald-400' : 'text-neutral-600'}`}></i>
+                                                        </span>
+                                                    </span>
+                                                </th>
+                                            ))}
+                                            <th className="p-3">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {processedCreatures.map(c => (
+                                            <tr key={c.id} className="border-t border-neutral-800 hover:bg-neutral-800 bg-neutral-900 cursor-pointer" onClick={() => setSelectedCreature(c)}>
+                                                <td className="p-3 sticky-col-1"><button onClick={(e) => toggleSaleStatus(c.id, e)} className={`px-2 py-1 rounded text-[10px] font-bold ${c.saleStatus === '使用' ? 'bg-emerald-600 text-white' : c.saleStatus === '予備' ? 'bg-amber-600 text-white' : 'bg-neutral-500 text-white'}`}>{c.saleStatus}</button></td>
+                                                <td className="p-3 sticky-col-2 font-bold">{c.name}</td>
+                                                <td className="p-3"><span style={{color: sexColor(c.sex), fontWeight: 'bold'}}>{c.sex}</span></td>
+                                                <td className="p-3">{c.alias}</td>
+                                                <td className="p-3">{c.origin}</td>
+                                                <td className="p-3">{c.generation}</td>
+                                                <td className="p-3">{c.history.length > 0 ? c.history[c.history.length - 1].size : '-'}</td>
+                                                <td className="p-3">{c.hatchDate}</td>
+                                                <td className="p-3">{c.stage}</td>
+                                                <td className="p-3">{c.history.length > 0 ? c.history[c.history.length - 1].temp : '-'}</td>
+                                                <td className="p-3">{c.emergenceDate}</td>
+                                                <td className="p-3">{c.emergenceSize ? `${c.emergenceSize}mm` : '-'}</td>
+                                                <td className="p-3">{(c.maleParent && c.maleParent !== '-' && nameMap[c.maleParent]) ? c.maleParent : ''}</td>
+                                                <td className="p-3">{(c.femaleParent && c.femaleParent !== '-' && nameMap[c.femaleParent]) ? c.femaleParent : ''}</td>
+                                                <td className="p-3">
+                                                    {(() => { const f = calcSelfF(c, nameMap); const col = gradColor(f, 0.25); return <span className="font-bold text-xs" style={{ color: col }}>{(f*100).toFixed(2)}%</span>; })()}
+                                                </td>
+                                                <td className="p-3"><button onClick={(e) => { e.stopPropagation(); if(confirm('削除?')) setCreatures(creatures.filter(x=>x.id!==c.id)) }} className="bg-emerald-600 px-2 py-1 rounded text-xs text-white">削除</button></td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </>
+                    ) : activeTab === '血統図' ? (
+                        <PedigreeView creatures={creatures} highlightId={highlightId} onSelect={setSelectedCreature} />
+                    ) : (
+                        <div className="bg-neutral-900 p-6 rounded-lg space-y-6 text-white text-sm">
+                            <h3 className="font-bold text-emerald-400 text-lg border-b border-neutral-700 pb-2">交配シミュレーション</h3>
+                            <div className="flex gap-4">
+                                <select className="bg-neutral-800 p-2 rounded flex-1 border border-neutral-700" onChange={e => setMaleSelection(e.target.value)}><option value="">オス親を選択</option>{creatures.filter(c => isMale(c.sex)).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+                                <select className="bg-neutral-800 p-2 rounded flex-1 border border-neutral-700" onChange={e => setFemaleSelection(e.target.value)}><option value="">メス親を選択</option>{creatures.filter(c => isFemale(c.sex)).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+                            </div>
+                            {sim && (
+                                <div className="space-y-4">
+                                    <div className="p-4 border border-neutral-700 rounded bg-neutral-800 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <p className="font-bold text-white">次世代の近親交配係数（F値）</p>
+                                            <p className="text-2xl font-bold" style={{ color: barColor(sim.F) }}>{sim.Fpct}%</p>
+                                        </div>
+                                        <div className="w-full bg-neutral-700 rounded-full h-2">
+                                            <div className="h-2 rounded-full transition-all" style={{ width: `${Math.min(sim.F / 0.25 * 100, 100)}%`, backgroundColor: barColor(sim.F) }}></div>
+                                        </div>
+                                        <p className="text-xs">リスク評価: <span className="font-bold" style={{ color: gradColor(sim.F, 0.25) }}>{sim.riskLabel}</span></p>
+                                        <p className="text-xs text-neutral-300 leading-relaxed">{sim.desc}</p>
+                                    </div>
+                                    <div className="p-4 border border-neutral-700 rounded bg-neutral-800 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <p className="font-bold text-white">血縁係数（r値）</p>
+                                            <p className="text-2xl font-bold" style={{ color: gradColor(sim.r, 0.5) }}>{sim.Rpct}%</p>
+                                        </div>
+                                        <div className="w-full bg-neutral-700 rounded-full h-2">
+                                            <div className="h-2 rounded-full transition-all" style={{ width: `${Math.min(sim.r / 0.5 * 100, 100)}%`, backgroundColor: gradColor(sim.r, 0.5) }}></div>
+                                        </div>
+                                        <p className="text-xs text-neutral-300 leading-relaxed">2個体間の遺伝的類似度を示します。親子≒50%、きょうだい≒50%、いとこ≒12.5%が理論値です。値が高いほど遺伝的に近い関係です。</p>
+                                    </div>
+                                    {sim.commonAncestors.length > 0 && (
+                                        <div className="p-4 border border-neutral-700 rounded bg-neutral-800">
+                                            <p className="font-bold text-white mb-2">共通祖先（{sim.commonAncestors.length}個体）</p>
+                                            <div className="flex flex-wrap gap-1">
+                                                {sim.commonAncestors.map((name, i) => (
+                                                    <span key={i} className="px-2 py-0.5 bg-neutral-700 rounded text-xs text-neutral-200">{name}</span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    <p className="text-[10px] text-neutral-500">※ ライト係数法により計算（登録血統情報の範囲内、最大6世代）。登録されていない祖先は計算に含まれません。</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // ---- 比較グラフ ----
+        function CompareGrowthChart({ mainCreature, allCreatures }) {
+            const chartRef = useRef(null);
+            const chartInstance = useRef(null);
+            const [compareIds, setCompareIds] = useState([]);
+
+            const otherCreatures = allCreatures.filter(c => c.id !== mainCreature.id && c.history.length > 0);
+            const availableToAdd = otherCreatures.filter(c => !compareIds.includes(c.id));
+            const canAddMore = compareIds.length < COMPARE_COLORS.length - 1;
+
+            const addCompare = (id) => {
+                if (!id || compareIds.includes(id) || !canAddMore) return;
+                setCompareIds(prev => [...prev, id]);
+            };
+            const removeCompare = (id) => {
+                setCompareIds(prev => prev.filter(x => x !== id));
+            };
+
+            useEffect(() => {
+                if (!chartRef.current) return;
+                if (chartInstance.current) chartInstance.current.destroy();
+
+                const datasets = [];
+                compareIds.forEach((cid, idx) => {
+                    const c = allCreatures.find(x => x.id === cid);
+                    if (!c) return;
+                    const color = COMPARE_COLORS[idx + 1];
+                    datasets.push({
+                        label: c.name, data: [], _history: c.history,
+                        borderColor: color.border, backgroundColor: color.bg, tension: 0.3, fill: false,
+                        pointBackgroundColor: color.border, pointRadius: 4, borderDash: [4, 3], borderWidth: 1.5, _isCompare: true,
+                    });
+                });
+                datasets.push({
+                    label: mainCreature.name, data: [], _history: mainCreature.history,
+                    borderColor: COMPARE_COLORS[0].border, backgroundColor: COMPARE_COLORS[0].bg, tension: 0.3, fill: true,
+                    pointBackgroundColor: '#fff', pointRadius: 5, borderWidth: 2.5, _isCompare: false,
+                });
+
+                const allDates = new Set();
+                mainCreature.history.forEach(h => allDates.add(h.date));
+                compareIds.forEach(cid => {
+                    const c = allCreatures.find(x => x.id === cid);
+                    if (c) c.history.forEach(h => allDates.add(h.date));
+                });
+                const sortedDates = Array.from(allDates).sort();
+
+                const mappedDatasets = datasets.map(ds => {
+                    const map = {};
+                    ds._history.forEach(h => {
+                        const val = parseFloat(h.size.replace(/[^0-9.]/g, ''));
+                        map[h.date] = isNaN(val) ? null : val;
+                    });
+                    const { _history, _isCompare, ...rest } = ds;
+                    return { ...rest, data: sortedDates.map(d => map[d] ?? null) };
+                });
+
+                chartInstance.current = new Chart(chartRef.current, {
+                    type: 'line',
+                    data: { labels: sortedDates, datasets: mappedDatasets },
+                    options: {
+                        responsive: true, maintainAspectRatio: false, spanGaps: true,
+                        plugins: {
+                            legend: { display: true, labels: { color: '#d4d4d4', font: { size: 10 }, boxWidth: 12, padding: 8 } },
+                            tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y ?? '-'}g` } }
+                        },
+                        scales: {
+                            y: { beginAtZero: true, grid: { color: '#333' }, ticks: { color: '#fff', callback: v => `${v}g` } },
+                            x: { grid: { color: '#333' }, ticks: { color: '#fff', maxRotation: 30, font: { size: 9 } } }
+                        }
+                    }
+                });
+                return () => { if (chartInstance.current) chartInstance.current.destroy(); };
+            }, [mainCreature, compareIds, allCreatures]);
+
+            return (
+                <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 mt-4 text-white shadow-2xl">
+                    <h3 className="font-bold border-b border-neutral-700 pb-2 mb-4 text-sm flex items-center gap-2">
+                        成長グラフ
+                        <span className="text-[10px] text-neutral-400 font-normal">（他の個体と比較できます）</span>
+                    </h3>
+                    {otherCreatures.length > 0 && (
+                        <div className="mb-3 space-y-2">
+                            <select value="" onChange={e => { addCompare(e.target.value); }} disabled={!canAddMore}
+                                className="w-full bg-neutral-800 border border-neutral-600 text-white text-xs rounded px-2 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:border-emerald-500">
+                                <option value="">{canAddMore ? (availableToAdd.length > 0 ? '比較個体を選択...' : '（追加できる個体なし）') : `最大${COMPARE_COLORS.length - 1}個体まで`}</option>
+                                {availableToAdd.map(c => (<option key={c.id} value={c.id}>{c.name}（{c.generation} / {c.alias || '—'}）</option>))}
+                            </select>
+                            {compareIds.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5">
+                                    {compareIds.map((cid, idx) => {
+                                        const c = allCreatures.find(x => x.id === cid);
+                                        if (!c) return null;
+                                        const color = COMPARE_COLORS[idx + 1];
+                                        return (
+                                            <span key={cid} className="compare-tag" style={{ borderColor: color.border, color: color.text, backgroundColor: color.bg }}>
+                                                <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: color.border, display: 'inline-block', flexShrink: 0 }}></span>
+                                                {c.name}
+                                                <button onClick={() => removeCompare(cid)} style={{ marginLeft: 2, lineHeight: 1 }} title="削除"><i className="fa-solid fa-xmark" style={{ fontSize: 8 }}></i></button>
+                                            </span>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    <div className="h-52 w-full"><canvas ref={chartRef}></canvas></div>
+                    {compareIds.length > 0 && <p className="text-[10px] text-neutral-500 mt-2">⚠ 比較個体は記録日が異なる場合、グラフが途切れることがあります</p>}
+                </div>
+            );
+        }
+
+        // ---- 詳細画面 ----
+        function DetailView({ creature, allCreatures, nameMap, onBack, onUpdate, onGoToTree }) {
+            const [form, setForm] = useState(creature);
+            const [showEditModal, setShowEditModal] = useState(false);
+            const [editForm, setEditForm] = useState(creature);
+            const [showRecordModal, setShowRecordModal] = useState(null);
+
+            // 詳細表示・編集のフィールド定義（羽化サイズ追加）
+            const fields = [
+                {key:'name', label:'個体名'}, {key:'sex', label:'性別'}, {key:'alias', label:'名称'},
+                {key:'origin', label:'産地'}, {key:'generation', label:'累代'},
+                {key:'hatchDate', label:'孵化日', isDate:true},
+                {key:'emergenceDate', label:'羽化日', isDate:true},
+                {key:'emergenceSize', label:'羽化サイズ（mm）', isNumber:true},
+                {key:'maleParent', label:'オス親'}, {key:'femaleParent', label:'メス親'}, {key:'stage', label:'ステージ'}
+            ];
+
+            const saveEdit = () => { setForm(editForm); onUpdate(editForm); setShowEditModal(false); };
+
+            const saveRecord = (record) => {
+                let h = [...form.history];
+                if (record.index !== null) h[record.index] = {item:record.item, size:record.size, temp:record.temp, date:record.date};
+                else h.push({item:record.item, size:record.size, temp:record.temp, date:record.date || new Date().toISOString().split('T')[0]});
+                const updated = {...form, history: h, stage: record.item};
+                setForm(updated);
+                onUpdate(updated);
+                setShowRecordModal(null);
+            };
+
+            const deleteRecord = (index) => {
+                if (!confirm('この記録を削除しますか？')) return;
+                const h = form.history.filter((_, i) => i !== index);
+                const newStage = h.length > 0 ? h[h.length - 1].item : form.stage;
+                const updated = {...form, history: h, stage: newStage};
+                setForm(updated);
+                onUpdate(updated);
+            };
+
+            const allForChart = allCreatures.map(c => c.id === form.id ? form : c);
+            const selfF = useMemo(() => calcSelfF(form, nameMap), [form, nameMap]);
+            const selfFInfo = fRiskInfo(selfF);
+            const relatedList = useMemo(() => {
+                return allCreatures
+                    .filter(c => c.id !== form.id)
+                    .map(c => ({ creature: c, r: calcR(form.name, c.name, nameMap) }))
+                    .sort((a, b) => b.r - a.r);
+            }, [form, allCreatures, nameMap]);
+
+            return (
+                <div className="p-6 max-w-lg mx-auto">
+                    <div className="flex justify-between items-center mb-4">
+                        <button onClick={onBack} className="text-emerald-400 font-bold">← 戻る</button>
+                        <div className="flex gap-2">
+                            <button onClick={() => onGoToTree(creature.id)} className="bg-neutral-700 px-4 py-1 rounded text-sm font-bold">血統図へ</button>
+                            <button onClick={() => { setEditForm(form); setShowEditModal(true); }} className="bg-emerald-600 px-4 py-1 rounded text-sm font-bold">編集</button>
+                        </div>
+                    </div>
+
+                    {showEditModal && (
+                        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+                            <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4 overflow-y-auto max-h-[90vh]">
+                                <h3 className="font-bold text-white">詳細情報の編集</h3>
+                                {fields.map(f => (
+                                    <div key={f.key}>
+                                        <p className="text-[10px] text-white mb-1">{f.label}</p>
+                                        {f.key === 'maleParent' ? (
+                                            <select className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" value={(!editForm[f.key] || editForm[f.key] === '-') ? '' : editForm[f.key]} onChange={e => setEditForm({...editForm, [f.key]: e.target.value})}>
+                                                <option value="">未設定</option>
+                                                {allCreatures.filter(c => isMale(c.sex)).map(c => <option key={c.id} value={c.name}>{c.name}（{c.generation}）</option>)}
+                                            </select>
+                                        ) : f.key === 'femaleParent' ? (
+                                            <select className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" value={(!editForm[f.key] || editForm[f.key] === '-') ? '' : editForm[f.key]} onChange={e => setEditForm({...editForm, [f.key]: e.target.value})}>
+                                                <option value="">未設定</option>
+                                                {allCreatures.filter(c => isFemale(c.sex)).map(c => <option key={c.id} value={c.name}>{c.name}（{c.generation}）</option>)}
+                                            </select>
+                                        ) : f.isDate ? (
+                                            <DateInput
+                                                value={editForm[f.key]}
+                                                onChange={v => setEditForm({...editForm, [f.key]: v})}
+                                                className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700"
+                                            />
+                                        ) : f.isNumber ? (
+                                            <div className="flex items-center gap-1">
+                                                <input type="number" min="0" step="0.1" className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" value={editForm[f.key] || ''} onChange={e => setEditForm({...editForm, [f.key]: e.target.value})} placeholder="例: 78.5" />
+                                                <span className="text-xs text-neutral-400">mm</span>
+                                            </div>
+                                        ) : (
+                                            <input className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" value={editForm[f.key] || ''} onChange={e => setEditForm({...editForm, [f.key]: e.target.value})} />
+                                        )}
+                                    </div>
+                                ))}
+                                <div className="flex gap-2">
+                                    <button onClick={() => setShowEditModal(false)} className="w-full bg-neutral-700 py-2 rounded font-bold text-white">キャンセル</button>
+                                    <button onClick={saveEdit} className="w-full bg-emerald-600 py-2 rounded font-bold text-white">保存</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 space-y-4 text-white shadow-2xl">
+                        <h2 className="text-xl font-bold border-b border-neutral-700 pb-2">詳細情報</h2>
+
+                        {/* 写真エリア */}
+                        <div className="relative w-full">
+                            {form.photo ? (
+                                <div className="relative">
+                                    <img src={form.photo} alt="個体写真" className="w-full rounded-lg object-cover max-h-64" />
+                                    <button onClick={() => { const updated = {...form, photo: null}; setForm(updated); onUpdate(updated); }} className="absolute top-2 right-2 bg-black/70 text-white rounded-full w-7 h-7 flex items-center justify-center text-xs hover:bg-red-700 transition-colors" title="写真を削除">
+                                        <i className="fa-solid fa-xmark"></i>
+                                    </button>
+                                </div>
+                            ) : (
+                                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-neutral-600 rounded-lg cursor-pointer hover:border-emerald-500 transition-colors bg-neutral-800/50">
+                                    <i className="fa-solid fa-camera text-2xl text-neutral-500 mb-2"></i>
+                                    <span className="text-xs text-neutral-500">タップして写真を追加</span>
+                                    <input type="file" accept="image/*" className="hidden" onChange={e => {
+                                        const file = e.target.files[0];
+                                        if (!file) return;
+                                        const reader = new FileReader();
+                                        reader.onload = ev => {
+                                            const img = new Image();
+                                            img.onload = () => {
+                                                const MAX = 800;
+                                                let w = img.width, h = img.height;
+                                                if (w > MAX || h > MAX) {
+                                                    if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+                                                    else { w = Math.round(w * MAX / h); h = MAX; }
+                                                }
+                                                const canvas = document.createElement('canvas');
+                                                canvas.width = w; canvas.height = h;
+                                                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                                                const compressed = canvas.toDataURL('image/jpeg', 0.75);
+                                                const updated = {...form, photo: compressed};
+                                                setForm(updated);
+                                                onUpdate(updated);
+                                            };
+                                            img.src = ev.target.result;
+                                        };
+                                        reader.readAsDataURL(file);
+                                        e.target.value = '';
+                                    }} />
+                                </label>
+                            )}
+                        </div>
+
+                        {/* 詳細フィールド表示 */}
+                        <div className="grid grid-cols-[100px,1fr] gap-x-2 gap-y-2 text-sm items-center">
+                            {fields.map(f => (
+                                <React.Fragment key={f.key}>
+                                    <p className="text-white text-left text-[11px] uppercase">{f.label}</p>
+                                    <p className="p-2 bg-neutral-800 rounded w-full border border-neutral-700/50">
+                                        {f.key === 'sex'
+                                            ? <span style={{color: sexColor(form[f.key]), fontWeight: 'bold'}}>{form[f.key] || '-'}</span>
+                                            : f.isNumber
+                                                ? (form[f.key] ? `${form[f.key]}mm` : '-')
+                                                : (f.key === 'maleParent' || f.key === 'femaleParent')
+                                                    ? ((form[f.key] && form[f.key] !== '-' && nameMap[form[f.key]]) ? form[f.key] : '')
+                                                    : (form[f.key] || '-')}
+                                    </p>
+                                </React.Fragment>
+                            ))}
+                        </div>
+
+                        {/* 飼育記録テーブル（「サイズ」→「体重」、削除ボタン追加） */}
+                        <div className="border-t border-neutral-700 pt-4">
+                            <div className="flex justify-between items-center mb-3">
+                                <h3 className="font-bold text-sm">飼育記録</h3>
+                                <button onClick={() => setShowRecordModal({item: form.stage, size:'', temp:'', date:new Date().toISOString().split('T')[0], index:null})} className="bg-emerald-600 px-2 py-1 rounded text-[10px] text-white">追加</button>
+                            </div>
+                            <div className="overflow-hidden rounded border border-neutral-800">
+                                <table className="w-full text-[10px]">
+                                    <thead className="bg-neutral-800">
+                                        <tr className="text-white text-left">
+                                            <th className="p-2">日付</th>
+                                            <th className="p-2">ステージ</th>
+                                            <th className="p-2">体重</th>
+                                            <th className="p-2">温度</th>
+                                            <th className="p-2">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {form.history.map((h,i) => (
+                                            <tr key={i} className="border-b border-neutral-800 hover:bg-neutral-800/50 transition-colors">
+                                                <td className="p-2">{h.date}</td>
+                                                <td className="p-2">{h.item}</td>
+                                                <td className="p-2">{h.size}</td>
+                                                <td className="p-2">{h.temp}</td>
+                                                <td className="p-2">
+                                                    <div className="flex gap-1">
+                                                        <button onClick={() => setShowRecordModal({item:h.item, size:h.size, temp:h.temp, date:h.date, index:i})} className="bg-emerald-600 text-white px-2 py-0.5 rounded text-[10px] font-bold">訂正</button>
+                                                        <button onClick={() => deleteRecord(i)} className="bg-red-700 text-white px-2 py-0.5 rounded text-[10px] font-bold">削除</button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <CompareGrowthChart mainCreature={form} allCreatures={allForChart} />
+
+                    {/* 累積F値 */}
+                    <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 mt-4 text-white shadow-2xl space-y-3">
+                        <h3 className="font-bold border-b border-neutral-700 pb-2 text-sm">累積近親交配係数（個体自身のF値）</h3>
+                        <div className="flex items-center justify-between">
+                            <p className="text-xs text-neutral-300">この個体の両親間のF値。自身が近親交配の産物かどうかを示します。</p>
+                            <p className="text-2xl font-bold ml-4 shrink-0" style={{ color: gradColor(selfF, 0.25) }}>{(selfF * 100).toFixed(2)}%</p>
+                        </div>
+                        <div className="w-full bg-neutral-700 rounded-full h-2">
+                            <div className="h-2 rounded-full" style={{ width: `${Math.min(selfF / 0.25 * 100, 100)}%`, backgroundColor: gradColor(selfF, 0.25) }}></div>
+                        </div>
+                        <p className="text-xs"><span className="font-bold" style={{ color: gradColor(selfF, 0.25) }}>{selfFInfo.label}</span></p>
+                        <p className="text-[10px] text-neutral-500">※ 登録血統情報の範囲内（最大6世代）で計算。</p>
+                    </div>
+
+                    {/* 他個体との血縁係数一覧 */}
+                    <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 mt-4 text-white shadow-2xl space-y-3">
+                        <h3 className="font-bold border-b border-neutral-700 pb-2 text-sm">他個体との血縁係数（r値）</h3>
+                        <p className="text-[10px] text-neutral-400">値が高いほど遺伝的に近い関係。親子・きょうだい≒50%、いとこ≒12.5%が理論値です。</p>
+                        <div className="space-y-2">
+                            {relatedList.map(({ creature: c, r }) => {
+                                const pct = (r * 100).toFixed(2);
+                                const col = gradColor(r, 0.5);
+                                return (
+                                    <div key={c.id} className="flex items-center gap-2">
+                                        <span className="text-[11px] w-28 truncate shrink-0">{c.name}</span>
+                                        <div className="flex-1 bg-neutral-700 rounded-full h-1.5">
+                                            <div className="h-1.5 rounded-full" style={{ width: `${Math.min(r / 0.5 * 100, 100)}%`, backgroundColor: col }}></div>
+                                        </div>
+                                        <span className="text-[11px] w-12 text-right shrink-0 font-bold" style={{ color: col }}>{pct}%</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <p className="text-[10px] text-neutral-500">※ 登録血統情報の範囲内（最大6世代）で計算。r=0の個体は血縁なし。</p>
+                    </div>
+
+                    {/* 飼育記録編集モーダル（「サイズ」→「体重」、日付不明チェックボックス対応） */}
+                    {showRecordModal && (
+                        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+                            <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4 shadow-2xl">
+                                <h3 className="font-bold text-white">飼育記録の編集</h3>
+                                <div className="space-y-3">
+                                    <div>
+                                        <p className="text-[10px] text-white mb-1">日付</p>
+                                        <DateInput
+                                            value={showRecordModal.date}
+                                            onChange={v => setShowRecordModal({...showRecordModal, date: v})}
+                                            className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700"
+                                        />
+                                    </div>
+                                    <input className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" placeholder="ステージ" value={showRecordModal.item} onChange={e=>setShowRecordModal({...showRecordModal, item:e.target.value})} />
+                                    <div className="flex items-center gap-1">
+                                        <input className="flex-1 bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" placeholder="体重（例: 15g）" value={showRecordModal.size} onChange={e=>setShowRecordModal({...showRecordModal, size:e.target.value})} />
+                                    </div>
+                                    <input className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" placeholder="温度（例: 23℃）" value={showRecordModal.temp} onChange={e=>setShowRecordModal({...showRecordModal, temp:e.target.value})} />
+                                </div>
+                                <div className="flex gap-2">
+                                    <button onClick={() => setShowRecordModal(null)} className="w-full bg-neutral-700 py-2 rounded font-bold text-white text-sm">キャンセル</button>
+                                    <button onClick={() => saveRecord(showRecordModal)} className="w-full bg-emerald-600 py-2 rounded font-bold text-white text-sm">保存</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
 </body>
 </html>
