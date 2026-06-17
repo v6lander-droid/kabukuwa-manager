@@ -325,23 +325,10 @@
                 return children.reduce((s, ch) => s + getLeafCount(ch, new Set(vis)), 0);
             };
 
-            // 行ごとの次の使用可能X座標を管理
-            const nextX = {};
-            const reserveX = (rowIdx, x) => {
-                nextX[rowIdx] = Math.max(nextX[rowIdx] || 0, x + STEP);
-            };
-            const getFreeX = (rowIdx, preferX) => {
-                const minX = nextX[rowIdx] || 0;
-                return Math.max(minX, preferX);
-            };
-
             const place = (c, cx, rowIdx, vis = new Set()) => {
                 if (vis.has(c.id)) return;
                 vis.add(c.id);
-                // 既存カードと重ならない位置に配置
-                const safeX = getFreeX(rowIdx, cx);
-                posMap[c.id] = { x: safeX, rowIdx };
-                reserveX(rowIdx, safeX);
+                posMap[c.id] = { x: cx, rowIdx };
 
                 const children = getChildren(c);
                 if (!children.length) return;
@@ -350,15 +337,11 @@
                     (externalMarriageCount[a.id] || 0) - (externalMarriageCount[b.id] || 0)
                 );
 
-                // 子を左詰めで右隣に展開
-                const childRow = rowIdx + 1;
-                // 子の開始位置：既存カードの右端 or 親のX - 子の総幅/2 の大きい方
                 const totalW = sortedChildren.reduce((s, ch) => s + Math.max(1, getLeafCount(ch)) * STEP, 0);
-                const preferLeft = safeX - totalW / 2 + STEP / 2;
-                let left = Math.max(nextX[childRow] || 0, preferLeft);
+                let left = cx - totalW / 2 + STEP / 2;
                 sortedChildren.forEach(ch => {
                     const w = Math.max(1, getLeafCount(ch)) * STEP;
-                    place(ch, left + w / 2 - STEP / 2, childRow, new Set(vis));
+                    place(ch, left + w / 2 - STEP / 2, rowIdx + 1, new Set(vis));
                     left += w;
                 });
             };
@@ -385,23 +368,18 @@
                 const fOnlyW = fOnly.reduce((s, ch) => s + getLeaf(ch) * STEP, 0);
 
                 // ペア全体の幅 = mOnly分 + mカード + common分 + fカード + fOnly分 の最大値で配置
-                // nextXで既存カードとの重なりを防ぐ
-                const startX = getFreeX(rowIdx, leftX);
-                const mX = startX + mOnlyW + mOwnW / 2;
-                const fX = startX + mOnlyW + mOwnW + commonW + fOwnW / 2;
+                const mX = leftX + mOnlyW + mOwnW / 2;
+                const fX = leftX + mOnlyW + mOwnW + commonW + fOwnW / 2;
 
                 posMap[m.id] = { x: mX, rowIdx };
                 posMap[f.id] = { x: fX, rowIdx };
-                reserveX(rowIdx, mX);
-                reserveX(rowIdx, fX);
                 marriagePairs.push({ x1: mX, x2: fX, y: rowIdx * (CARD_H + ROW_GAP) + CARD_H + 48 });
 
                 const pairCenterX = (mX + fX) / 2;
 
                 if (commonChildren.length > 0) {
                     const commonActualW = commonChildren.reduce((s, ch) => s + Math.max(1, getLeafCount(ch)) * STEP, 0);
-                    const preferLeft = pairCenterX - commonActualW / 2 + STEP / 2;
-                    let left = Math.max(nextX[rowIdx + 1] || 0, preferLeft);
+                    let left = pairCenterX - commonActualW / 2 + STEP / 2;
                     commonChildren.forEach(ch => {
                         const w = Math.max(1, getLeafCount(ch)) * STEP;
                         place(ch, left + w / 2 - STEP / 2, rowIdx + 1, new Set(vis));
@@ -661,6 +639,32 @@
                     }
                 }
             }
+
+            // 第2パス：行ごとに左から右へソートし、重なりを解消
+            // 各カードをできるだけ左に、ただし接続線のため親との相対位置は保持
+            const rowCards = {};
+            Object.entries(posMap).forEach(([id, p]) => {
+                if (!rowCards[p.rowIdx]) rowCards[p.rowIdx] = [];
+                rowCards[p.rowIdx].push({ id, ...p });
+            });
+            Object.keys(rowCards).sort((a, b) => Number(a) - Number(b)).forEach(rowIdx => {
+                const cards = rowCards[rowIdx].sort((a, b) => a.x - b.x);
+                let minX = CARD_W / 2;
+                cards.forEach(card => {
+                    if (card.x < minX) {
+                        // シフト量を計算し、その子孫も同じ量シフト
+                        const shift = minX - card.x;
+                        const shiftSubtree = (id) => {
+                            if (!posMap[id]) return;
+                            posMap[id].x += shift;
+                            const c = creatures.find(c => c.id === id);
+                            if (c) getChildren(c).forEach(ch => shiftSubtree(ch.id));
+                        };
+                        shiftSubtree(card.id);
+                    }
+                    minX = Math.max(minX, posMap[card.id].x + STEP);
+                });
+            });
 
             const allX = Object.values(posMap).map(p => p.x);
             const svgW = Math.max(...allX) + CARD_W / 2 + 8;
