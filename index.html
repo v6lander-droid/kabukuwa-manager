@@ -549,60 +549,6 @@
             });
 
             // 接続線：両親がいる場合は親の中間点から子へ1本、片親のみの場合はその親から子へ
-            const lines = [];
-            creatures.forEach(c => {
-                const cp = posMap[c.id];
-                if (!cp) return;
-                // 実際の親オブジェクトを取得
-                const maleParent = getMale(c);
-                const femaleParent = getFemale(c);
-                const malePos = maleParent ? posMap[maleParent.id] : null;
-                const femalePos = femaleParent ? posMap[femaleParent.id] : null;
-
-                if (!malePos && !femalePos) return;
-
-                const parentRowIdx = (malePos || femalePos).rowIdx;
-                const cy_top = cp.rowIdx * (CARD_H + ROW_GAP);
-                const midY = cy_top - 48 - MARRIAGE_GAP;
-                const py_bottom = parentRowIdx * (CARD_H + ROW_GAP) + CARD_H;
-
-                if (malePos && femalePos) {
-                    const midX = (malePos.x + femalePos.x) / 2;
-                    const pairKey = `${malePos.x.toFixed(1)}_${femalePos.x.toFixed(1)}_${midY.toFixed(1)}`;
-                    lines.push({ x1: midX, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: true, pairKey });
-                } else {
-                    const parentX = (malePos || femalePos).x;
-                    const pairKey = `${parentX.toFixed(1)}_${midY.toFixed(1)}`;
-                    lines.push({ x1: parentX, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: false, pairKey });
-                }
-            });
-
-            // 深度1以降の婚姻ペア（共通の子を持つ同世代の2個体）も検出して線を追加
-            {
-                const alreadyPaired = new Set();
-                creatures.forEach(c => {
-                    if (!posMap[c.id]) return;
-                    creatures.forEach(other => {
-                        if (other.id === c.id || !posMap[other.id]) return;
-                        if (posMap[c.id].rowIdx !== posMap[other.id].rowIdx) return;
-                        const pairKey = [c.id, other.id].sort().join('|');
-                        if (alreadyPaired.has(pairKey)) return;
-                        const cChildren = getChildren(c);
-                        const otherChildren = getChildren(other);
-                        const hasCommon = cChildren.some(ch => otherChildren.some(c2 => c2.id === ch.id));
-                        if (!hasCommon) return;
-                        alreadyPaired.add(pairKey);
-                        // 深度0のペアはplacePairで既に追加済みなのでスキップ
-                        if (posMap[c.id].rowIdx === 0) return;
-                        const [m, f] = isMale(c.sex) ? [c, other] : [other, c];
-                        marriagePairs.push({
-                            x1: posMap[m.id].x,
-                            x2: posMap[f.id].x,
-                            y: posMap[c.id].rowIdx * (CARD_H + ROW_GAP) + CARD_H + 48,
-                        });
-                    });
-                });
-            }
 
             // 全配置後の衝突解消：同じrowIdxで重なるカードを右にシフト
             // rowIdxごとにX座標でソートし、間隔がSTEP未満なら右にずらす（サブツリーごと）
@@ -687,6 +633,62 @@
                     y: partnerPos.rowIdx * (CARD_H + ROW_GAP) + CARD_H + 48
                 });
             });
+
+            const lines = [];
+            creatures.forEach(c => {
+                const cp = posMap[c.id];
+                if (!cp) return;
+                // 実際の親オブジェクトを取得
+                const maleParent = getMale(c);
+                const femaleParent = getFemale(c);
+                const malePos = maleParent ? posMap[maleParent.id] : null;
+                const femalePos = femaleParent ? posMap[femaleParent.id] : null;
+
+                if (!malePos && !femalePos) return;
+
+                const parentRowIdx = (malePos || femalePos).rowIdx;
+                const cy_top = cp.rowIdx * (CARD_H + ROW_GAP);
+                const midY = cy_top - 48 - MARRIAGE_GAP;
+                const py_bottom = parentRowIdx * (CARD_H + ROW_GAP) + CARD_H;
+
+                if (malePos && femalePos) {
+                    const midX = (malePos.x + femalePos.x) / 2;
+                    const pairKey = `${malePos.x.toFixed(1)}_${femalePos.x.toFixed(1)}_${midY.toFixed(1)}`;
+                    lines.push({ x1: midX, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: true, pairKey });
+                } else {
+                    const parentX = (malePos || femalePos).x;
+                    const pairKey = `${parentX.toFixed(1)}_${midY.toFixed(1)}`;
+                    lines.push({ x1: parentX, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: false, pairKey });
+                }
+            });
+
+            // 深度1以降の婚姻ペア（共通の子を持つ同世代の2個体）も検出して線を追加
+            {
+                const alreadyPaired = new Set();
+                creatures.forEach(c => {
+                    if (!posMap[c.id]) return;
+                    creatures.forEach(other => {
+                        if (other.id === c.id || !posMap[other.id]) return;
+                        if (posMap[c.id].rowIdx !== posMap[other.id].rowIdx) return;
+                        const pairKey = [c.id, other.id].sort().join('|');
+                        if (alreadyPaired.has(pairKey)) return;
+                        const cChildren = getChildren(c);
+                        const otherChildren = getChildren(other);
+                        const hasCommon = cChildren.some(ch => otherChildren.some(c2 => c2.id === ch.id));
+                        if (!hasCommon) return;
+                        alreadyPaired.add(pairKey);
+                        // 深度0のペアはplacePairで既に追加済みなのでスキップ
+                        if (posMap[c.id].rowIdx === 0) return;
+                        const [m, f] = isMale(c.sex) ? [c, other] : [other, c];
+                        marriagePairs.push({
+                            x1: posMap[m.id].x,
+                            x2: posMap[f.id].x,
+                            y: posMap[c.id].rowIdx * (CARD_H + ROW_GAP) + CARD_H + 48,
+                        });
+                    });
+                });
+            }
+
 
             const allX = Object.values(posMap).map(p => p.x);
             const svgW = Math.max(...allX) + CARD_W / 2 + 8;
