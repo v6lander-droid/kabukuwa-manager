@@ -220,9 +220,9 @@
             const CARD_W = 112;
             const CARD_H = 72;
             const H_GAP = 20;
-            const ROW_GAP = 96;
+            const ROW_GAP = 192;
             const STEP = CARD_W + H_GAP;
-            const MARRIAGE_GAP = ROW_GAP / 2; // 婚姻線縦線と接続縦線が同じ長さになる
+            const MARRIAGE_GAP = ROW_GAP / 3; // 婚姻線と接続横線の間隔
 
             const getMale   = (c) => (c.maleParent   && c.maleParent   !== '-') ? creatures.find(x => x.name === c.maleParent)   : null;
             const getFemale = (c) => (c.femaleParent && c.femaleParent !== '-') ? creatures.find(x => x.name === c.femaleParent) : null;
@@ -460,7 +460,7 @@
                 if (parents.length === 0) return;
 
                 const cy_top = cp.rowIdx * (CARD_H + ROW_GAP);
-                const midY = cy_top - MARRIAGE_GAP; // 接続横線は子カード上端のMARRIAGE_GAP上（branchY=cy_top）
+                const midY = cy_top - ROW_GAP / 2;
                 const py_bottom = parents[0].rowIdx * (CARD_H + ROW_GAP) + CARD_H;
 
                 if (parents.length === 2) {
