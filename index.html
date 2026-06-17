@@ -422,9 +422,11 @@
                         const [m, f] = pair.members;
                         if (posMap[m.id] || posMap[f.id]) return;
                         placePair(m, f, offsetX, 0, new Set());
-                        // 配置後の最大X座標を取得してoffsetXを更新
-                        const allPlacedX = Object.values(posMap).map(p => p.x);
-                        offsetX = Math.max(...allPlacedX, offsetX) + CARD_W / 2 + H_GAP;
+                        // depth=0のカードのみでoffsetXを更新（子孫の広がりは含めない）
+                        const depth0X = Object.entries(posMap)
+                            .filter(([id, p]) => p.rowIdx === 0)
+                            .map(([id, p]) => p.x);
+                        offsetX = Math.max(...depth0X, offsetX) + CARD_W / 2 + H_GAP;
                     } else {
                         const root = pair.members[0];
                         if (posMap[root.id]) return;
@@ -444,10 +446,11 @@
                     }
                 });
 
-                // グループ全体（祖先〜子孫すべて）の最大X座標を基準に、次グループの開始位置を確定
-                // （婚姻ペアの子孫など、placePair直後には考慮されていなかった子孫の幅も含める）
-                const groupMaxX = Math.max(...group.map(c => posMap[c.id] ? posMap[c.id].x : -Infinity));
-                offsetX = Math.max(offsetX, groupMaxX + CARD_W / 2 + H_GAP);
+                // グループのdepth=0カードの最大X座標で次グループ開始位置を確定
+                const groupRootMaxX = Math.max(...group
+                    .filter(c => posMap[c.id] && posMap[c.id].rowIdx === 0)
+                    .map(c => posMap[c.id].x).concat([-Infinity]));
+                offsetX = Math.max(offsetX, groupRootMaxX + CARD_W / 2 + H_GAP);
             });
 
             // 接続線：両親がいる場合は親の中間点から子へ1本、片親のみの場合はその親から子へ
