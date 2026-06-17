@@ -645,26 +645,26 @@
                             </svg>
                             {creatures.map(c => <Card key={c.id} creature={c} />)}
                             <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
-                                {marriagePairs.map((m, i) => (
-                                    <React.Fragment key={`m${i}`}>
-                                        {/* 両親それぞれのカード下端から婚姻線まで縦線 */}
-                                        <line x1={m.x1} y1={m.y - ROW_GAP / 2} x2={m.x1} y2={m.y} stroke="#525252" strokeWidth="1.5" />
-                                        <line x1={m.x2} y1={m.y - ROW_GAP / 2} x2={m.x2} y2={m.y} stroke="#525252" strokeWidth="1.5" />
-                                        {/* 婚姻線本体 */}
-                                        <line x1={m.x1} y1={m.y} x2={m.x2} y2={m.y} stroke="#525252" strokeWidth="1.5" />
-                                        {/* 婚姻線中点から接続横線まで縦線 */}
-                                        <line x1={(m.x1+m.x2)/2} y1={m.y} x2={(m.x1+m.x2)/2} y2={m.y + MARRIAGE_GAP} stroke="#525252" strokeWidth="1.5" />
-                                    </React.Fragment>
-                                ))}
+                                {marriagePairs.map((m, i) => {
+                                    const cardBottom = m.y - ROW_GAP / 2;
+                                    const midX = (m.x1 + m.x2) / 2;
+                                    const branchY = m.y + MARRIAGE_GAP;
+                                    return (
+                                        <React.Fragment key={`m${i}`}>
+                                            {/* 両親カード下端→婚姻線 縦線 */}
+                                            <line x1={m.x1} y1={cardBottom} x2={m.x1} y2={m.y} stroke="#525252" strokeWidth="1.5" />
+                                            <line x1={m.x2} y1={cardBottom} x2={m.x2} y2={m.y} stroke="#525252" strokeWidth="1.5" />
+                                            {/* 婚姻線（横） */}
+                                            <line x1={m.x1} y1={m.y} x2={m.x2} y2={m.y} stroke="#a3a3a3" strokeWidth="2" />
+                                            {/* 婚姻線中点→接続横線 縦線 */}
+                                            <line x1={midX} y1={m.y} x2={midX} y2={branchY} stroke="#525252" strokeWidth="1.5" />
+                                        </React.Fragment>
+                                    );
+                                })}
                                 {lines.map((l, i) => (
-                                    <React.Fragment key={`vfrag${i}`}>
-                                        {/* 片親のみの場合：親カード下端からmidYまでの区間を補完 */}
-                                        {!l.isPair && (
-                                            <line x1={l.x1} y1={l.y1} x2={l.x1} y2={l.midY} stroke="#525252" strokeWidth="1.5" />
-                                        )}
-                                        {/* 子側：branchYから子カード上端まで */}
-                                        <line x1={l.x2} y1={l.isPair ? l.midY + MARRIAGE_GAP : l.midY} x2={l.x2} y2={l.y2} stroke="#525252" strokeWidth="1.5" />
-                                    </React.Fragment>
+                                    !l.isPair && (
+                                        <line key={`vfrag${i}`} x1={l.x1} y1={l.y1} x2={l.x1} y2={l.midY} stroke="#525252" strokeWidth="1.5" />
+                                    )
                                 ))}
                             </svg>
                         </div>
