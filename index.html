@@ -256,16 +256,16 @@
             };
             creatures.forEach(c => getLeaf(c));
 
-            // 各個体について、婚姻パートナー（共通の子を持つ別個体）を事前計算
-            const partnerMap = {};
+            // 各個体について、婚姻パートナー（共通の子を持つ別個体）を事前計算（複数対応）
+            const partnerMap = {}; // id -> [id, ...]
             creatures.forEach(c => {
                 const myChildren = getChildren(c);
                 if (!myChildren.length) return;
-                const partner = creatures.find(other =>
+                const partners = creatures.filter(other =>
                     other.id !== c.id &&
                     getChildren(other).some(ch => myChildren.some(c2 => c2.id === ch.id))
                 );
-                if (partner) partnerMap[c.id] = partner.id;
+                if (partners.length) partnerMap[c.id] = partners.map(p => p.id);
             });
 
             // 部分木（自分＋子孫）の中に、婚姻パートナーを持つ個体がいくつ含まれるかをカウント
@@ -275,7 +275,7 @@
                 if (externalMarriageCount[c.id] != null) return externalMarriageCount[c.id];
                 if (vis.has(c.id)) return 0;
                 vis.add(c.id);
-                let count = partnerMap[c.id] != null ? 1 : 0;
+                let count = (partnerMap[c.id] && partnerMap[c.id].length) ? 1 : 0;
                 getChildren(c).forEach(ch => {
                     count += countExternalMarriage(ch, new Set(vis));
                 });
@@ -401,25 +401,48 @@
             groups.forEach(group => {
                 const roots = group.filter(c => depthMap[c.id] === 0);
 
-                // ルートをペア化：同じ子を持つ2個体は1組として扱う
+                // ルートをペア化：♂を代表として複数♀との関係をまとめる
                 const placed = new Set();
                 const pairs = [];
                 const externalPairs = []; // depth=0だが婚姻相手がdepth>0の外部個体
-                roots.forEach(r => {
+
+                // まず♂を優先して処理（複数♀をまとめるため）
+                const sortedRoots = [...roots].sort((a, b) => {
+                    if (isMale(a.sex) && !isMale(b.sex)) return -1;
+                    if (!isMale(a.sex) && isMale(b.sex)) return 1;
+                    return 0;
+                });
+
+                sortedRoots.forEach(r => {
                     if (placed.has(r.id)) return;
                     const children = getChildren(r);
-                    // depth=0同士の婚姻ペアを探す
-                    const partner = roots.find(other =>
-                        other.id !== r.id && !placed.has(other.id) &&
-                        getChildren(other).some(ch => children.some(c2 => c2.id === ch.id))
-                    );
-                    if (partner) {
-                        placed.add(r.id);
-                        placed.add(partner.id);
-                        const members = isMale(r.sex) ? [r, partner] : [partner, r];
-                        pairs.push({ members, leaf: getLeaf(r) + getLeaf(partner) });
+
+                    if (isMale(r.sex)) {
+                        // ♂の場合：共通の子を持つ全♀をまとめる
+                        const wives = roots.filter(other =>
+                            other.id !== r.id && !placed.has(other.id) &&
+                            getChildren(other).some(ch => children.some(c2 => c2.id === ch.id))
+                        );
+                        if (wives.length > 0) {
+                            placed.add(r.id);
+                            wives.forEach(w => placed.add(w.id));
+                            pairs.push({ male: r, females: wives });
+                        } else {
+                            // depth>0の♀パートナーを探す
+                            const deepPartner = group.find(other =>
+                                other.id !== r.id && depthMap[other.id] > 0 &&
+                                getChildren(other).some(ch => children.some(c2 => c2.id === ch.id))
+                            );
+                            if (deepPartner) {
+                                placed.add(r.id);
+                                externalPairs.push({ external: r, partner: deepPartner });
+                            } else {
+                                placed.add(r.id);
+                                pairs.push({ male: null, females: [], single: r });
+                            }
+                        }
                     } else {
-                        // depth>0の婚姻相手（繁殖個体）を探す
+                        // ♀の場合：まだ配置されていない場合のみ単独追加
                         const deepPartner = group.find(other =>
                             other.id !== r.id && depthMap[other.id] > 0 &&
                             getChildren(other).some(ch => children.some(c2 => c2.id === ch.id))
@@ -429,28 +452,54 @@
                             externalPairs.push({ external: r, partner: deepPartner });
                         } else {
                             placed.add(r.id);
-                            pairs.push({ members: [r], leaf: getLeaf(r) });
+                            pairs.push({ male: null, females: [], single: r });
                         }
                     }
                 });
 
                 pairs.forEach(pair => {
-                    if (pair.members.length === 2) {
-                        // 婚姻ペア：2枚を隙間なく隣接配置
-                        const [m, f] = pair.members;
+                    if (pair.single) {
+                        // 単独カード
+                        const root = pair.single;
+                        if (posMap[root.id]) return;
+                        place(root, offsetX, 0, new Set());
+                        offsetX += STEP + H_GAP;
+                    } else if (pair.male && pair.females.length === 1) {
+                        // 通常ペア（♂1人＋♀1人）
+                        const m = pair.male, f = pair.females[0];
                         if (posMap[m.id] || posMap[f.id]) return;
                         placePair(m, f, offsetX, 0, new Set());
-                        // depth=0のカードのみでoffsetXを更新（子孫の広がりは含めない）
                         const depth0X = Object.entries(posMap)
                             .filter(([id, p]) => p.rowIdx === 0)
                             .map(([id, p]) => p.x);
                         offsetX = Math.max(...depth0X, offsetX) + CARD_W / 2 + H_GAP;
-                    } else {
-                        const root = pair.members[0];
-                        if (posMap[root.id]) return;
-                        const w = getLeaf(root) * STEP;
-                        place(root, offsetX + w / 2 - STEP / 2, 0, new Set());
-                        offsetX += w + H_GAP;
+                    } else if (pair.male && pair.females.length > 1) {
+                        // ♂1人＋複数♀：♂を左に1枚、♀を右に並べる
+                        const m = pair.male;
+                        if (posMap[m.id]) return;
+                        const mX = offsetX;
+                        posMap[m.id] = { x: mX, rowIdx: 0 };
+                        let curX = mX + STEP;
+                        pair.females.forEach(f => {
+                            if (posMap[f.id]) return;
+                            const fX = curX;
+                            posMap[f.id] = { x: fX, rowIdx: 0 };
+                            // 婚姻線
+                            marriagePairs.push({ x1: mX, x2: fX, y: CARD_H + 48 });
+                            // ♂♀の共通の子を中点から展開
+                            const commonCh = getChildren(m).filter(ch =>
+                                getChildren(f).some(c2 => c2.id === ch.id)
+                            );
+                            const pairCenterX = (mX + fX) / 2;
+                            const totalW = commonCh.length * STEP;
+                            let left = pairCenterX - totalW / 2 + STEP / 2;
+                            commonCh.forEach(ch => {
+                                place(ch, left, 1, new Set());
+                                left += STEP;
+                            });
+                            curX += STEP;
+                        });
+                        offsetX = curX + H_GAP;
                     }
                 });
 
