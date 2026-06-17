@@ -222,6 +222,7 @@
             const H_GAP = 20;
             const ROW_GAP = 96;
             const STEP = CARD_W + H_GAP;
+            const MARRIAGE_GAP = 1.5; // 婚姻線と接続横線の間隔(px)
 
             const getMale   = (c) => (c.maleParent   && c.maleParent   !== '-') ? creatures.find(x => x.name === c.maleParent)   : null;
             const getFemale = (c) => (c.femaleParent && c.femaleParent !== '-') ? creatures.find(x => x.name === c.femaleParent) : null;
@@ -616,9 +617,12 @@
                             transformOrigin: 'top left'
                         }}>
                                 <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
-                                    {lines.map((l, i) => (
-                                        <path key={i} d={`M ${l.x1} ${l.midY} L ${l.x1} ${l.midY} L ${l.x2} ${l.midY} L ${l.x2} ${l.y2}`} stroke="#525252" strokeWidth="1.5" fill="none" />
-                                ))}
+                                    {lines.map((l, i) => {
+                                        const branchY = l.isPair ? l.midY + MARRIAGE_GAP : l.midY;
+                                        return (
+                                            <path key={i} d={`M ${l.x1} ${branchY} L ${l.x2} ${branchY} L ${l.x2} ${l.y2}`} stroke="#525252" strokeWidth="1.5" fill="none" />
+                                        );
+                                    })}
                             </svg>
                             {creatures.map(c => <Card key={c.id} creature={c} />)}
                             <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
@@ -629,6 +633,8 @@
                                         <line x1={m.x2} y1={m.y - ROW_GAP / 2} x2={m.x2} y2={m.y} stroke="#525252" strokeWidth="1.5" />
                                         {/* 婚姻線本体 */}
                                         <line x1={m.x1} y1={m.y} x2={m.x2} y2={m.y} stroke="#525252" strokeWidth="1.5" />
+                                        {/* 婚姻線中点から接続横線まで縦線 */}
+                                        <line x1={(m.x1+m.x2)/2} y1={m.y} x2={(m.x1+m.x2)/2} y2={m.y + MARRIAGE_GAP} stroke="#525252" strokeWidth="1.5" />
                                     </React.Fragment>
                                 ))}
                                 {lines.map((l, i) => (
@@ -637,8 +643,8 @@
                                         {!l.isPair && (
                                             <line x1={l.x1} y1={l.y1} x2={l.x1} y2={l.midY} stroke="#525252" strokeWidth="1.5" />
                                         )}
-                                        {/* 子側：midYから子カード上端まで */}
-                                        <line x1={l.x2} y1={l.midY} x2={l.x2} y2={l.y2} stroke="#525252" strokeWidth="1.5" />
+                                        {/* 子側：branchYから子カード上端まで */}
+                                        <line x1={l.x2} y1={l.isPair ? l.midY + MARRIAGE_GAP : l.midY} x2={l.x2} y2={l.y2} stroke="#525252" strokeWidth="1.5" />
                                     </React.Fragment>
                                 ))}
                             </svg>
