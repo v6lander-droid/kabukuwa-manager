@@ -657,30 +657,30 @@
                 }
             }
 
-            // 第2パス：行ごとに左から右へソートし、重なりを解消
-            // 各カードをできるだけ左に、ただし接続線のため親との相対位置は保持
-            const rowCards = {};
-            Object.entries(posMap).forEach(([id, p]) => {
-                if (!rowCards[p.rowIdx]) rowCards[p.rowIdx] = [];
-                rowCards[p.rowIdx].push({ id, ...p });
-            });
-            Object.keys(rowCards).sort((a, b) => Number(a) - Number(b)).forEach(rowIdx => {
-                const cards = rowCards[rowIdx].sort((a, b) => a.x - b.x);
-                let minX = CARD_W / 2;
-                cards.forEach(card => {
-                    if (card.x < minX) {
-                        // シフト量を計算し、その子孫も同じ量シフト
-                        const shift = minX - card.x;
-                        const shiftSubtree = (id) => {
-                            if (!posMap[id]) return;
-                            posMap[id].x += shift;
-                            const c = creatures.find(c => c.id === id);
-                            if (c) getChildren(c).forEach(ch => shiftSubtree(ch.id));
-                        };
-                        shiftSubtree(card.id);
-                    }
-                    minX = Math.max(minX, posMap[card.id].x + STEP);
-                });
+            // 第2パス：全カードをX座標でソートし、重なりを左から解消
+            // 子孫ごとサブツリー全体をシフトして親子線を保持
+            const allCards = Object.entries(posMap)
+                .map(([id, p]) => ({ id, ...p }))
+                .sort((a, b) => a.x - b.x || a.rowIdx - b.rowIdx);
+            const shifted = new Set();
+            const shiftSubtree = (id, dx) => {
+                if (!posMap[id] || dx === 0) return;
+                posMap[id].x += dx;
+                const c = creatures.find(c => c.id === id);
+                if (c) getChildren(c).forEach(ch => shiftSubtree(ch.id, dx));
+            };
+            let curMinX = CARD_W / 2;
+            // rowIdxごとに独立してminXを管理
+            const rowMinX = {};
+            allCards.sort((a, b) => a.rowIdx - b.rowIdx || a.x - b.x).forEach(card => {
+                const row = card.rowIdx;
+                if (!rowMinX[row]) rowMinX[row] = CARD_W / 2;
+                const curX = posMap[card.id].x;
+                if (curX < rowMinX[row]) {
+                    const dx = rowMinX[row] - curX;
+                    shiftSubtree(card.id, dx);
+                }
+                rowMinX[row] = Math.max(rowMinX[row], posMap[card.id].x + STEP);
             });
 
             const allX = Object.values(posMap).map(p => p.x);
