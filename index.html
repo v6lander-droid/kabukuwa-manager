@@ -466,20 +466,25 @@
                     }
                 });
 
+                // 配置後にoffsetXを全座標の最大値で更新するヘルパー
+                const updateOffsetX = () => {
+                    const allX = Object.values(posMap).map(p => p.x);
+                    if (allX.length) offsetX = Math.max(...allX) + CARD_W / 2 + H_GAP;
+                };
+
                 pairs.forEach(pair => {
                     if (pair.single) {
                         // 単独カード
                         const root = pair.single;
                         if (posMap[root.id]) return;
                         place(root, offsetX, 0, new Set());
-                        offsetX += STEP + H_GAP;
+                        updateOffsetX();
                     } else if (pair.male && pair.females.length === 1) {
                         // 通常ペア（♂1人＋♀1人）
                         const m = pair.male, f = pair.females[0];
                         if (posMap[m.id] || posMap[f.id]) return;
                         placePair(m, f, offsetX, 0, new Set());
-                        const allPosX2 = Object.values(posMap).map(p => p.x);
-                        offsetX = Math.max(...allPosX2, offsetX) + CARD_W / 2 + H_GAP;
+                        updateOffsetX();
                     } else if (pair.male && pair.females.length > 1) {
                         // ♂1人＋複数♀：♂を左に1枚、♀を右に並べる
                         const m = pair.male;
@@ -491,22 +496,21 @@
                             if (posMap[f.id]) return;
                             const fX = curX;
                             posMap[f.id] = { x: fX, rowIdx: 0 };
-                            // 婚姻線
                             marriagePairs.push({ x1: mX, x2: fX, y: CARD_H + 48 });
-                            // ♂♀の共通の子を中点から展開
                             const commonCh = getChildren(m).filter(ch =>
                                 getChildren(f).some(c2 => c2.id === ch.id)
                             );
                             const pairCenterX = (mX + fX) / 2;
-                            const totalW = commonCh.length * STEP;
-                            let left = pairCenterX - totalW / 2 + STEP / 2;
+                            const commonW = commonCh.reduce((s, ch) => s + Math.max(1, getLeafCount(ch)) * STEP, 0);
+                            let left = pairCenterX - commonW / 2 + STEP / 2;
                             commonCh.forEach(ch => {
-                                place(ch, left, 1, new Set());
-                                left += STEP;
+                                const w = Math.max(1, getLeafCount(ch)) * STEP;
+                                place(ch, left + w / 2 - STEP / 2, 1, new Set());
+                                left += w;
                             });
                             curX += STEP;
                         });
-                        offsetX = curX + H_GAP;
+                        updateOffsetX();
                     }
                 });
 
