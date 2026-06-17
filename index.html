@@ -357,7 +357,7 @@
 
                 posMap[m.id] = { x: mX, rowIdx };
                 posMap[f.id] = { x: fX, rowIdx };
-                marriagePairs.push({ x1: mX, x2: fX, y: rowIdx * (CARD_H + ROW_GAP) + CARD_H + ROW_GAP / 2 });
+                marriagePairs.push({ x1: mX, x2: fX, y: rowIdx * (CARD_H + ROW_GAP) + CARD_H + 48 });
 
                 const pairCenterX = (mX + fX) / 2;
 
@@ -493,7 +493,7 @@
                         marriagePairs.push({
                             x1: posMap[m.id].x,
                             x2: posMap[f.id].x,
-                            y: posMap[c.id].rowIdx * (CARD_H + ROW_GAP) + CARD_H + ROW_GAP / 2,
+                            y: posMap[c.id].rowIdx * (CARD_H + ROW_GAP) + CARD_H + 48,
                         });
                     });
                 });
@@ -646,7 +646,7 @@
                             {creatures.map(c => <Card key={c.id} creature={c} />)}
                             <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
                                 {marriagePairs.map((m, i) => {
-                                    const cardBottom = m.y - ROW_GAP / 2;
+                                    const cardBottom = m.y - 48;
                                     const midX = (m.x1 + m.x2) / 2;
                                     const branchY = m.y + MARRIAGE_GAP;
                                     return (
