@@ -314,6 +314,7 @@
             // 配置
             const posMap = {};
             const marriagePairs = []; // 婚姻関係（横線でつなぐペア）
+            let marriagePairIdCounter = 0;
 
             // 再帰配置：centerXを受け取り自分を配置、子を下に等間隔展開
             // 子孫の葉の数（重複なし）を返す
@@ -373,7 +374,7 @@
 
                 posMap[m.id] = { x: mX, rowIdx };
                 posMap[f.id] = { x: fX, rowIdx };
-                marriagePairs.push({ x1: mX, x2: fX, y: rowIdx * (CARD_H + ROW_GAP) + CARD_H + 48 });
+                marriagePairs.push({ x1: mX, x2: fX, y: rowIdx * (CARD_H + ROW_GAP) + CARD_H + 48 , pairId: marriagePairIdCounter++ });
 
                 const pairCenterX = (mX + fX) / 2;
 
@@ -509,7 +510,7 @@
                             posMap[f.id] = { x: fX, rowIdx: 0 };
                             // ♂と♀の間に婚姻線
                             const mfY = CARD_H + 48;
-                            marriagePairs.push({ x1: mX, x2: fX, y: mfY });
+                            marriagePairs.push({ x1: mX, x2: fX, y: mfY , pairId: marriagePairIdCounter++ });
                             // 子をchildStartXから順番に配置（placePairと同じrowIdx使用）
                             let left = childStartX;
                             ch.forEach(child => {
@@ -549,7 +550,7 @@
                     marriagePairs.push({
                         x1: mx, x2: fx,
                         y: partnerPos.rowIdx * (CARD_H + ROW_GAP) + CARD_H + 48
-                    });
+                    , pairId: marriagePairIdCounter++ });
                 });
 
                 // グループ全体（全世代）の最大X座標で次グループ開始位置を確定
@@ -562,11 +563,6 @@
 
             // 接続線：両親がいる場合は親の中間点から子へ1本、片親のみの場合はその親から子へ
             const lines = [];
-            // デバッグ：全posMapをコンソール出力
-            console.log('posMap:', Object.entries(posMap).map(([id,p]) => {
-                const c = creatures.find(x=>x.id===id);
-                return c ? `${c.name}: x=${p.x}, row=${p.rowIdx}` : id;
-            }));
             creatures.forEach(c => {
                 const cp = posMap[c.id];
                 if (!cp) return;
@@ -584,12 +580,14 @@
                 const py_bottom = parentRowIdx * (CARD_H + ROW_GAP) + CARD_H;
 
                 if (malePos && femalePos) {
-                    // 両親のX座標の中点（♀ごとに異なるため確実に別グループになる）
                     const midX = (malePos.x + femalePos.x) / 2;
-                    lines.push({ x1: midX, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: true });
+                    // pairIdでグループ化：同じ♂♀ペアの子のみを同グループに
+                    const pairKey = `${malePos.x.toFixed(1)}_${femalePos.x.toFixed(1)}_${midY.toFixed(1)}`;
+                    lines.push({ x1: midX, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: true, pairKey });
                 } else {
                     const parentX = (malePos || femalePos).x;
-                    lines.push({ x1: parentX, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: false });
+                    const pairKey = `${parentX.toFixed(1)}_${midY.toFixed(1)}`;
+                    lines.push({ x1: parentX, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: false, pairKey });
                 }
             });
 
@@ -615,7 +613,7 @@
                             x1: posMap[m.id].x,
                             x2: posMap[f.id].x,
                             y: posMap[c.id].rowIdx * (CARD_H + ROW_GAP) + CARD_H + 48,
-                        });
+                        , pairId: marriagePairIdCounter++ });
                     });
                 });
             }
@@ -809,7 +807,7 @@
                                         // 同じ親（x1, midY）でグループ化してH字構造を描く
                                         const groups = {};
                                         lines.forEach(l => {
-                                            const key = `${l.x1.toFixed(1)}_${l.midY.toFixed(1)}`;
+                                            const key = l.pairKey || `${l.x1.toFixed(1)}_${l.midY.toFixed(1)}`;
                                             if (!groups[key]) groups[key] = { x1: l.x1, midY: l.midY, isPair: l.isPair, children: [] };
                                             groups[key].children.push({ x: l.x2, y2: l.y2 });
                                         });
