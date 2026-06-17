@@ -316,42 +316,34 @@
             const marriagePairs = []; // 婚姻関係（横線でつなぐペア）
 
             // 再帰配置：centerXを受け取り自分を配置、子を下に等間隔展開
-            // 指定rowIdxで使用済みのX座標を避けて最小のXを返す
-            const getFreeX = (targetX, rowIdx) => {
-                const used = Object.values(posMap)
-                    .filter(p => p.rowIdx === rowIdx)
-                    .map(p => p.x)
-                    .sort((a, b) => a - b);
-                let x = targetX;
-                for (const usedX of used) {
-                    if (Math.abs(x - usedX) < STEP) {
-                        x = usedX + STEP;
-                    }
-                }
-                return x;
+            // 子孫の葉の数（重複なし）を返す
+            const getLeafCount = (c, vis = new Set()) => {
+                if (vis.has(c.id)) return 0;
+                vis.add(c.id);
+                const children = getChildren(c);
+                if (!children.length) return 1;
+                return children.reduce((s, ch) => s + getLeafCount(ch, new Set(vis)), 0);
             };
 
             const place = (c, cx, rowIdx, vis = new Set()) => {
                 if (vis.has(c.id)) return;
                 vis.add(c.id);
-                // 衝突を避けてX座標を確定
-                const safeX = getFreeX(cx, rowIdx);
-                posMap[c.id] = { x: safeX, rowIdx };
+                posMap[c.id] = { x: cx, rowIdx };
 
                 const children = getChildren(c);
                 if (!children.length) return;
 
-                // 線の交差を減らすため、子孫に婚姻関係を多く持つ子を右側（末尾）に配置
                 const sortedChildren = [...children].sort((a, b) =>
                     (externalMarriageCount[a.id] || 0) - (externalMarriageCount[b.id] || 0)
                 );
 
-                // 子を1枚ずつSTEP間隔で並べる
-                const totalW = sortedChildren.length * STEP;
-                let left = safeX - totalW / 2 + STEP / 2;
+                // 子を葉の数に基づいた幅で配置
+                const totalW = sortedChildren.reduce((s, ch) => s + Math.max(1, getLeafCount(ch)) * STEP, 0);
+                let left = cx - totalW / 2 + STEP / 2;
                 sortedChildren.forEach(ch => {
-                    place(ch, left, rowIdx + 1, new Set(vis));
-                    left += STEP;
+                    const w = Math.max(1, getLeafCount(ch)) * STEP;
+                    place(ch, left + w / 2 - STEP / 2, rowIdx + 1, new Set(vis));
+                    left += w;
                 });
             };
 
@@ -387,12 +379,12 @@
                 const pairCenterX = (mX + fX) / 2;
 
                 if (commonChildren.length > 0) {
-                    // 共通の子も1枚ずつSTEP間隔で並べる
-                    const commonActualW = commonChildren.length * STEP;
+                    const commonActualW = commonChildren.reduce((s, ch) => s + Math.max(1, getLeafCount(ch)) * STEP, 0);
                     let left = pairCenterX - commonActualW / 2 + STEP / 2;
                     commonChildren.forEach(ch => {
-                        place(ch, left, rowIdx + 1, new Set(vis));
-                        left += STEP;
+                        const w = Math.max(1, getLeafCount(ch)) * STEP;
+                        place(ch, left + w / 2 - STEP / 2, rowIdx + 1, new Set(vis));
+                        left += w;
                     });
                 }
                 if (mOnly.length > 0) {
