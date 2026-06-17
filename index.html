@@ -325,10 +325,23 @@
                 return children.reduce((s, ch) => s + getLeafCount(ch, new Set(vis)), 0);
             };
 
+            // 行ごとの次の使用可能X座標を管理
+            const nextX = {};
+            const reserveX = (rowIdx, x) => {
+                nextX[rowIdx] = Math.max(nextX[rowIdx] || 0, x + STEP);
+            };
+            const getFreeX = (rowIdx, preferX) => {
+                const minX = nextX[rowIdx] || 0;
+                return Math.max(minX, preferX);
+            };
+
             const place = (c, cx, rowIdx, vis = new Set()) => {
                 if (vis.has(c.id)) return;
                 vis.add(c.id);
-                posMap[c.id] = { x: cx, rowIdx };
+                // 既存カードと重ならない位置に配置
+                const safeX = getFreeX(rowIdx, cx);
+                posMap[c.id] = { x: safeX, rowIdx };
+                reserveX(rowIdx, safeX);
 
                 const children = getChildren(c);
                 if (!children.length) return;
@@ -337,12 +350,16 @@
                     (externalMarriageCount[a.id] || 0) - (externalMarriageCount[b.id] || 0)
                 );
 
-                // 子を葉の数に基づいた幅で配置
+                // 子を葉の数に基づいた幅で配置（親の実際のX中心から展開）
                 const totalW = sortedChildren.reduce((s, ch) => s + Math.max(1, getLeafCount(ch)) * STEP, 0);
-                let left = cx - totalW / 2 + STEP / 2;
+                let left = safeX - totalW / 2 + STEP / 2;
+                // 子の開始位置が既存カードと重なる場合は右にシフト
+                const childRow = rowIdx + 1;
+                const minChildX = nextX[childRow] || 0;
+                if (left < minChildX) left = minChildX;
                 sortedChildren.forEach(ch => {
                     const w = Math.max(1, getLeafCount(ch)) * STEP;
-                    place(ch, left + w / 2 - STEP / 2, rowIdx + 1, new Set(vis));
+                    place(ch, left + w / 2 - STEP / 2, childRow, new Set(vis));
                     left += w;
                 });
             };
@@ -369,11 +386,15 @@
                 const fOnlyW = fOnly.reduce((s, ch) => s + getLeaf(ch) * STEP, 0);
 
                 // ペア全体の幅 = mOnly分 + mカード + common分 + fカード + fOnly分 の最大値で配置
-                const mX = leftX + mOnlyW + mOwnW / 2;
-                const fX = leftX + mOnlyW + mOwnW + commonW + fOwnW / 2;
+                // nextXで既存カードとの重なりを防ぐ
+                const startX = getFreeX(rowIdx, leftX);
+                const mX = startX + mOnlyW + mOwnW / 2;
+                const fX = startX + mOnlyW + mOwnW + commonW + fOwnW / 2;
 
                 posMap[m.id] = { x: mX, rowIdx };
                 posMap[f.id] = { x: fX, rowIdx };
+                reserveX(rowIdx, mX);
+                reserveX(rowIdx, fX);
                 marriagePairs.push({ x1: mX, x2: fX, y: rowIdx * (CARD_H + ROW_GAP) + CARD_H + 48 });
 
                 const pairCenterX = (mX + fX) / 2;
@@ -598,6 +619,47 @@
                         });
                     });
                 });
+            }
+
+            // 全配置後の衝突解消：同じrowIdxで重なるカードを右にシフト
+            // rowIdxごとにX座標でソートし、間隔がSTEP未満なら右にずらす（サブツリーごと）
+            for (let row = 0; row <= maxDepth; row++) {
+                const rowCards = Object.entries(posMap)
+                    .filter(([id, p]) => p.rowIdx === row)
+                    .sort((a, b) => a[1].x - b[1].x);
+                for (let i = 1; i < rowCards.length; i++) {
+                    const prev = rowCards[i - 1][1];
+                    const cur = rowCards[i][1];
+                    if (cur.x - prev.x < STEP) {
+                        const shift = STEP - (cur.x - prev.x);
+                        // cur以降の全カードをshiftだけ右にずらす
+                        const shiftFrom = cur.x;
+                        Object.values(posMap).forEach(p => {
+                            if (p.rowIdx === row && p.x >= shiftFrom) {
+                                p.x += shift;
+                            }
+                        });
+                        // 子孫も同じだけシフト（親との接続を維持）
+                        // 子孫を再帰的にシフトする関数
+                        const shiftSubtree = (id, dx) => {
+                            const children = getChildren(creatures.find(c => c.id === id) || {});
+                            children.forEach(ch => {
+                                if (posMap[ch.id]) {
+                                    posMap[ch.id].x += dx;
+                                    shiftSubtree(ch.id, dx);
+                                }
+                            });
+                        };
+                        // cur以降のカードの子孫をシフト（既にシフトしたものは除く）
+                        rowCards.slice(i).forEach(([id, p]) => {
+                            shiftSubtree(id, shift);
+                        });
+                        // rowCardsのx値を更新
+                        rowCards.slice(i).forEach(([id, p]) => {
+                            // posMapは既に更新済み
+                        });
+                    }
+                }
             }
 
             const allX = Object.values(posMap).map(p => p.x);
