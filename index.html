@@ -284,7 +284,7 @@
             };
             creatures.forEach(c => countExternalMarriage(c));
 
-            // Union-Find でグループ分け
+            // Union-Find でグループ分け（親子関係＋婚姻関係も同グループ）
             const uf = {};
             creatures.forEach(c => { uf[c.id] = c.id; });
             const find = (id) => { if (uf[id] !== id) uf[id] = find(uf[id]); return uf[id]; };
@@ -293,6 +293,15 @@
                 const mp = getMale(c), fp = getFemale(c);
                 if (mp) union(c.id, mp.id);
                 if (fp) union(c.id, fp.id);
+            });
+            // 婚姻関係（共通の子を持つペア）も同グループに
+            creatures.forEach(c => {
+                const cChildren = getChildren(c);
+                creatures.forEach(other => {
+                    if (other.id === c.id) return;
+                    const hasCommon = cChildren.some(ch => getChildren(other).some(c2 => c2.id === ch.id));
+                    if (hasCommon) union(c.id, other.id);
+                });
             });
             const groupMap = {};
             creatures.forEach(c => {
@@ -415,6 +424,25 @@
                     }
                 });
 
+                // depth=0だが婚姻相手がdepth>0の外部個体を特定（後で隣接配置）
+                const externalPairs = [];
+                roots.forEach(r => {
+                    if (placed.has(r.id)) return;
+                    const children = getChildren(r);
+                    // 同グループ内でdepth>0の婚姻相手を探す
+                    const partner = group.find(other =>
+                        other.id !== r.id && depthMap[other.id] > 0 &&
+                        getChildren(other).some(ch => children.some(c2 => c2.id === ch.id))
+                    );
+                    if (partner) {
+                        placed.add(r.id);
+                        externalPairs.push({ external: r, partner });
+                    } else {
+                        placed.add(r.id);
+                        pairs.push({ members: [r], leaf: getLeaf(r) });
+                    }
+                });
+
                 pairs.forEach(pair => {
                     if (pair.members.length === 2) {
                         // 婚姻ペア：2枚を隙間なく隣接配置
@@ -443,6 +471,25 @@
                         posMap[c.id] = { x, rowIdx: depthMap[c.id] };
                         offsetX = Math.max(offsetX, x + STEP + H_GAP);
                     }
+                });
+
+                // 外部個体（depth=0だが婚姻相手がdepth>0）を相手の隣に配置
+                externalPairs.forEach(({ external, partner }) => {
+                    if (!posMap[partner.id]) return;
+                    const partnerPos = posMap[partner.id];
+                    // 相手の右隣に配置（オスなら左、メスなら右）
+                    const extX = isMale(external.sex)
+                        ? partnerPos.x - STEP
+                        : partnerPos.x + STEP;
+                    posMap[external.id] = { x: extX, rowIdx: partnerPos.rowIdx };
+                    // 婚姻線を追加
+                    const [mx, fx] = isMale(external.sex)
+                        ? [extX, partnerPos.x]
+                        : [partnerPos.x, extX];
+                    marriagePairs.push({
+                        x1: mx, x2: fx,
+                        y: partnerPos.rowIdx * (CARD_H + ROW_GAP) + CARD_H + 48
+                    });
                 });
 
                 // グループのdepth=0カードの最大X座標で次グループ開始位置を確定
