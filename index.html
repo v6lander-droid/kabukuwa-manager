@@ -478,10 +478,8 @@
                         const m = pair.male, f = pair.females[0];
                         if (posMap[m.id] || posMap[f.id]) return;
                         placePair(m, f, offsetX, 0, new Set());
-                        const depth0X = Object.entries(posMap)
-                            .filter(([id, p]) => p.rowIdx === 0)
-                            .map(([id, p]) => p.x);
-                        offsetX = Math.max(...depth0X, offsetX) + CARD_W / 2 + H_GAP;
+                        const allPosX2 = Object.values(posMap).map(p => p.x);
+                        offsetX = Math.max(...allPosX2, offsetX) + CARD_W / 2 + H_GAP;
                     } else if (pair.male && pair.females.length > 1) {
                         // ♂1人＋複数♀：♂を左に1枚、♀を右に並べる
                         const m = pair.male;
@@ -541,11 +539,12 @@
                     });
                 });
 
-                // グループのdepth=0カードの最大X座標で次グループ開始位置を確定
-                const groupRootMaxX = Math.max(...group
-                    .filter(c => posMap[c.id] && posMap[c.id].rowIdx === 0)
-                    .map(c => posMap[c.id].x).concat([-Infinity]));
-                offsetX = Math.max(offsetX, groupRootMaxX + CARD_W / 2 + H_GAP);
+                // グループ全体（全世代）の最大X座標で次グループ開始位置を確定
+                const allGroupX = group
+                    .filter(c => posMap[c.id])
+                    .map(c => posMap[c.id].x);
+                const groupMaxX = allGroupX.length ? Math.max(...allGroupX) : -Infinity;
+                offsetX = Math.max(offsetX, groupMaxX + CARD_W / 2 + H_GAP);
             });
 
             // 接続線：両親がいる場合は親の中間点から子へ1本、片親のみの場合はその親から子へ
