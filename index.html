@@ -460,7 +460,7 @@
                 if (parents.length === 0) return;
 
                 const cy_top = cp.rowIdx * (CARD_H + ROW_GAP);
-                const midY = cy_top - ROW_GAP / 2;
+                const midY = cy_top - 48 - MARRIAGE_GAP; // 接続縦線=48px確保
                 const py_bottom = parents[0].rowIdx * (CARD_H + ROW_GAP) + CARD_H;
 
                 if (parents.length === 2) {
