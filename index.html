@@ -617,20 +617,34 @@
                 });
             });
 
-            // 第2パス後：外部個体をパートナーの隣に配置（第2パスのシフト後の位置を使用）
+            // 第2パス後：外部個体を「子のrow - 1」のrowに配置
+            // これにより♀Aも♀Bも同じrow（子世代の1つ上）に並ぶ
             allExternalPairs.forEach(({ external, partner }) => {
-                if (!posMap[partner.id]) return;
+                // 外部個体の子を探してそのrowIdxを取得
+                const extChildren = getChildren(external);
+                const childRowIdx = extChildren.length > 0 && posMap[extChildren[0].id]
+                    ? posMap[extChildren[0].id].rowIdx
+                    : (posMap[partner.id] ? posMap[partner.id].rowIdx + 1 : 1);
+                const targetRowIdx = childRowIdx - 1;
+
+                // 同じrowIdxで最大のXの右隣に配置
+                const sameRowX = Object.values(posMap)
+                    .filter(p => p.rowIdx === targetRowIdx)
+                    .map(p => p.x);
+                const extX = sameRowX.length > 0
+                    ? Math.max(...sameRowX) + STEP
+                    : CARD_W / 2;
+                posMap[external.id] = { x: extX, rowIdx: targetRowIdx };
+
+                // 婚姻相手（partner）のX座標
                 const partnerPos = posMap[partner.id];
-                const extX = isMale(external.sex)
-                    ? partnerPos.x - STEP
-                    : partnerPos.x + STEP;
-                posMap[external.id] = { x: extX, rowIdx: partnerPos.rowIdx };
+                if (!partnerPos) return;
                 const [mx, fx] = isMale(external.sex)
                     ? [extX, partnerPos.x]
                     : [partnerPos.x, extX];
                 marriagePairs.push({
                     x1: mx, x2: fx,
-                    y: partnerPos.rowIdx * (CARD_H + ROW_GAP) + CARD_H + 48
+                    y: targetRowIdx * (CARD_H + ROW_GAP) + CARD_H + 48
                 });
             });
 
