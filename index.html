@@ -364,7 +364,7 @@
 
                 posMap[m.id] = { x: mX, rowIdx };
                 posMap[f.id] = { x: fX, rowIdx };
-                marriagePairs.push({ maleId: m.id, femaleId: f.id, rowIdx });
+                marriagePairs.push({ maleId: m.id, femaleId: f.id, rowIdx, maleX: mX, femaleX: fX });
 
                 const pairCenterX = (mX + fX) / 2;
 
@@ -614,11 +614,24 @@
             creatures.forEach(c => {
                 const cp = posMap[c.id];
                 if (!cp) return;
-                // 実際の親オブジェクトを取得
                 const maleParent = getMale(c);
                 const femaleParent = getFemale(c);
-                const malePos = maleParent ? posMap[maleParent.id] : null;
                 const femalePos = femaleParent ? posMap[femaleParent.id] : null;
+
+                // ♂のposを取得：♀と婚姻関係にあるmarriagePairsエントリから正しいXを取得
+                let malePos = null;
+                if (maleParent) {
+                    if (femaleParent && femalePos) {
+                        // ♀のIDに対応する婚姻線エントリからmaleXスナップショットを使用
+                        const mp = marriagePairs.find(p => p.femaleId === femaleParent.id && p.maleId === maleParent.id);
+                        if (mp && mp.maleX !== undefined) {
+                            malePos = { x: mp.maleX, rowIdx: femalePos.rowIdx };
+                        } else if (posMap[maleParent.id]) {
+                            malePos = posMap[maleParent.id];
+                        }
+                    }
+                    if (!malePos) malePos = posMap[maleParent.id] || null;
+                }
 
                 if (!malePos && !femalePos) return;
 
@@ -812,7 +825,8 @@
                                     const mPos = posMap[m.maleId];
                                     const fPos = posMap[m.femaleId];
                                     if (!mPos || !fPos) return null;
-                                    const mx1 = mPos.x, mx2 = fPos.x;
+                                    const mx1 = m.maleX !== undefined ? m.maleX : mPos.x;
+                                    const mx2 = m.femaleX !== undefined ? m.femaleX : fPos.x;
                                     const my = m.rowIdx * (CARD_H + ROW_GAP) + CARD_H + 48;
                                     const cardBottom = my - 48;
                                     const midX = (mx1 + mx2) / 2;
