@@ -430,11 +430,11 @@
                     const children = getChildren(r);
 
                     if (isMale(r.sex)) {
-                        // ♂の場合：グループ全体から共通の子を持つ全♀をまとめる
-                        const wives = group.filter(other =>
-                            other.id !== r.id && !placed.has(other.id) && !isMale(other.sex) &&
-                            getChildren(other).some(ch => children.some(c2 => c2.id === ch.id))
-                        );
+                        // ♂の場合：partnerMapを使って婚姻相手♀を特定
+                        const partnerIds = partnerMap[r.id] || [];
+                        const wives = partnerIds
+                            .map(pid => creatures.find(c => c.id === pid))
+                            .filter(w => w && !placed.has(w.id) && !isMale(w.sex));
                         const rootWives = wives.filter(w => depthMap[w.id] === 0);
                         const deepWives = wives.filter(w => depthMap[w.id] > 0);
                         if (rootWives.length > 0 || deepWives.length > 0) {
@@ -447,7 +447,7 @@
                                 pairs.push({ male: r, females: rootWives });
                                 deepWives.forEach(w => externalPairs.push({ external: r, partner: w }));
                             } else {
-                                // rootWives=0, deepWivesのみ → singleとして配置後externalPairsへ
+                                // rootWives=0, deepWivesのみ
                                 pairs.push({ male: null, females: [], single: r });
                                 deepWives.forEach(w => externalPairs.push({ external: r, partner: w }));
                             }
