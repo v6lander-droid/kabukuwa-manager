@@ -284,7 +284,7 @@
             };
             creatures.forEach(c => countExternalMarriage(c));
 
-            // Union-Find でグループ分け（親子関係＋婚姻関係も同グループ）
+            // Union-Find でグループ分け（親子関係のみ）
             const uf = {};
             creatures.forEach(c => { uf[c.id] = c.id; });
             const find = (id) => { if (uf[id] !== id) uf[id] = find(uf[id]); return uf[id]; };
@@ -293,15 +293,6 @@
                 const mp = getMale(c), fp = getFemale(c);
                 if (mp) union(c.id, mp.id);
                 if (fp) union(c.id, fp.id);
-            });
-            // 婚姻関係（共通の子を持つペア）も同グループに
-            creatures.forEach(c => {
-                const cChildren = getChildren(c);
-                creatures.forEach(other => {
-                    if (other.id === c.id) return;
-                    const hasCommon = cChildren.some(ch => getChildren(other).some(c2 => c2.id === ch.id));
-                    if (hasCommon) union(c.id, other.id);
-                });
             });
             const groupMap = {};
             creatures.forEach(c => {
