@@ -258,14 +258,16 @@
 
             // 各個体について、婚姻パートナー（共通の子を持つ別個体）を事前計算（複数対応）
             const partnerMap = {}; // id -> [id, ...]
-            creatures.forEach(c => {
-                const myChildren = getChildren(c);
-                if (!myChildren.length) return;
-                const partners = creatures.filter(other =>
-                    other.id !== c.id &&
-                    getChildren(other).some(ch => myChildren.some(c2 => c2.id === ch.id))
-                );
-                if (partners.length) partnerMap[c.id] = partners.map(p => p.id);
+            // maleParent/femaleParentフィールドを直接スキャンして婚姻ペアを構築
+            creatures.forEach(child => {
+                const mp = child.maleParent && child.maleParent !== '-' ? creatures.find(c => c.name === child.maleParent) : null;
+                const fp = child.femaleParent && child.femaleParent !== '-' ? creatures.find(c => c.name === child.femaleParent) : null;
+                if (mp && fp) {
+                    if (!partnerMap[mp.id]) partnerMap[mp.id] = [];
+                    if (!partnerMap[mp.id].includes(fp.id)) partnerMap[mp.id].push(fp.id);
+                    if (!partnerMap[fp.id]) partnerMap[fp.id] = [];
+                    if (!partnerMap[fp.id].includes(mp.id)) partnerMap[fp.id].push(mp.id);
+                }
             });
 
             // 部分木（自分＋子孫）の中に、婚姻パートナーを持つ個体がいくつ含まれるかをカウント
