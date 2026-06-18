@@ -638,8 +638,26 @@
                 // 実際の親オブジェクトを取得
                 const maleParent = getMale(c);
                 const femaleParent = getFemale(c);
-                const malePos = maleParent ? posMap[maleParent.id] : null;
-                const femalePos = femaleParent ? posMap[femaleParent.id] : null;
+                // 通常IDで検索、なければクローンIDで検索
+                const findPos = (parent, otherParent) => {
+                    if (!parent) return null;
+                    if (posMap[parent.id]) return { pos: posMap[parent.id], id: parent.id };
+                    // クローンIDを探す：cloneMapのvalueがparent.idで、かつotherParentが婚姻相手
+                    const cloneEntry = Object.entries(cloneMap).find(([cloneId, origId]) => {
+                        if (origId !== parent.id) return false;
+                        // このクローンはotherParentと婚姻関係か
+                        const mp = marriagePairs.find(m => m.maleId === cloneId || m.femaleId === cloneId);
+                        if (!mp || !otherParent) return false;
+                        return mp.maleId === cloneId && mp.femaleId === otherParent.id ||
+                               mp.femaleId === cloneId && mp.maleId === otherParent.id;
+                    });
+                    if (cloneEntry) return { pos: posMap[cloneEntry[0]], id: cloneEntry[0] };
+                    return null;
+                };
+                const malePosEntry = findPos(maleParent, femaleParent);
+                const femalePosEntry = findPos(femaleParent, maleParent);
+                const malePos = malePosEntry?.pos || null;
+                const femalePos = femalePosEntry?.pos || null;
 
                 if (!malePos && !femalePos) return;
 
