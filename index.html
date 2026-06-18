@@ -597,41 +597,29 @@
             }
 
             // 第2パス：グループ単位で重なりを解消
-            // 各グループの全カードが既存配置済みカードと重ならないよう右にシフト
-            const shiftGroup = (groupIds, dx) => {
-                groupIds.forEach(id => {
-                    if (posMap[id]) posMap[id].x += dx;
-                });
-            };
-
-            // 配置済みグループのカードを記録（グループ順に処理）
-            const placedGroupIds = new Set();
+            // 各グループの最小Xを「既配置カード全体の最大X + H_GAP」以上になるよう右シフト
+            const placedIds = new Set();
             groups.forEach(group => {
-                const groupIdSet = new Set(group.map(c => c.id));
                 const groupIds = group.map(c => c.id).filter(id => posMap[id]);
+                if (groupIds.length === 0) return;
 
-                if (groupIds.length === 0) {
-                    groupIds.forEach(id => placedGroupIds.add(id));
-                    return;
-                }
+                // このグループの現在の最小X
+                const groupMinX = Math.min(...groupIds.map(id => posMap[id].x));
 
-                // このグループの全カードについて、既配置カードとの干渉を検出
-                let maxShift = 0;
-                groupIds.forEach(id => {
-                    const pos = posMap[id];
-                    const row = pos.rowIdx;
-                    // 同じrowの既配置カード（このグループ以外）との干渉チェック
-                    Object.entries(posMap).forEach(([otherId, otherPos]) => {
-                        if (groupIdSet.has(otherId)) return;
-                        if (placedGroupIds.has(otherId) && otherPos.rowIdx === row) {
-                            const overlap = (otherPos.x + STEP) - pos.x;
-                            if (overlap > 0) maxShift = Math.max(maxShift, overlap);
-                        }
-                    });
+                // 既配置カード全体の最大X
+                let maxPlacedX = -Infinity;
+                placedIds.forEach(id => {
+                    if (posMap[id]) maxPlacedX = Math.max(maxPlacedX, posMap[id].x);
                 });
 
-                if (maxShift > 0) shiftGroup(groupIds, maxShift);
-                groupIds.forEach(id => placedGroupIds.add(id));
+                // 必要なシフト量
+                const requiredStart = maxPlacedX === -Infinity ? CARD_W / 2 : maxPlacedX + STEP;
+                const dx = Math.max(0, requiredStart - groupMinX);
+
+                // グループ全体をシフト
+                if (dx > 0) groupIds.forEach(id => { if (posMap[id]) posMap[id].x += dx; });
+
+                groupIds.forEach(id => placedIds.add(id));
             });
 
             // 第2パス後：外部個体をパートナーの隣に配置
