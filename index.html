@@ -418,7 +418,7 @@
                     const children = getChildren(r);
 
                     if (isMale(r.sex)) {
-                        // ♂の場合：グループ全体から共通の子を持つ全♀をまとめる
+                        // ♂の場合：グループ全体から共通の子を持つ全♀を検索
                         const wives = group.filter(other =>
                             other.id !== r.id && !placed.has(other.id) && !isMale(other.sex) &&
                             getChildren(other).some(ch => children.some(c2 => c2.id === ch.id))
@@ -428,18 +428,8 @@
                             wives.forEach(w => placed.add(w.id));
                             pairs.push({ male: r, females: wives });
                         } else {
-                            // depth>0の♀パートナーを探す
-                            const deepPartner = group.find(other =>
-                                other.id !== r.id && depthMap[other.id] > 0 &&
-                                getChildren(other).some(ch => children.some(c2 => c2.id === ch.id))
-                            );
-                            if (deepPartner) {
-                                placed.add(r.id);
-                                externalPairs.push({ external: r, partner: deepPartner });
-                            } else {
-                                placed.add(r.id);
-                                pairs.push({ male: null, females: [], single: r });
-                            }
+                            placed.add(r.id);
+                            pairs.push({ male: null, females: [], single: r });
                         }
                     } else {
                         // ♀の場合：まだ配置されていない場合のみ単独追加
@@ -479,9 +469,7 @@
                         placePair(m, f, offsetX, 0, new Set());
                         updateOffsetX();
                     } else if (pair.male && pair.females.length > 1) {
-                        // ♂1枚＋複数♀：
-                        // 1頭目の♀ → ♂の隣（同じrow=0）に通常ペアとして配置
-                        // 2頭目以降の♀ → ♂の下（row=1）にY座標をずらして配置
+                        // ♂1枚＋複数♀：各♀のツリーを既存の右端に順番に配置
                         const m = pair.male;
                         if (posMap[m.id]) return;
 
@@ -491,34 +479,12 @@
                             );
                             const chW = Math.max(STEP, ch.reduce((s, c) => s + Math.max(1, getLeafCount(c)) * STEP, 0));
                             return { f, ch, chW };
-                        });
+                        }).sort((a, b) => b.ch.length - a.ch.length);
 
-                        // 1頭目の♀を♂と通常ペアで配置
-                        const firstGroup = femaleGroups[0];
-                        placePair(m, firstGroup.f, offsetX, 0, new Set());
-                        updateOffsetX();
-
-                        // 2頭目以降の♀をrow=1にずらして配置
-                        femaleGroups.slice(1).forEach(({ f, ch, chW }) => {
+                        // 各♀について：既存全体右端の右にplacePairで配置
+                        femaleGroups.forEach(({ f, ch }, idx) => {
                             if (posMap[f.id]) return;
-                            const mPos = posMap[m.id];
-                            // ♂の下（row=1）の右端に配置
-                            const row1X = Object.values(posMap)
-                                .filter(p => p.rowIdx === 1)
-                                .map(p => p.x);
-                            const fX = row1X.length > 0
-                                ? Math.max(...row1X) + STEP
-                                : mPos.x;
-                            posMap[f.id] = { x: fX, rowIdx: 1 };
-                            // ♂(row=0)から♀(row=1)への婚姻線
-                            marriagePairs.push({ maleId: m.id, femaleId: f.id, rowIdx: 1 });
-                            // 子を♀の下（row=2）に配置
-                            let left = fX - chW / 2 + STEP / 2;
-                            ch.forEach(child => {
-                                const w = Math.max(1, getLeafCount(child)) * STEP;
-                                place(child, left + w / 2 - STEP / 2, depthMap[child.id], new Set());
-                                left += w;
-                            });
+                            placePair(m, f, offsetX, 0, new Set());
                             updateOffsetX();
                         });
                     }
