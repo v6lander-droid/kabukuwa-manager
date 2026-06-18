@@ -258,16 +258,14 @@
 
             // 各個体について、婚姻パートナー（共通の子を持つ別個体）を事前計算（複数対応）
             const partnerMap = {}; // id -> [id, ...]
-            // maleParent/femaleParentフィールドを直接スキャンして婚姻ペアを構築
-            creatures.forEach(child => {
-                const mp = child.maleParent && child.maleParent !== '-' ? creatures.find(c => c.name === child.maleParent) : null;
-                const fp = child.femaleParent && child.femaleParent !== '-' ? creatures.find(c => c.name === child.femaleParent) : null;
-                if (mp && fp) {
-                    if (!partnerMap[mp.id]) partnerMap[mp.id] = [];
-                    if (!partnerMap[mp.id].includes(fp.id)) partnerMap[mp.id].push(fp.id);
-                    if (!partnerMap[fp.id]) partnerMap[fp.id] = [];
-                    if (!partnerMap[fp.id].includes(mp.id)) partnerMap[fp.id].push(mp.id);
-                }
+            creatures.forEach(c => {
+                const myChildren = getChildren(c);
+                if (!myChildren.length) return;
+                const partners = creatures.filter(other =>
+                    other.id !== c.id &&
+                    getChildren(other).some(ch => myChildren.some(c2 => c2.id === ch.id))
+                );
+                if (partners.length) partnerMap[c.id] = partners.map(p => p.id);
             });
 
             // 部分木（自分＋子孫）の中に、婚姻パートナーを持つ個体がいくつ含まれるかをカウント
@@ -306,14 +304,6 @@
 
             // 配置
             const posMap = {};
-            const cloneMap = {}; // cloneId -> originalId (複製カード管理)
-            const dupColors = ['#f59e0b','#10b981','#8b5cf6','#ef4444','#06b6d4','#f97316','#ec4899','#84cc16'];
-            const dupColorMap = {}; // originalId -> color
-            let dupColorIdx = 0;
-            const getDupColor = (id) => {
-                if (!dupColorMap[id]) dupColorMap[id] = dupColors[dupColorIdx++ % dupColors.length];
-                return dupColorMap[id];
-            };
             const marriagePairs = []; // 婚姻関係（横線でつなぐペア）
 
             // 再帰配置：centerXを受け取り自分を配置、子を下に等間隔展開
@@ -348,20 +338,16 @@
             };
 
             // ペア配置：両親2枚を隣接配置し、共通の子をペアの中央から展開
-            const placePair = (m, f, leftX, rowIdx, vis = new Set(), overrideCommonChildren = null) => {
+            const placePair = (m, f, leftX, rowIdx, vis = new Set()) => {
                 vis.add(m.id); vis.add(f.id);
 
                 const sortByMarriage = (arr) => [...arr].sort((a, b) =>
                     getLeafCount(b) - getLeafCount(a)
                 );
-                const commonChildren = overrideCommonChildren
-                    ? sortByMarriage(overrideCommonChildren)
-                    : sortByMarriage(getChildren(m).filter(ch =>
-                        getChildren(f).some(c2 => c2.id === ch.id)
-                    ));
-                const mOnly = overrideCommonChildren
-                    ? []
-                    : sortByMarriage(getChildren(m).filter(ch => !commonChildren.some(c2 => c2.id === ch.id)));
+                const commonChildren = sortByMarriage(getChildren(m).filter(ch =>
+                    getChildren(f).some(c2 => c2.id === ch.id)
+                ));
+                const mOnly = sortByMarriage(getChildren(m).filter(ch => !commonChildren.some(c2 => c2.id === ch.id)));
                 const fOnly = sortByMarriage(getChildren(f).filter(ch => !commonChildren.some(c2 => c2.id === ch.id)));
 
                 // 各親自身は1枚分(STEP)、共通の子・単独の子はそれぞれの幅を加算
@@ -432,27 +418,15 @@
                     const children = getChildren(r);
 
                     if (isMale(r.sex)) {
-                        // ♂の場合：partnerMapを使って婚姻相手♀を特定
-                        const partnerIds = partnerMap[r.id] || [];
-                        const wives = partnerIds
-                            .map(pid => creatures.find(c => c.id === pid))
-                            .filter(w => w && !placed.has(w.id) && !isMale(w.sex));
-                        const rootWives = wives.filter(w => depthMap[w.id] === 0);
-                        const deepWives = wives.filter(w => depthMap[w.id] > 0);
-                        if (rootWives.length > 0 || deepWives.length > 0) {
+                        // ♂の場合：グループ全体から共通の子を持つ全♀をまとめる
+                        const wives = group.filter(other =>
+                            other.id !== r.id && !placed.has(other.id) && !isMale(other.sex) &&
+                            getChildren(other).some(ch => children.some(c2 => c2.id === ch.id))
+                        );
+                        if (wives.length > 0) {
                             placed.add(r.id);
-                            rootWives.forEach(w => placed.add(w.id));
-                            deepWives.forEach(w => placed.add(w.id));
-                            if (rootWives.length === 1 && deepWives.length === 0) {
-                                pairs.push({ male: r, females: rootWives });
-                            } else if (rootWives.length > 0) {
-                                pairs.push({ male: r, females: rootWives });
-                                deepWives.forEach(w => externalPairs.push({ external: r, partner: w }));
-                            } else {
-                                // rootWives=0, deepWivesのみ
-                                pairs.push({ male: null, females: [], single: r });
-                                deepWives.forEach(w => externalPairs.push({ external: r, partner: w }));
-                            }
+                            wives.forEach(w => placed.add(w.id));
+                            pairs.push({ male: r, females: wives });
                         } else {
                             // depth>0の♀パートナーを探す
                             const deepPartner = group.find(other =>
@@ -505,27 +479,46 @@
                         placePair(m, f, offsetX, 0, new Set());
                         updateOffsetX();
                     } else if (pair.male && pair.females.length > 1) {
-                        // ♂複製方式：各♀ペアに♂を複製して通常placePairで配置
+                        // ♂1枚＋複数♀：
+                        // 1頭目の♀ → ♂の隣（同じrow=0）に通常ペアとして配置
+                        // 2頭目以降の♀ → ♂の下（row=1）にY座標をずらして配置
                         const m = pair.male;
                         if (posMap[m.id]) return;
-                        getDupColor(m.id); // マーキング色を確定
 
                         const femaleGroups = pair.females.map(f => {
                             const ch = getChildren(m).filter(ch =>
                                 getChildren(f).some(c2 => c2.id === ch.id)
                             );
-                            return { f, ch };
-                        }).sort((a, b) => getLeafCount(b.f) - getLeafCount(a.f));
+                            const chW = Math.max(STEP, ch.reduce((s, c) => s + Math.max(1, getLeafCount(c)) * STEP, 0));
+                            return { f, ch, chW };
+                        });
 
-                        femaleGroups.forEach(({ f, ch }, idx) => {
-                            const mId = idx === 0 ? m.id : `${m.id}__clone__${idx}`;
-                            if (idx > 0) {
-                                cloneMap[mId] = m.id;
-                                posMap[mId] = { x: 0, rowIdx: 0 };
-                            }
-                            const mObj = idx === 0 ? m : { ...m, id: mId };
-                            // overrideCommonChildrenで「この♀との子のみ」を渡す
-                            placePair(mObj, f, offsetX, 0, new Set(), ch);
+                        // 1頭目の♀を♂と通常ペアで配置
+                        const firstGroup = femaleGroups[0];
+                        placePair(m, firstGroup.f, offsetX, 0, new Set());
+                        updateOffsetX();
+
+                        // 2頭目以降の♀をrow=1にずらして配置
+                        femaleGroups.slice(1).forEach(({ f, ch, chW }) => {
+                            if (posMap[f.id]) return;
+                            const mPos = posMap[m.id];
+                            // ♂の下（row=1）の右端に配置
+                            const row1X = Object.values(posMap)
+                                .filter(p => p.rowIdx === 1)
+                                .map(p => p.x);
+                            const fX = row1X.length > 0
+                                ? Math.max(...row1X) + STEP
+                                : mPos.x;
+                            posMap[f.id] = { x: fX, rowIdx: 1 };
+                            // ♂(row=0)から♀(row=1)への婚姻線
+                            marriagePairs.push({ maleId: m.id, femaleId: f.id, rowIdx: 1 });
+                            // 子を♀の下（row=2）に配置
+                            let left = fX - chW / 2 + STEP / 2;
+                            ch.forEach(child => {
+                                const w = Math.max(1, getLeafCount(child)) * STEP;
+                                place(child, left + w / 2 - STEP / 2, depthMap[child.id], new Set());
+                                left += w;
+                            });
                             updateOffsetX();
                         });
                     }
@@ -654,29 +647,8 @@
                 // 実際の親オブジェクトを取得
                 const maleParent = getMale(c);
                 const femaleParent = getFemale(c);
-
-                // ♀親のposMapを取得
+                const malePos = maleParent ? posMap[maleParent.id] : null;
                 const femalePos = femaleParent ? posMap[femaleParent.id] : null;
-
-                // ♂親のposMapを取得：必ずmarriagePairsを通じて正しいID（元orクローン）を特定
-                let malePos = null;
-                if (maleParent && femaleParent) {
-                    // ♂♀両親がいる場合：この2者が婚姻関係にあるmarriagePairsエントリを探す
-                    // 元ID or クローンIDいずれかでマッチ
-                    const candidateMaleIds = [maleParent.id,
-                        ...Object.entries(cloneMap).filter(([,origId]) => origId === maleParent.id).map(([cloneId]) => cloneId)
-                    ];
-                    for (const mId of candidateMaleIds) {
-                        const mp = marriagePairs.find(p =>
-                            (p.maleId === mId && p.femaleId === femaleParent.id) ||
-                            (p.femaleId === mId && p.maleId === femaleParent.id)
-                        );
-                        if (mp && posMap[mId]) { malePos = posMap[mId]; break; }
-                    }
-                } else if (maleParent) {
-                    // ♀親不明の場合：元IDのposMapを使う
-                    malePos = posMap[maleParent.id] || null;
-                }
 
                 if (!malePos && !femalePos) return;
 
@@ -790,17 +762,15 @@
                 }
             };
 
-            const Card = ({ creature, markColor }) => {
+            const Card = ({ creature }) => {
                 const pos = posMap[creature.id];
                 if (!pos) return null;
                 return (
                     <div
                         onClick={() => onSelect(creature)}
-                        style={{ position: 'absolute', left: pos.x - CARD_W/2, top: pos.rowIdx*(CARD_H+ROW_GAP), width: CARD_W, height: CARD_H, borderTopWidth: 4, borderTopStyle: 'solid', borderTopColor: isMale(creature.sex) ? '#60a5fa' : '#f472b6',
-                            outline: markColor ? `2px solid ${markColor}` : 'none', outlineOffset: '2px' }}
+                        style={{ position: 'absolute', left: pos.x - CARD_W/2, top: pos.rowIdx*(CARD_H+ROW_GAP), width: CARD_W, height: CARD_H, borderTopWidth: 4, borderTopStyle: 'solid', borderTopColor: isMale(creature.sex) ? '#60a5fa' : '#f472b6' }}
                         className={`cursor-pointer rounded-lg border px-2 py-1.5 text-center transition-all hover:scale-105 select-none ${highlightId === creature.id ? 'bg-emerald-900 border-emerald-400' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-400'}`}
                     >
-                        {markColor && <div style={{position:'absolute',top:2,right:3,width:7,height:7,borderRadius:'50%',backgroundColor:markColor,zIndex:10}}></div>}
                         <div style={{color: sexColor(creature.sex)}} className="text-[9px] font-bold">
                             <i className={`fa-solid ${isMale(creature.sex) ? 'fa-mars' : 'fa-venus'}`}></i>
                         </div>
@@ -866,12 +836,7 @@
                                         });
                                     })()}
                             </svg>
-                            {creatures.map(c => <Card key={c.id} creature={c} markColor={dupColorMap[c.id]} />)}
-                            {Object.entries(cloneMap).map(([cloneId, origId]) => {
-                                const orig = creatures.find(c => c.id === origId);
-                                if (!orig || !posMap[cloneId]) return null;
-                                return <Card key={cloneId} creature={{...orig, id: cloneId}} markColor={dupColorMap[origId]} />;
-                            })}
+                            {creatures.map(c => <Card key={c.id} creature={c} />)}
                             <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
                                 {marriagePairs.map((m, i) => {
                                     const mPos = posMap[m.maleId];
