@@ -364,7 +364,7 @@
 
                 posMap[m.id] = { x: mX, rowIdx };
                 posMap[f.id] = { x: fX, rowIdx };
-                marriagePairs.push({ x1: mX, x2: fX, y: rowIdx * (CARD_H + ROW_GAP) + CARD_H + 48 });
+                marriagePairs.push({ maleId: m.id, femaleId: f.id, rowIdx });
 
                 const pairCenterX = (mX + fX) / 2;
 
@@ -511,12 +511,7 @@
                                 : mPos.x;
                             posMap[f.id] = { x: fX, rowIdx: 1 };
                             // ♂(row=0)から♀(row=1)への婚姻線
-                            marriagePairs.push({
-                                x1: Math.min(mPos.x, fX),
-                                x2: Math.max(mPos.x, fX),
-                                y: 1 * (CARD_H + ROW_GAP) + CARD_H + 48,
-                                rowIdx: 1
-                            });
+                            marriagePairs.push({ maleId: m.id, femaleId: f.id, rowIdx: 1 });
                             // 子を♀の下（row=2）に配置
                             let left = fX - chW / 2 + STEP / 2;
                             ch.forEach(child => {
@@ -634,11 +629,7 @@
                 const [mx, fx] = isMale(external.sex)
                     ? [extX, partnerPos.x]
                     : [partnerPos.x, extX];
-                marriagePairs.push({
-                    x1: mx, x2: fx,
-                    y: partnerPos.rowIdx * (CARD_H + ROW_GAP) + CARD_H + 48,
-                    rowIdx: partnerPos.rowIdx
-                });
+                marriagePairs.push({ maleId: isMale(external.sex) ? external.id : partner.id, femaleId: isMale(external.sex) ? partner.id : external.id, rowIdx: partnerPos.rowIdx });
             });
 
             const lines = [];
@@ -844,9 +835,14 @@
                             {creatures.map(c => <Card key={c.id} creature={c} />)}
                             <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
                                 {marriagePairs.map((m, i) => {
-                                    const cardBottom = m.y - 48;
-                                    const midX = (m.x1 + m.x2) / 2;
-                                    const branchY = m.y + MARRIAGE_GAP;
+                                    const mPos = posMap[m.maleId];
+                                    const fPos = posMap[m.femaleId];
+                                    if (!mPos || !fPos) return null;
+                                    const mx1 = mPos.x, mx2 = fPos.x;
+                                    const my = m.rowIdx * (CARD_H + ROW_GAP) + CARD_H + 48;
+                                    const cardBottom = my - 48;
+                                    const midX = (mx1 + mx2) / 2;
+                                    const branchY = my + MARRIAGE_GAP;
                                     return (
                                         <React.Fragment key={`m${i}`}>
                                             {/* 両親カード下端→婚姻線 縦線 */}
