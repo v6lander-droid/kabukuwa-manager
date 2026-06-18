@@ -469,7 +469,7 @@
                         placePair(m, f, offsetX, 0, new Set());
                         updateOffsetX();
                     } else if (pair.male && pair.females.length > 1) {
-                        // ♂1枚＋複数♀：各♀のツリーを既存の右端に順番に配置
+                        // ♂1枚＋複数♀：母親ごとに独立したグループとして表示
                         const m = pair.male;
                         if (posMap[m.id]) return;
 
@@ -481,12 +481,15 @@
                             return { f, ch, chW };
                         }).sort((a, b) => b.ch.length - a.ch.length);
 
-                        // 各♀について：既存全体右端の右にplacePairで配置
                         femaleGroups.forEach(({ f, ch }, idx) => {
                             if (posMap[f.id]) return;
+                            // ♂のposMapを毎回リセットして独立配置
+                            delete posMap[m.id];
                             placePair(m, f, offsetX, 0, new Set(), ch);
                             updateOffsetX();
                         });
+                        // ♂の最終位置は最初の♀ペアのX（最も子孫が多い）
+                        // posMapには最後の配置が残るが、婚姻線はmarriyagePairsで管理
                     }
                 });
 
