@@ -304,16 +304,13 @@
 
             // 配置
             const posMap = {};
-            const cloneMap = {}; // cloneId -> originalId
-            const duplicateColorMap = {}; // originalId -> color (HSL)
-            let dupColorIndex = 0;
+            const cloneMap = {}; // cloneId -> originalId (複製カード管理)
             const dupColors = ['#f59e0b','#10b981','#8b5cf6','#ef4444','#06b6d4','#f97316','#ec4899','#84cc16'];
+            const dupColorMap = {}; // originalId -> color
+            let dupColorIdx = 0;
             const getDupColor = (id) => {
-                if (!duplicateColorMap[id]) {
-                    duplicateColorMap[id] = dupColors[dupColorIndex % dupColors.length];
-                    dupColorIndex++;
-                }
-                return duplicateColorMap[id];
+                if (!dupColorMap[id]) dupColorMap[id] = dupColors[dupColorIdx++ % dupColors.length];
+                return dupColorMap[id];
             };
             const marriagePairs = []; // 婚姻関係（横線でつなぐペア）
 
@@ -490,38 +487,29 @@
                         placePair(m, f, offsetX, 0, new Set());
                         updateOffsetX();
                     } else if (pair.male && pair.females.length > 1) {
-                        // ♂複製方式：各♀の隣に♂を複製配置し、複製カードをマーキング
+                        // ♂複製方式：各♀ペアに♂を複製して通常placePairで配置
                         const m = pair.male;
                         if (posMap[m.id]) return;
-                        getDupColor(m.id); // 色を確定
+                        getDupColor(m.id); // マーキング色を確定
 
                         const femaleGroups = pair.females.map(f => {
                             const ch = getChildren(m).filter(ch =>
                                 getChildren(f).some(c2 => c2.id === ch.id)
                             );
-                            const chW = Math.max(STEP, ch.reduce((s, c) => s + Math.max(1, getLeafCount(c)) * STEP, 0));
-                            return { f, ch, chW };
-                        }).sort((a, b) => b.ch.length - a.ch.length);
+                            return { f, ch };
+                        }).sort((a, b) => getLeafCount(b.f) - getLeafCount(a.f));
 
-                        femaleGroups.forEach(({ f, ch, chW }, idx) => {
-                            const cloneId = idx === 0 ? m.id : `${m.id}_clone_${idx}`;
-                            // ♂（複製）を配置
-                            const mX = offsetX + STEP / 2;
-                            posMap[cloneId] = { x: mX, rowIdx: 0 };
-                            if (idx > 0) cloneMap[cloneId] = m.id;
-                            // ♀を配置
-                            const fX = mX + STEP;
-                            posMap[f.id] = { x: fX, rowIdx: 0 };
-                            // 婚姻線
-                            marriagePairs.push({ maleId: cloneId, femaleId: f.id, rowIdx: 0 });
-                            // 子を展開
-                            const pairCenter = (mX + fX) / 2;
-                            let left = pairCenter - chW / 2 + STEP / 2;
-                            ch.forEach(child => {
-                                const w = Math.max(1, getLeafCount(child)) * STEP;
-                                place(child, left + w / 2 - STEP / 2, depthMap[child.id], new Set());
-                                left += w;
-                            });
+                        femaleGroups.forEach(({ f, ch }, idx) => {
+                            // 各♀に対してplacePairを呼ぶ（0番目は本物、1番目以降は複製IDを使用）
+                            const mId = idx === 0 ? m.id : `${m.id}__clone__${idx}`;
+                            if (idx > 0) {
+                                cloneMap[mId] = m.id;
+                                // 複製IDをposMapに仮登録（placePairが上書きする）
+                                posMap[mId] = { x: 0, rowIdx: 0 };
+                            }
+                            // placePairに渡すオブジェクト（IDのみ変更）
+                            const mObj = idx === 0 ? m : { ...m, id: mId };
+                            placePair(mObj, f, offsetX, 0, new Set());
                             updateOffsetX();
                         });
                     }
@@ -772,12 +760,10 @@
                     <div
                         onClick={() => onSelect(creature)}
                         style={{ position: 'absolute', left: pos.x - CARD_W/2, top: pos.rowIdx*(CARD_H+ROW_GAP), width: CARD_W, height: CARD_H, borderTopWidth: 4, borderTopStyle: 'solid', borderTopColor: isMale(creature.sex) ? '#60a5fa' : '#f472b6',
-                            outline: markColor ? `2.5px solid ${markColor}` : 'none',
-                            outlineOffset: '2px'
-                        }}
+                            outline: markColor ? `2px solid ${markColor}` : 'none', outlineOffset: '2px' }}
                         className={`cursor-pointer rounded-lg border px-2 py-1.5 text-center transition-all hover:scale-105 select-none ${highlightId === creature.id ? 'bg-emerald-900 border-emerald-400' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-400'}`}
                     >
-                        {markColor && <div style={{position:'absolute',top:2,right:4,width:8,height:8,borderRadius:'50%',backgroundColor:markColor}}></div>}
+                        {markColor && <div style={{position:'absolute',top:2,right:3,width:7,height:7,borderRadius:'50%',backgroundColor:markColor,zIndex:10}}></div>}
                         <div style={{color: sexColor(creature.sex)}} className="text-[9px] font-bold">
                             <i className={`fa-solid ${isMale(creature.sex) ? 'fa-mars' : 'fa-venus'}`}></i>
                         </div>
@@ -843,17 +829,11 @@
                                         });
                                     })()}
                             </svg>
-                            {creatures.map(c => {
-                                const dupColor = duplicateColorMap[c.id];
-                                return <Card key={c.id} creature={c} markColor={dupColor} />;
-                            })}
-                            {/* 複製カード（♂が複数♀と婚姻関係の場合） */}
+                            {creatures.map(c => <Card key={c.id} creature={c} markColor={dupColorMap[c.id]} />)}
                             {Object.entries(cloneMap).map(([cloneId, origId]) => {
                                 const orig = creatures.find(c => c.id === origId);
-                                const pos = posMap[cloneId];
-                                if (!orig || !pos) return null;
-                                const dupColor = duplicateColorMap[origId];
-                                return <Card key={cloneId} creature={{...orig, id: cloneId}} markColor={dupColor} />;
+                                if (!orig || !posMap[cloneId]) return null;
+                                return <Card key={cloneId} creature={{...orig, id: cloneId}} markColor={dupColorMap[origId]} />;
                             })}
                             <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
                                 {marriagePairs.map((m, i) => {
