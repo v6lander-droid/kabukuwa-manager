@@ -325,7 +325,7 @@
                 if (!children.length) return;
 
                 const sortedChildren = [...children].sort((a, b) =>
-                    (externalMarriageCount[a.id] || 0) - (externalMarriageCount[b.id] || 0)
+                    getLeafCount(b) - getLeafCount(a) // 子孫が多い順（左から右）
                 );
 
                 const totalW = sortedChildren.reduce((s, ch) => s + Math.max(1, getLeafCount(ch)) * STEP, 0);
@@ -342,7 +342,7 @@
                 vis.add(m.id); vis.add(f.id);
 
                 const sortByMarriage = (arr) => [...arr].sort((a, b) =>
-                    (externalMarriageCount[a.id] || 0) - (externalMarriageCount[b.id] || 0)
+                    getLeafCount(b) - getLeafCount(a)
                 );
                 const commonChildren = sortByMarriage(getChildren(m).filter(ch =>
                     getChildren(f).some(c2 => c2.id === ch.id)
