@@ -474,8 +474,9 @@
                         if (posMap[m.id]) return;
 
                         const femaleGroups = pair.females.map(f => {
-                            const ch = getChildren(m).filter(ch =>
-                                getChildren(f).some(c2 => c2.id === ch.id)
+                            // maleParent/femaleParentフィールドで直接子を特定
+                            const ch = creatures.filter(child =>
+                                child.maleParent === m.name && child.femaleParent === f.name
                             );
                             const chW = Math.max(STEP, ch.reduce((s, c) => s + Math.max(1, getLeafCount(c)) * STEP, 0));
                             return { f, ch, chW };
