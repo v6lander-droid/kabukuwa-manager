@@ -641,32 +641,27 @@
                 const maleParent = getMale(c);
                 const femaleParent = getFemale(c);
 
-                // ♀親のposMapを取得（♀は複製しないので通常ID）
+                // ♀親のposMapを取得
                 const femalePos = femaleParent ? posMap[femaleParent.id] : null;
 
-                // ♂親のposMapを取得：この子の♀親と婚姻関係にある♂（またはクローン）を特定
+                // ♂親のposMapを取得：必ずmarriagePairsを通じて正しいID（元orクローン）を特定
                 let malePos = null;
-                if (maleParent) {
-                    if (posMap[maleParent.id]) {
-                        // 通常IDが存在する場合：♀親と婚姻関係か確認
-                        const mp = femaleParent
-                            ? marriagePairs.find(p =>
-                                (p.maleId === maleParent.id && p.femaleId === femaleParent.id) ||
-                                (p.femaleId === maleParent.id && p.maleId === femaleParent.id))
-                            : marriagePairs.find(p => p.maleId === maleParent.id || p.femaleId === maleParent.id);
-                        if (mp) malePos = posMap[maleParent.id];
+                if (maleParent && femaleParent) {
+                    // ♂♀両親がいる場合：この2者が婚姻関係にあるmarriagePairsエントリを探す
+                    // 元ID or クローンIDいずれかでマッチ
+                    const candidateMaleIds = [maleParent.id,
+                        ...Object.entries(cloneMap).filter(([,origId]) => origId === maleParent.id).map(([cloneId]) => cloneId)
+                    ];
+                    for (const mId of candidateMaleIds) {
+                        const mp = marriagePairs.find(p =>
+                            (p.maleId === mId && p.femaleId === femaleParent.id) ||
+                            (p.femaleId === mId && p.maleId === femaleParent.id)
+                        );
+                        if (mp && posMap[mId]) { malePos = posMap[mId]; break; }
                     }
-                    if (!malePos) {
-                        // クローンIDを検索：♀親と婚姻関係にあるクローンを探す
-                        const cloneEntry = Object.entries(cloneMap).find(([cloneId, origId]) => {
-                            if (origId !== maleParent.id) return false;
-                            if (!femaleParent) return !!posMap[cloneId];
-                            return marriagePairs.some(p =>
-                                (p.maleId === cloneId && p.femaleId === femaleParent.id) ||
-                                (p.femaleId === cloneId && p.maleId === femaleParent.id));
-                        });
-                        if (cloneEntry) malePos = posMap[cloneEntry[0]];
-                    }
+                } else if (maleParent) {
+                    // ♀親不明の場合：元IDのposMapを使う
+                    malePos = posMap[maleParent.id] || null;
                 }
 
                 if (!malePos && !femalePos) return;
