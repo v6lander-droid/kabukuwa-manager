@@ -632,6 +632,52 @@
                 marriagePairs.push({ maleId: isMale(external.sex) ? external.id : partner.id, femaleId: isMale(external.sex) ? partner.id : external.id, rowIdx: partnerPos.rowIdx });
             });
 
+            // 第3パス：各行を左詰めにコンパクト化（グループ単位でのシフト後）
+            // 各rowIdxで、左から右へカードをスキャンし、不要な隙間を詰める
+            // ただし同グループ内の相対位置は維持（サブツリーごと移動）
+            {
+                const allRowIdxs = [...new Set(Object.values(posMap).map(p => p.rowIdx))].sort((a,b)=>a-b);
+                allRowIdxs.forEach(row => {
+                    const rowCards = Object.entries(posMap)
+                        .filter(([,p]) => p.rowIdx === row)
+                        .sort(([,a],[,b]) => a.x - b.x);
+                    let minX = CARD_W / 2;
+                    rowCards.forEach(([id, pos]) => {
+                        if (pos.x > minX) {
+                            // この行のカードが右すぎる場合、左にシフトできるか確認
+                            // （他の行との干渉がない場合のみ）
+                            // サブツリー全体の最小Xを確認
+                            const subtreeIds = [];
+                            const collectSubtree = (cid) => {
+                                subtreeIds.push(cid);
+                                const c = creatures.find(x => x.id === cid);
+                                if (c) getChildren(c).forEach(ch => { if (posMap[ch.id]) collectSubtree(ch.id); });
+                            };
+                            collectSubtree(id);
+                            // サブツリーの各行で他グループとの干渉チェック
+                            const subtreeSet = new Set(subtreeIds);
+                            let canShift = pos.x - minX;
+                            subtreeIds.forEach(sid => {
+                                const sp = posMap[sid];
+                                if (!sp) return;
+                                Object.entries(posMap).forEach(([oid, op]) => {
+                                    if (subtreeSet.has(oid)) return;
+                                    if (op.rowIdx === sp.rowIdx) {
+                                        if (op.x < sp.x) {
+                                            canShift = Math.min(canShift, sp.x - (op.x + STEP));
+                                        }
+                                    }
+                                });
+                            });
+                            if (canShift > 0) {
+                                subtreeIds.forEach(sid => { if (posMap[sid]) posMap[sid].x -= canShift; });
+                            }
+                        }
+                        minX = Math.max(minX, posMap[id].x + STEP);
+                    });
+                });
+            }
+
             const lines = [];
             creatures.forEach(c => {
                 const cp = posMap[c.id];
