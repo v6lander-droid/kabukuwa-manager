@@ -466,10 +466,12 @@
                     }
                 });
 
-                // 配置後にoffsetXを全座標の最大値で更新するヘルパー
+                // 配置後にoffsetXをrow=0のカードの最大X+H_GAPで更新
                 const updateOffsetX = () => {
-                    const allX = Object.values(posMap).map(p => p.x);
-                    if (allX.length) offsetX = Math.max(...allX) + CARD_W / 2 + H_GAP;
+                    const row0X = Object.values(posMap)
+                        .filter(p => p.rowIdx === 0)
+                        .map(p => p.x);
+                    if (row0X.length) offsetX = Math.max(...row0X) + CARD_W / 2 + H_GAP;
                 };
 
                 pairs.forEach(pair => {
@@ -552,12 +554,12 @@
                     allExternalPairs.push({ external, partner });
                 });
 
-                // グループ全体（全世代）の最大X座標で次グループ開始位置を確定
-                const allGroupX = group
-                    .filter(c => posMap[c.id])
+                // グループのrow=0カードの最大Xで次グループ開始位置を確定
+                const group0X = group
+                    .filter(c => posMap[c.id] && posMap[c.id].rowIdx === 0)
                     .map(c => posMap[c.id].x);
-                const groupMaxX = allGroupX.length ? Math.max(...allGroupX) : -Infinity;
-                offsetX = Math.max(offsetX, groupMaxX + CARD_W / 2 + H_GAP);
+                const groupMaxX0 = group0X.length ? Math.max(...group0X) : -Infinity;
+                offsetX = Math.max(offsetX, groupMaxX0 + CARD_W / 2 + H_GAP);
             });
 
             // 接続線：両親がいる場合は親の中間点から子へ1本、片親のみの場合はその親から子へ
