@@ -642,11 +642,13 @@
 
                 if (malePos && femalePos) {
                     const midX = (malePos.x + femalePos.x) / 2;
-                    const pairKey = `${malePos.x.toFixed(1)}_${femalePos.x.toFixed(1)}_${midY.toFixed(1)}`;
+                    // pairKeyに♀のIDを含めることで♀ごとに必ず別グループ
+                    const pairKey = `${femaleParent.id}_${midY.toFixed(1)}`;
                     lines.push({ x1: midX, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: true, pairKey });
                 } else {
                     const parentX = (malePos || femalePos).x;
-                    const pairKey = `${parentX.toFixed(1)}_${midY.toFixed(1)}`;
+                    const parentId = femaleParent ? femaleParent.id : maleParent.id;
+                    const pairKey = `${parentId}_${midY.toFixed(1)}`;
                     lines.push({ x1: parentX, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: false, pairKey });
                 }
             });
