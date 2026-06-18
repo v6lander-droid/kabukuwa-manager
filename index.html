@@ -348,7 +348,7 @@
                     ? sortByMarriage(overrideCommonChildren)
                     : sortByMarriage(getChildren(m).filter(ch => getChildren(f).some(c2 => c2.id === ch.id)));
                 const mOnly = overrideCommonChildren ? [] : sortByMarriage(getChildren(m).filter(ch => !commonChildren.some(c2 => c2.id === ch.id)));
-                const fOnly = sortByMarriage(getChildren(f).filter(ch => !commonChildren.some(c2 => c2.id === ch.id)));
+                const fOnly = overrideCommonChildren ? [] : sortByMarriage(getChildren(f).filter(ch => !commonChildren.some(c2 => c2.id === ch.id)));
 
                 // 各親自身は1枚分(STEP)、共通の子・単独の子はそれぞれの幅を加算
                 const mOwnW = STEP;
