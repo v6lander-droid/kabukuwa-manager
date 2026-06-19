@@ -243,152 +243,205 @@
             creatures.forEach(c => getDepth(c));
             const maxDepth = Math.max(...Object.values(depthMap));
 
-            // ===== 手順2：婚姻関係のブロック化配置 + 接続線 =====
-            // 同じ行内で、婚姻関係にあるオス親・メス親のペアを1ブロックとして隣接配置する。
-            // ブロック内は「オス親が左・メス親が右」。1頭のオス親が複数のメス親と婚姻関係にある場合は、
-            // オス親1枚を中心に複数のメス親ブロックをまとめて1つの拡張ブロックとして扱う。
+            // ===== 系統（血縁グループ）の確定 =====
+            // Union-Find で親子関係を辿り、繋がっている全個体を1つの「系統」としてグループ化する。
+            // 系統ごとに独立して横方向のレーンを割り当てることで、無関係な系統同士の子孫数の違いが
+            // 互いの配置に干渉しないようにする。
+            const uf = {};
+            creatures.forEach(c => { uf[c.id] = c.id; });
+            const ufFind = (id) => { if (uf[id] !== id) uf[id] = ufFind(uf[id]); return uf[id]; };
+            const ufUnion = (a, b) => { uf[ufFind(a)] = ufFind(b); };
+            creatures.forEach(c => {
+                const mp = getMale(c), fp = getFemale(c);
+                if (mp) ufUnion(c.id, mp.id);
+                if (fp) ufUnion(c.id, fp.id);
+            });
+            const systemMap = {}; // groupRootId -> [creature, ...]
+            creatures.forEach(c => {
+                const g = ufFind(c.id);
+                if (!systemMap[g]) systemMap[g] = [];
+                systemMap[g].push(c);
+            });
+            // 系統の並び順：各系統の最小個体名（行0があればその名前、なければ全体の最小名）で安定ソート
+            const systems = Object.values(systemMap).sort((a, b) => {
+                const aName = [...a].sort((x, y) => x.name.localeCompare(y.name, 'ja'))[0].name;
+                const bName = [...b].sort((x, y) => x.name.localeCompare(y.name, 'ja'))[0].name;
+                return aName.localeCompare(bName, 'ja');
+            });
+
             const posMap = {};
             const marriagePairs = []; // { maleId, femaleId, rowIdx, maleX, femaleX } のペアごとの婚姻線情報
-            const rowBlocks = []; // 各行のブロック配列（手順4で使用）
 
-            for (let row = 0; row <= maxDepth; row++) {
-                const rowCreatures = creatures.filter(c => depthMap[c.id] === row);
-                const consumed = new Set(); // このブロック化処理で既に割り当て済みのid
+            let systemOffsetX = 0;
+            systems.forEach(systemCreatures => {
+                const systemIdSet = new Set(systemCreatures.map(c => c.id));
 
-                // ブロック定義：
-                //   type 'single'   : { type, items: [c] }
-                //   type 'pair'     : { type, male, female }
-                //   type 'multi'    : { type, male, females: [f1, f2, ...] }（1♂が複数♀と婚姻）
-                const blocks = [];
+                // ===== 手順2：婚姻関係のブロック化（ブロック構成の確定、この系統内のみ） =====
+                // 同じ行内で、婚姻関係にあるオス親・メス親のペアを1ブロックとして扱う。
+                // ブロック内は「オス親が左・メス親が右」。1頭のオス親が複数のメス親と婚姻関係にある場合は、
+                // オス親1枚を中心に複数のメス親ブロックをまとめて1つの拡張ブロックとして扱う。
+                const rowBlocks = []; // 各行のブロック配列（この系統のみ）
 
-                rowCreatures.forEach(c => {
-                    if (consumed.has(c.id)) return;
+                for (let row = 0; row <= maxDepth; row++) {
+                    const rowCreatures = systemCreatures.filter(c => depthMap[c.id] === row);
+                    if (!rowCreatures.length) { rowBlocks[row] = []; continue; }
+                    const consumed = new Set();
+                    const blocks = [];
 
-                    if (isMale(c.sex)) {
-                        // この♂と同じ行にいる、婚姻関係にある♀を全て収集
-                        const wives = rowCreatures.filter(other =>
-                            !consumed.has(other.id) && other.id !== c.id && isFemale(other.sex) &&
-                            getChildren(other).some(ch => ch.maleParent === c.name && ch.femaleParent === other.name)
-                        );
-                        if (wives.length === 1) {
-                            consumed.add(c.id); consumed.add(wives[0].id);
-                            blocks.push({ type: 'pair', male: c, female: wives[0] });
-                        } else if (wives.length > 1) {
-                            consumed.add(c.id);
-                            wives.forEach(w => consumed.add(w.id));
-                            const sortedWives = [...wives].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
-                            blocks.push({ type: 'multi', male: c, females: sortedWives });
-                        } else {
-                            consumed.add(c.id);
-                            blocks.push({ type: 'single', items: [c] });
-                        }
-                    } else if (isFemale(c.sex)) {
-                        // ♀側から見て、同じ行に未割り当ての夫がいないか確認（夫が先にmultiで処理済みでない場合のみ）
-                        const husband = rowCreatures.find(other =>
-                            !consumed.has(other.id) && other.id !== c.id && isMale(other.sex) &&
-                            getChildren(other).some(ch => ch.maleParent === other.name && ch.femaleParent === c.name)
-                        );
-                        if (husband) {
-                            // 同じ夫が他の妻も持つか確認
-                            const otherWives = rowCreatures.filter(other =>
-                                !consumed.has(other.id) && other.id !== c.id && other.id !== husband.id && isFemale(other.sex) &&
-                                getChildren(other).some(ch => ch.maleParent === husband.name && ch.femaleParent === other.name)
+                    rowCreatures.forEach(c => {
+                        if (consumed.has(c.id)) return;
+
+                        if (isMale(c.sex)) {
+                            const wives = rowCreatures.filter(other =>
+                                !consumed.has(other.id) && other.id !== c.id && isFemale(other.sex) &&
+                                getChildren(other).some(ch => ch.maleParent === c.name && ch.femaleParent === other.name)
                             );
-                            consumed.add(husband.id); consumed.add(c.id);
-                            if (otherWives.length > 0) {
-                                otherWives.forEach(w => consumed.add(w.id));
-                                const sortedWives = [c, ...otherWives].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
-                                blocks.push({ type: 'multi', male: husband, females: sortedWives });
+                            if (wives.length === 1) {
+                                consumed.add(c.id); consumed.add(wives[0].id);
+                                blocks.push({ type: 'pair', male: c, female: wives[0] });
+                            } else if (wives.length > 1) {
+                                consumed.add(c.id);
+                                wives.forEach(w => consumed.add(w.id));
+                                const sortedWives = [...wives].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+                                blocks.push({ type: 'multi', male: c, females: sortedWives });
                             } else {
-                                blocks.push({ type: 'pair', male: husband, female: c });
+                                consumed.add(c.id);
+                                blocks.push({ type: 'single', items: [c] });
+                            }
+                        } else if (isFemale(c.sex)) {
+                            const husband = rowCreatures.find(other =>
+                                !consumed.has(other.id) && other.id !== c.id && isMale(other.sex) &&
+                                getChildren(other).some(ch => ch.maleParent === other.name && ch.femaleParent === c.name)
+                            );
+                            if (husband) {
+                                const otherWives = rowCreatures.filter(other =>
+                                    !consumed.has(other.id) && other.id !== c.id && other.id !== husband.id && isFemale(other.sex) &&
+                                    getChildren(other).some(ch => ch.maleParent === husband.name && ch.femaleParent === other.name)
+                                );
+                                consumed.add(husband.id); consumed.add(c.id);
+                                if (otherWives.length > 0) {
+                                    otherWives.forEach(w => consumed.add(w.id));
+                                    const sortedWives = [c, ...otherWives].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+                                    blocks.push({ type: 'multi', male: husband, females: sortedWives });
+                                } else {
+                                    blocks.push({ type: 'pair', male: husband, female: c });
+                                }
+                            } else {
+                                consumed.add(c.id);
+                                blocks.push({ type: 'single', items: [c] });
                             }
                         } else {
                             consumed.add(c.id);
                             blocks.push({ type: 'single', items: [c] });
                         }
-                    } else {
-                        consumed.add(c.id);
-                        blocks.push({ type: 'single', items: [c] });
-                    }
-                });
+                    });
 
-                // ブロックの代表名（row=0など親を持たない場合の名前順ソート用）
-                const blockKey = (b) => {
-                    if (b.type === 'single') return b.items[0].name;
-                    if (b.type === 'pair') return [b.male.name, b.female.name].sort((x, y) => x.localeCompare(y, 'ja'))[0];
-                    return [b.male.name, ...b.females.map(f => f.name)].sort((x, y) => x.localeCompare(y, 'ja'))[0];
-                };
+                    rowBlocks[row] = blocks;
+                }
 
-                // ===== 手順3：親子関係が最短距離になるよう、親ブロックのX座標に近い順に並べ替える =====
-                // ブロックの代表個体（♂、または単独個体の最初の1人）の親（オス親優先）の配置済みX座標を基準にする。
-                // 親が未配置（祖先=row 0、または親が登録されていない）の場合は基準なし扱いとし、名前順を維持する。
-                const blockRepresentative = (b) => (b.type === 'single') ? b.items[0] : b.male;
-                const blockParentX = (b) => {
-                    const rep = blockRepresentative(b);
-                    const mp = getMale(rep), fp = getFemale(rep);
-                    const mx = (mp && posMap[mp.id] != null) ? posMap[mp.id].x : null;
-                    const fx = (fp && posMap[fp.id] != null) ? posMap[fp.id].x : null;
-                    if (mx != null && fx != null) return (mx + fx) / 2;
-                    if (mx != null) return mx;
-                    if (fx != null) return fx;
-                    return null;
-                };
-
-                blocks.forEach(b => { b._parentX = blockParentX(b); });
-                blocks.sort((a, b) => {
-                    const ax = a._parentX, bx = b._parentX;
-                    if (ax != null && bx != null) {
-                        if (ax !== bx) return ax - bx;
-                        return blockKey(a).localeCompare(blockKey(b), 'ja');
-                    }
-                    if (ax != null) return -1; // 親位置が分かる方を優先して左に
-                    if (bx != null) return 1;
-                    return blockKey(a).localeCompare(blockKey(b), 'ja');
-                });
-
-                // ブロックを順に配置
-                let cursorX = CARD_W / 2;
-                blocks.forEach(b => {
-                    if (b.type === 'single') {
-                        posMap[b.items[0].id] = { x: cursorX, rowIdx: row };
-                        b._leftId = b.items[0].id;
-                        cursorX += STEP;
-                    } else if (b.type === 'pair') {
-                        posMap[b.male.id] = { x: cursorX, rowIdx: row };
-                        const femaleX = cursorX + STEP;
-                        posMap[b.female.id] = { x: femaleX, rowIdx: row };
-                        marriagePairs.push({ maleId: b.male.id, femaleId: b.female.id, rowIdx: row, maleX: cursorX, femaleX: femaleX });
-                        b._leftId = b.male.id;
-                        cursorX = femaleX + STEP;
-                    } else if (b.type === 'multi') {
-                        // ♂をブロック左端に配置し、複数の♀をその右側にSTEP間隔で並べる
-                        const maleX = cursorX;
-                        posMap[b.male.id] = { x: maleX, rowIdx: row };
-                        const femaleXs = b.females.map((f, i) => cursorX + STEP * (i + 1));
-                        b.females.forEach((f, i) => {
-                            posMap[f.id] = { x: femaleXs[i], rowIdx: row };
-                            marriagePairs.push({ maleId: b.male.id, femaleId: f.id, rowIdx: row, maleX: maleX, femaleX: femaleXs[i] });
-                        });
-                        b._leftId = b.male.id;
-                        cursorX = femaleXs[femaleXs.length - 1] + STEP;
-                    }
-                });
-                rowBlocks[row] = blocks;
-            }
-
-            // ===== 手順4：子グループの左端に親ブロックの左端を合わせてスライド =====
-            // 深い行（子孫側）から浅い行（祖先側）へ向かって処理する。
-            // 各親ブロックについて、そのブロックの個体（♂、または複数♀含む全個体）から生まれた
-            // 全子供のうち最も左にいる子のX座標を求め、親ブロックの左端をそこへスライドする。
-            // スライドにより同じ行内の他ブロックと重なる場合は、それらも連動して右へ押し出す
-            // （ブロックの並び順＝手順3で決めた順序は維持する）。
+            // ブロックの代表名（row=0など親を持たない場合の名前順ソート用）
+            const blockKey = (b) => {
+                if (b.type === 'single') return b.items[0].name;
+                if (b.type === 'pair') return [b.male.name, b.female.name].sort((x, y) => x.localeCompare(y, 'ja'))[0];
+                return [b.male.name, ...b.females.map(f => f.name)].sort((x, y) => x.localeCompare(y, 'ja'))[0];
+            };
+            const blockRepresentative = (b) => (b.type === 'single') ? b.items[0] : b.male;
             const blockMembers = (b) => (b.type === 'single') ? b.items : (b.type === 'pair') ? [b.male, b.female] : [b.male, ...b.females];
 
-            for (let row = maxDepth - 1; row >= 0; row--) {
-                const blocks = rowBlocks[row];
-                if (!blocks || !blocks.length) continue;
+            // ===== 手順3＋手順4 を、位置が安定するまで複数回繰り返す =====
+            // 手順3：各行のブロックを「親ブロックのX座標に近い順」に並べ替えて配置する。
+            // 手順4：深い行から浅い行へ向かって、各親ブロックを「子グループの左端」に合わせてスライドする。
+            //         複数♀の場合：♂は全子の最左端、1頭目の♀は♂の右隣固定、2頭目以降は個別に自分の子の左端へ。
+            // 1回のパスでは「直接の親子」しか整合しないため、祖先方向と子孫方向の調整が噛み合うまで反復する。
+            const LAYOUT_PASSES = 5;
+            for (let pass = 0; pass < LAYOUT_PASSES; pass++) {
 
-                blocks.forEach(b => {
+                // ---- 手順3：親ブロックのX座標に近い順に並べ替えて配置 ----
+                // 初回パス（pass=0）は直接の親の位置のみを基準にする。
+                // 2回目以降は、前回パスの手順4で調整済みの「自分自身の現在位置」（＝子孫全体の重心を反映した位置）
+                // と親の位置の両方を考慮することで、祖先側と子孫側の調整を徐々に噛み合わせて収束させる。
+                for (let row = 0; row <= maxDepth; row++) {
+                    const blocks = rowBlocks[row];
+                    if (!blocks || !blocks.length) continue;
+
+                    const blockParentX = (b) => {
+                        const rep = blockRepresentative(b);
+                        const mp = getMale(rep), fp = getFemale(rep);
+                        const mx = (mp && posMap[mp.id] != null) ? posMap[mp.id].x : null;
+                        const fx = (fp && posMap[fp.id] != null) ? posMap[fp.id].x : null;
+                        if (mx != null && fx != null) return (mx + fx) / 2;
+                        if (mx != null) return mx;
+                        if (fx != null) return fx;
+                        return null;
+                    };
+                    const blockOwnX = (b) => (posMap[b._leftId] != null) ? posMap[b._leftId].x : null;
+
+                    blocks.forEach(b => {
+                        const parentX = blockParentX(b);
+                        if (pass === 0 || b._leftId == null) {
+                            b._sortX = parentX;
+                        } else {
+                            const ownX = blockOwnX(b);
+                            if (parentX != null && ownX != null) b._sortX = (parentX + ownX) / 2;
+                            else if (ownX != null) b._sortX = ownX;
+                            else b._sortX = parentX;
+                        }
+                    });
+                    blocks.sort((a, b) => {
+                        const ax = a._sortX, bx = b._sortX;
+                        if (ax != null && bx != null) {
+                            if (ax !== bx) return ax - bx;
+                            return blockKey(a).localeCompare(blockKey(b), 'ja');
+                        }
+                        if (ax != null) return -1; // 位置が分かる方を優先して左に
+                        if (bx != null) return 1;
+                        return blockKey(a).localeCompare(blockKey(b), 'ja');
+                    });
+                }
+
+                // marriagePairsを再構築するため、この系統に属するエントリだけをクリアしてから配置し直す
+                // （他の系統のmarriagePairsには影響を与えない）
+                for (let i = marriagePairs.length - 1; i >= 0; i--) {
+                    if (systemIdSet.has(marriagePairs[i].maleId)) marriagePairs.splice(i, 1);
+                }
+                for (let row = 0; row <= maxDepth; row++) {
+                    const blocks = rowBlocks[row];
+                    if (!blocks || !blocks.length) continue;
+
+                    let cursorX = CARD_W / 2;
+                    blocks.forEach(b => {
+                        if (b.type === 'single') {
+                            posMap[b.items[0].id] = { x: cursorX, rowIdx: row };
+                            b._leftId = b.items[0].id;
+                            cursorX += STEP;
+                        } else if (b.type === 'pair') {
+                            posMap[b.male.id] = { x: cursorX, rowIdx: row };
+                            const femaleX = cursorX + STEP;
+                            posMap[b.female.id] = { x: femaleX, rowIdx: row };
+                            marriagePairs.push({ maleId: b.male.id, femaleId: b.female.id, rowIdx: row, maleX: cursorX, femaleX: femaleX });
+                            b._leftId = b.male.id;
+                            cursorX = femaleX + STEP;
+                        } else if (b.type === 'multi') {
+                            // ♂をブロック左端に配置し、複数の♀をその右側にSTEP間隔で並べる
+                            const maleX = cursorX;
+                            posMap[b.male.id] = { x: maleX, rowIdx: row };
+                            const femaleXs = b.females.map((f, i) => cursorX + STEP * (i + 1));
+                            b.females.forEach((f, i) => {
+                                posMap[f.id] = { x: femaleXs[i], rowIdx: row };
+                                marriagePairs.push({ maleId: b.male.id, femaleId: f.id, rowIdx: row, maleX: maleX, femaleX: femaleXs[i] });
+                            });
+                            b._leftId = b.male.id;
+                            cursorX = femaleXs[femaleXs.length - 1] + STEP;
+                        }
+                    });
+                }
+
+                // ---- 手順4：深い行から浅い行へ向かって、子グループの左端に親ブロックを合わせてスライド ----
+                for (let row = maxDepth - 1; row >= 0; row--) {
+                    const blocks = rowBlocks[row];
+                    if (!blocks || !blocks.length) continue;
+
+                    blocks.forEach(b => {
                     if (b.type === 'multi') {
                         // ① ♂を「全子供（全♀の子合計）の最左端」に配置
                         const allChildrenOfMale = [];
@@ -401,7 +454,7 @@
                             if (maleDx !== 0) {
                                 posMap[b.male.id].x = childMinX;
                                 marriagePairs.forEach(mp => {
-                                    if (mp.rowIdx === row && mp.maleId === b.male.id) mp.maleX = childMinX;
+                                    if (mp.maleId === b.male.id) mp.maleX = childMinX;
                                 });
                             }
                         }
@@ -413,7 +466,7 @@
                         if (firstDx !== 0) {
                             posMap[firstFemale.id].x = fixedFirstX;
                             marriagePairs.forEach(mp => {
-                                if (mp.rowIdx === row && mp.femaleId === firstFemale.id) mp.femaleX = fixedFirstX;
+                                if (mp.femaleId === firstFemale.id) mp.femaleX = fixedFirstX;
                             });
                         }
 
@@ -426,7 +479,7 @@
                             if (dx === 0) return;
                             posMap[f.id].x += dx;
                             marriagePairs.forEach(mp => {
-                                if (mp.rowIdx === row && mp.femaleId === f.id) mp.femaleX += dx;
+                                if (mp.femaleId === f.id) mp.femaleX += dx;
                             });
                         });
 
@@ -438,7 +491,7 @@
                                 const dx = STEP - (curX - prevX);
                                 posMap[b.females[i].id].x += dx;
                                 marriagePairs.forEach(mp => {
-                                    if (mp.rowIdx === row && mp.femaleId === b.females[i].id) mp.femaleX += dx;
+                                    if (mp.femaleId === b.females[i].id) mp.femaleX += dx;
                                 });
                             }
                         }
@@ -460,8 +513,8 @@
                     members.forEach(m => { posMap[m.id].x += dx; });
                     // このブロックに紐づくmarriagePairsのスナップショットも更新
                     marriagePairs.forEach(mp => {
-                        if (mp.rowIdx === row && members.some(m => m.id === mp.maleId)) mp.maleX += dx;
-                        if (mp.rowIdx === row && members.some(m => m.id === mp.femaleId)) mp.femaleX += dx;
+                        if (members.some(m => m.id === mp.maleId)) mp.maleX += dx;
+                        if (members.some(m => m.id === mp.femaleId)) mp.femaleX += dx;
                     });
                 });
 
@@ -481,12 +534,29 @@
                         const dx = STEP - (curLeft - prevRight);
                         blockMembers(blocks[i]).forEach(m => { posMap[m.id].x += dx; });
                         marriagePairs.forEach(mp => {
-                            if (mp.rowIdx === row && blockMembers(blocks[i]).some(m => m.id === mp.maleId)) mp.maleX += dx;
-                            if (mp.rowIdx === row && blockMembers(blocks[i]).some(m => m.id === mp.femaleId)) mp.femaleX += dx;
+                            if (blockMembers(blocks[i]).some(m => m.id === mp.maleId)) mp.maleX += dx;
+                            if (blockMembers(blocks[i]).some(m => m.id === mp.femaleId)) mp.femaleX += dx;
                         });
                     }
                 }
             }
+            } // end of pass loop
+
+                // この系統に属する個体のXを、系統内の最小値が0になるよう正規化してから、
+                // 全体のオフセット（これまでに配置した他系統の右端）を加算する。
+                const systemMemberIds = systemCreatures.map(c => c.id).filter(id => posMap[id] != null);
+                if (systemMemberIds.length) {
+                    const systemMinX = Math.min(...systemMemberIds.map(id => posMap[id].x));
+                    const baseShift = systemOffsetX - systemMinX;
+                    systemMemberIds.forEach(id => { posMap[id].x += baseShift; });
+                    marriagePairs.forEach(mp => {
+                        if (systemIdSet.has(mp.maleId)) mp.maleX += baseShift;
+                        if (systemIdSet.has(mp.femaleId)) mp.femaleX += baseShift;
+                    });
+                    const systemMaxX = Math.max(...systemMemberIds.map(id => posMap[id].x));
+                    systemOffsetX = systemMaxX + STEP;
+                }
+            }); // end of systems.forEach
 
             // 手順4のスライド処理でマイナス座標が発生する場合があるため、全体を左端（CARD_W/2）に正規化
             {
