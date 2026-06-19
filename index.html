@@ -389,8 +389,46 @@
                 if (!blocks || !blocks.length) continue;
 
                 blocks.forEach(b => {
+                    if (b.type === 'multi') {
+                        // 複数♀ケース：各♀を個別に「自分が母親の子」の左端へスライドする。
+                        b.females.forEach(f => {
+                            const ownChildren = getChildren(f).filter(ch => ch.maleParent === b.male.name && posMap[ch.id]);
+                            if (!ownChildren.length) return;
+                            const childMinX = Math.min(...ownChildren.map(ch => posMap[ch.id].x));
+                            const dx = childMinX - posMap[f.id].x;
+                            if (dx === 0) return;
+                            posMap[f.id].x += dx;
+                            marriagePairs.forEach(mp => {
+                                if (mp.rowIdx === row && mp.femaleId === f.id) mp.femaleX += dx;
+                            });
+                        });
+                        // ♀同士がSTEP未満の間隔になっていないか解消（females配列の並び順を維持したまま左から）
+                        for (let i = 1; i < b.females.length; i++) {
+                            const prevX = posMap[b.females[i - 1].id].x;
+                            const curX = posMap[b.females[i].id].x;
+                            if (curX - prevX < STEP) {
+                                const dx = STEP - (curX - prevX);
+                                posMap[b.females[i].id].x += dx;
+                                marriagePairs.forEach(mp => {
+                                    if (mp.rowIdx === row && mp.femaleId === b.females[i].id) mp.femaleX += dx;
+                                });
+                            }
+                        }
+                        // ♂は「最初の♀（ソート順で先頭）」の左隣（STEP分左）に配置
+                        const firstFemale = b.females[0];
+                        const newMaleX = posMap[firstFemale.id].x - STEP;
+                        const maleDx = newMaleX - posMap[b.male.id].x;
+                        if (maleDx !== 0) {
+                            posMap[b.male.id].x = newMaleX;
+                            marriagePairs.forEach(mp => {
+                                if (mp.rowIdx === row && mp.maleId === b.male.id) mp.maleX = newMaleX;
+                            });
+                        }
+                        return;
+                    }
+
                     const members = blockMembers(b);
-                    // このブロックの個体（複数♀ケースなら♂+全♀）から生まれた全子供を収集
+                    // このブロックの個体（単独 or ♂♀ペア）から生まれた全子供を収集
                     const allChildren = [];
                     members.forEach(m => { getChildren(m).forEach(ch => { if (posMap[ch.id]) allChildren.push(ch); }); });
                     if (!allChildren.length) return;
@@ -411,7 +449,8 @@
 
                 // 重なり解消：同じ行のブロックを現在のX座標順（＝手順3の並び順を維持したまま）に並べ、
                 // 隙間がSTEP未満なら後続ブロックを連動して右へ押し出す。
-                const blockLeftX = (b) => posMap[b._leftId].x;
+                // multiブロックは♂・♀の配置がバラバラな可能性があるため、ブロック全体の最小Xを左端、最大Xを右端とする。
+                const blockLeftX = (b) => Math.min(...blockMembers(b).map(m => posMap[m.id].x));
                 const blockRightX = (b) => {
                     const xs = blockMembers(b).map(m => posMap[m.id].x);
                     return Math.max(...xs);
@@ -428,6 +467,17 @@
                             if (mp.rowIdx === row && blockMembers(blocks[i]).some(m => m.id === mp.femaleId)) mp.femaleX += dx;
                         });
                     }
+                }
+            }
+
+            // 手順4のスライド処理でマイナス座標が発生する場合があるため、全体を左端（CARD_W/2）に正規化
+            {
+                const allX = Object.values(posMap).map(p => p.x);
+                const globalMinX = Math.min(...allX);
+                const shift = CARD_W / 2 - globalMinX;
+                if (shift !== 0) {
+                    Object.values(posMap).forEach(p => { p.x += shift; });
+                    marriagePairs.forEach(mp => { mp.maleX += shift; mp.femaleX += shift; });
                 }
             }
             // 両親が揃っている場合：対応するmarriagePairsエントリのmaleX/femaleXの中点から、子のカード上端へ。
