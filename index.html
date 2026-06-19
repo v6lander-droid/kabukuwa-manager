@@ -249,6 +249,7 @@
             // オス親1枚を中心に複数のメス親ブロックをまとめて1つの拡張ブロックとして扱う。
             const posMap = {};
             const marriagePairs = []; // { maleId, femaleId, rowIdx, maleX, femaleX } のペアごとの婚姻線情報
+            const rowBlocks = []; // 各行のブロック配列（手順4で使用）
 
             for (let row = 0; row <= maxDepth; row++) {
                 const rowCreatures = creatures.filter(c => depthMap[c.id] === row);
@@ -350,12 +351,14 @@
                 blocks.forEach(b => {
                     if (b.type === 'single') {
                         posMap[b.items[0].id] = { x: cursorX, rowIdx: row };
+                        b._leftId = b.items[0].id;
                         cursorX += STEP;
                     } else if (b.type === 'pair') {
                         posMap[b.male.id] = { x: cursorX, rowIdx: row };
                         const femaleX = cursorX + STEP;
                         posMap[b.female.id] = { x: femaleX, rowIdx: row };
                         marriagePairs.push({ maleId: b.male.id, femaleId: b.female.id, rowIdx: row, maleX: cursorX, femaleX: femaleX });
+                        b._leftId = b.male.id;
                         cursorX = femaleX + STEP;
                     } else if (b.type === 'multi') {
                         // ♂をブロック左端に配置し、複数の♀をその右側にSTEP間隔で並べる
@@ -366,12 +369,67 @@
                             posMap[f.id] = { x: femaleXs[i], rowIdx: row };
                             marriagePairs.push({ maleId: b.male.id, femaleId: f.id, rowIdx: row, maleX: maleX, femaleX: femaleXs[i] });
                         });
+                        b._leftId = b.male.id;
                         cursorX = femaleXs[femaleXs.length - 1] + STEP;
                     }
                 });
+                rowBlocks[row] = blocks;
             }
 
-            // ===== 接続線（親→子）の生成 =====
+            // ===== 手順4：子グループの左端に親ブロックの左端を合わせてスライド =====
+            // 深い行（子孫側）から浅い行（祖先側）へ向かって処理する。
+            // 各親ブロックについて、そのブロックの個体（♂、または複数♀含む全個体）から生まれた
+            // 全子供のうち最も左にいる子のX座標を求め、親ブロックの左端をそこへスライドする。
+            // スライドにより同じ行内の他ブロックと重なる場合は、それらも連動して右へ押し出す
+            // （ブロックの並び順＝手順3で決めた順序は維持する）。
+            const blockMembers = (b) => (b.type === 'single') ? b.items : (b.type === 'pair') ? [b.male, b.female] : [b.male, ...b.females];
+
+            for (let row = maxDepth - 1; row >= 0; row--) {
+                const blocks = rowBlocks[row];
+                if (!blocks || !blocks.length) continue;
+
+                blocks.forEach(b => {
+                    const members = blockMembers(b);
+                    // このブロックの個体（複数♀ケースなら♂+全♀）から生まれた全子供を収集
+                    const allChildren = [];
+                    members.forEach(m => { getChildren(m).forEach(ch => { if (posMap[ch.id]) allChildren.push(ch); }); });
+                    if (!allChildren.length) return;
+
+                    const childMinX = Math.min(...allChildren.map(ch => posMap[ch.id].x));
+                    const currentLeftX = posMap[b._leftId].x;
+                    const dx = childMinX - currentLeftX;
+                    if (dx === 0) return;
+
+                    // ブロック全メンバーをdxだけスライド
+                    members.forEach(m => { posMap[m.id].x += dx; });
+                    // このブロックに紐づくmarriagePairsのスナップショットも更新
+                    marriagePairs.forEach(mp => {
+                        if (mp.rowIdx === row && members.some(m => m.id === mp.maleId)) mp.maleX += dx;
+                        if (mp.rowIdx === row && members.some(m => m.id === mp.femaleId)) mp.femaleX += dx;
+                    });
+                });
+
+                // 重なり解消：同じ行のブロックを現在のX座標順（＝手順3の並び順を維持したまま）に並べ、
+                // 隙間がSTEP未満なら後続ブロックを連動して右へ押し出す。
+                const blockLeftX = (b) => posMap[b._leftId].x;
+                const blockRightX = (b) => {
+                    const xs = blockMembers(b).map(m => posMap[m.id].x);
+                    return Math.max(...xs);
+                };
+                // blocksは既に手順3の並び順（=配置順）になっているので、その順序のまま左から処理
+                for (let i = 1; i < blocks.length; i++) {
+                    const prevRight = blockRightX(blocks[i - 1]);
+                    const curLeft = blockLeftX(blocks[i]);
+                    if (curLeft - prevRight < STEP) {
+                        const dx = STEP - (curLeft - prevRight);
+                        blockMembers(blocks[i]).forEach(m => { posMap[m.id].x += dx; });
+                        marriagePairs.forEach(mp => {
+                            if (mp.rowIdx === row && blockMembers(blocks[i]).some(m => m.id === mp.maleId)) mp.maleX += dx;
+                            if (mp.rowIdx === row && blockMembers(blocks[i]).some(m => m.id === mp.femaleId)) mp.femaleX += dx;
+                        });
+                    }
+                }
+            }
             // 両親が揃っている場合：対応するmarriagePairsエントリのmaleX/femaleXの中点から、子のカード上端へ。
             // 片親のみの場合：その親の下端中央から、子のカード上端へ直接1本。
             const lines = [];
