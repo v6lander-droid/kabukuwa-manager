@@ -243,22 +243,141 @@
             creatures.forEach(c => getDepth(c));
             const maxDepth = Math.max(...Object.values(depthMap));
 
-            // ===== 手順1：個体名ベースの行・列配置 =====
-            // 行 = 世代深度（depth）。各行内は個体名の文字列昇順で左から並べる。
-            // 婚姻関係・親子関係の線はこの段階では一切描画しない（後続の手順で実装）。
+            // ===== 手順2：婚姻関係のブロック化配置 + 接続線 =====
+            // 同じ行内で、婚姻関係にあるオス親・メス親のペアを1ブロックとして隣接配置する。
+            // ブロック内は「オス親が左・メス親が右」。1頭のオス親が複数のメス親と婚姻関係にある場合は、
+            // オス親1枚を中心に複数のメス親ブロックをまとめて1つの拡張ブロックとして扱う。
             const posMap = {};
-            const marriagePairs = []; // 手順1では未使用（後続手順で使用）
+            const marriagePairs = []; // { maleId, femaleId, rowIdx, maleX, femaleX } のペアごとの婚姻線情報
 
             for (let row = 0; row <= maxDepth; row++) {
-                const rowCreatures = creatures
-                    .filter(c => depthMap[c.id] === row)
-                    .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
-                rowCreatures.forEach((c, i) => {
-                    posMap[c.id] = { x: CARD_W / 2 + i * STEP, rowIdx: row };
+                const rowCreatures = creatures.filter(c => depthMap[c.id] === row);
+                const consumed = new Set(); // このブロック化処理で既に割り当て済みのid
+
+                // ブロック定義：
+                //   type 'single'   : { type, items: [c] }
+                //   type 'pair'     : { type, male, female }
+                //   type 'multi'    : { type, male, females: [f1, f2, ...] }（1♂が複数♀と婚姻）
+                const blocks = [];
+
+                rowCreatures.forEach(c => {
+                    if (consumed.has(c.id)) return;
+
+                    if (isMale(c.sex)) {
+                        // この♂と同じ行にいる、婚姻関係にある♀を全て収集
+                        const wives = rowCreatures.filter(other =>
+                            !consumed.has(other.id) && other.id !== c.id && isFemale(other.sex) &&
+                            getChildren(other).some(ch => ch.maleParent === c.name && ch.femaleParent === other.name)
+                        );
+                        if (wives.length === 1) {
+                            consumed.add(c.id); consumed.add(wives[0].id);
+                            blocks.push({ type: 'pair', male: c, female: wives[0] });
+                        } else if (wives.length > 1) {
+                            consumed.add(c.id);
+                            wives.forEach(w => consumed.add(w.id));
+                            const sortedWives = [...wives].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+                            blocks.push({ type: 'multi', male: c, females: sortedWives });
+                        } else {
+                            consumed.add(c.id);
+                            blocks.push({ type: 'single', items: [c] });
+                        }
+                    } else if (isFemale(c.sex)) {
+                        // ♀側から見て、同じ行に未割り当ての夫がいないか確認（夫が先にmultiで処理済みでない場合のみ）
+                        const husband = rowCreatures.find(other =>
+                            !consumed.has(other.id) && other.id !== c.id && isMale(other.sex) &&
+                            getChildren(other).some(ch => ch.maleParent === other.name && ch.femaleParent === c.name)
+                        );
+                        if (husband) {
+                            // 同じ夫が他の妻も持つか確認
+                            const otherWives = rowCreatures.filter(other =>
+                                !consumed.has(other.id) && other.id !== c.id && other.id !== husband.id && isFemale(other.sex) &&
+                                getChildren(other).some(ch => ch.maleParent === husband.name && ch.femaleParent === other.name)
+                            );
+                            consumed.add(husband.id); consumed.add(c.id);
+                            if (otherWives.length > 0) {
+                                otherWives.forEach(w => consumed.add(w.id));
+                                const sortedWives = [c, ...otherWives].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+                                blocks.push({ type: 'multi', male: husband, females: sortedWives });
+                            } else {
+                                blocks.push({ type: 'pair', male: husband, female: c });
+                            }
+                        } else {
+                            consumed.add(c.id);
+                            blocks.push({ type: 'single', items: [c] });
+                        }
+                    } else {
+                        consumed.add(c.id);
+                        blocks.push({ type: 'single', items: [c] });
+                    }
+                });
+
+                // ブロックの代表名（ソート用）：ブロック内の最小の名前
+                const blockKey = (b) => {
+                    if (b.type === 'single') return b.items[0].name;
+                    if (b.type === 'pair') return [b.male.name, b.female.name].sort((x, y) => x.localeCompare(y, 'ja'))[0];
+                    return [b.male.name, ...b.females.map(f => f.name)].sort((x, y) => x.localeCompare(y, 'ja'))[0];
+                };
+                blocks.sort((a, b) => blockKey(a).localeCompare(blockKey(b), 'ja'));
+
+                // ブロックを順に配置
+                let cursorX = CARD_W / 2;
+                blocks.forEach(b => {
+                    if (b.type === 'single') {
+                        posMap[b.items[0].id] = { x: cursorX, rowIdx: row };
+                        cursorX += STEP;
+                    } else if (b.type === 'pair') {
+                        posMap[b.male.id] = { x: cursorX, rowIdx: row };
+                        const femaleX = cursorX + STEP;
+                        posMap[b.female.id] = { x: femaleX, rowIdx: row };
+                        marriagePairs.push({ maleId: b.male.id, femaleId: b.female.id, rowIdx: row, maleX: cursorX, femaleX: femaleX });
+                        cursorX = femaleX + STEP;
+                    } else if (b.type === 'multi') {
+                        // 複数♀を横に並べ、♂はその中央付近（最初と最後の中間）に配置
+                        const femaleXs = b.females.map((f, i) => cursorX + i * STEP);
+                        const maleX = (femaleXs[0] + femaleXs[femaleXs.length - 1]) / 2;
+                        posMap[b.male.id] = { x: maleX, rowIdx: row };
+                        b.females.forEach((f, i) => {
+                            posMap[f.id] = { x: femaleXs[i], rowIdx: row };
+                            marriagePairs.push({ maleId: b.male.id, femaleId: f.id, rowIdx: row, maleX: maleX, femaleX: femaleXs[i] });
+                        });
+                        cursorX = femaleXs[femaleXs.length - 1] + STEP;
+                    }
                 });
             }
 
-            const lines = []; // 手順1では線を描画しない（後続の手順で実装）
+            // ===== 接続線（親→子）の生成 =====
+            // 両親が揃っている場合：対応するmarriagePairsエントリのmaleX/femaleXの中点から、子のカード上端へ。
+            // 片親のみの場合：その親の下端中央から、子のカード上端へ直接1本。
+            const lines = [];
+            creatures.forEach(c => {
+                const cp = posMap[c.id];
+                if (!cp) return;
+                const maleParent = getMale(c);
+                const femaleParent = getFemale(c);
+
+                if (maleParent && femaleParent && posMap[maleParent.id] && posMap[femaleParent.id]) {
+                    const mp = marriagePairs.find(p => p.maleId === maleParent.id && p.femaleId === femaleParent.id);
+                    if (mp) {
+                        const parentRowIdx = mp.rowIdx;
+                        const midX = (mp.maleX + mp.femaleX) / 2;
+                        const cy_top = cp.rowIdx * (CARD_H + ROW_GAP);
+                        const midY = cy_top - 48 - MARRIAGE_GAP;
+                        const py_bottom = parentRowIdx * (CARD_H + ROW_GAP) + CARD_H;
+                        const pairKey = `pair_${maleParent.id}_${femaleParent.id}`;
+                        lines.push({ x1: midX, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: true, pairKey });
+                        return;
+                    }
+                }
+                // 片親のみ（または婚姻ペアが見つからない）場合
+                const singleParent = maleParent && posMap[maleParent.id] ? maleParent : (femaleParent && posMap[femaleParent.id] ? femaleParent : null);
+                if (!singleParent) return;
+                const pPos = posMap[singleParent.id];
+                const cy_top = cp.rowIdx * (CARD_H + ROW_GAP);
+                const midY = cy_top - 48 - MARRIAGE_GAP;
+                const py_bottom = pPos.rowIdx * (CARD_H + ROW_GAP) + CARD_H;
+                const pairKey = `single_${singleParent.id}`;
+                lines.push({ x1: pPos.x, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: false, pairKey });
+            });
 
             const allX = Object.values(posMap).map(p => p.x);
             const svgW = Math.max(...allX) + CARD_W / 2 + 8;
