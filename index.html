@@ -332,10 +332,10 @@
                         marriagePairs.push({ maleId: b.male.id, femaleId: b.female.id, rowIdx: row, maleX: cursorX, femaleX: femaleX });
                         cursorX = femaleX + STEP;
                     } else if (b.type === 'multi') {
-                        // 複数♀を横に並べ、♂はその中央付近（最初と最後の中間）に配置
-                        const femaleXs = b.females.map((f, i) => cursorX + i * STEP);
-                        const maleX = (femaleXs[0] + femaleXs[femaleXs.length - 1]) / 2;
+                        // ♂をブロック左端に配置し、複数の♀をその右側にSTEP間隔で並べる
+                        const maleX = cursorX;
                         posMap[b.male.id] = { x: maleX, rowIdx: row };
+                        const femaleXs = b.females.map((f, i) => cursorX + STEP * (i + 1));
                         b.females.forEach((f, i) => {
                             posMap[f.id] = { x: femaleXs[i], rowIdx: row };
                             marriagePairs.push({ maleId: b.male.id, femaleId: f.id, rowIdx: row, maleX: maleX, femaleX: femaleXs[i] });
