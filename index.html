@@ -390,8 +390,35 @@
 
                 blocks.forEach(b => {
                     if (b.type === 'multi') {
-                        // 複数♀ケース：各♀を個別に「自分が母親の子」の左端へスライドする。
+                        // ① ♂を「全子供（全♀の子合計）の最左端」に配置
+                        const allChildrenOfMale = [];
                         b.females.forEach(f => {
+                            getChildren(f).filter(ch => ch.maleParent === b.male.name && posMap[ch.id]).forEach(ch => allChildrenOfMale.push(ch));
+                        });
+                        if (allChildrenOfMale.length) {
+                            const childMinX = Math.min(...allChildrenOfMale.map(ch => posMap[ch.id].x));
+                            const maleDx = childMinX - posMap[b.male.id].x;
+                            if (maleDx !== 0) {
+                                posMap[b.male.id].x = childMinX;
+                                marriagePairs.forEach(mp => {
+                                    if (mp.rowIdx === row && mp.maleId === b.male.id) mp.maleX = childMinX;
+                                });
+                            }
+                        }
+
+                        // ② 1頭目の♀は♂の右隣（♂のX + STEP）に固定
+                        const firstFemale = b.females[0];
+                        const fixedFirstX = posMap[b.male.id].x + STEP;
+                        const firstDx = fixedFirstX - posMap[firstFemale.id].x;
+                        if (firstDx !== 0) {
+                            posMap[firstFemale.id].x = fixedFirstX;
+                            marriagePairs.forEach(mp => {
+                                if (mp.rowIdx === row && mp.femaleId === firstFemale.id) mp.femaleX = fixedFirstX;
+                            });
+                        }
+
+                        // ③ 2頭目以降の♀は、それぞれ自分が母親の子の左端へ個別スライド
+                        b.females.slice(1).forEach(f => {
                             const ownChildren = getChildren(f).filter(ch => ch.maleParent === b.male.name && posMap[ch.id]);
                             if (!ownChildren.length) return;
                             const childMinX = Math.min(...ownChildren.map(ch => posMap[ch.id].x));
@@ -402,7 +429,8 @@
                                 if (mp.rowIdx === row && mp.femaleId === f.id) mp.femaleX += dx;
                             });
                         });
-                        // ♀同士がSTEP未満の間隔になっていないか解消（females配列の並び順を維持したまま左から）
+
+                        // ♀同士（2頭目以降含む）がSTEP未満の間隔にならないよう解消（females配列の並び順を維持したまま左から）
                         for (let i = 1; i < b.females.length; i++) {
                             const prevX = posMap[b.females[i - 1].id].x;
                             const curX = posMap[b.females[i].id].x;
@@ -413,16 +441,6 @@
                                     if (mp.rowIdx === row && mp.femaleId === b.females[i].id) mp.femaleX += dx;
                                 });
                             }
-                        }
-                        // ♂は「最初の♀（ソート順で先頭）」の左隣（STEP分左）に配置
-                        const firstFemale = b.females[0];
-                        const newMaleX = posMap[firstFemale.id].x - STEP;
-                        const maleDx = newMaleX - posMap[b.male.id].x;
-                        if (maleDx !== 0) {
-                            posMap[b.male.id].x = newMaleX;
-                            marriagePairs.forEach(mp => {
-                                if (mp.rowIdx === row && mp.maleId === b.male.id) mp.maleX = newMaleX;
-                            });
                         }
                         return;
                     }
