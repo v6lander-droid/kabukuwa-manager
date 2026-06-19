@@ -241,6 +241,33 @@
                 return depthMap[c.id];
             };
             creatures.forEach(c => getDepth(c));
+
+            // ===== 手順5：親未登録の個体を、婚姻相手と同じ世代（行）に合わせる =====
+            // 親が登録されていない個体（祖先扱いでdepth=0）であっても、婚姻関係にある相手がいる場合は
+            // その相手と同じ行に表示する。複数組の外部婚姻が連鎖する可能性があるため、
+            // 変化がなくなるまで繰り返し伝播させる。
+            {
+                let changed = true;
+                let guard = 0;
+                while (changed && guard < creatures.length + 5) {
+                    changed = false;
+                    guard++;
+                    creatures.forEach(c => {
+                        const myChildren = getChildren(c);
+                        if (!myChildren.length) return;
+                        const partners = creatures.filter(other =>
+                            other.id !== c.id &&
+                            getChildren(other).some(ch => myChildren.some(c2 => c2.id === ch.id))
+                        );
+                        partners.forEach(p => {
+                            if (depthMap[p.id] > depthMap[c.id]) {
+                                depthMap[c.id] = depthMap[p.id];
+                                changed = true;
+                            }
+                        });
+                    });
+                }
+            }
             const maxDepth = Math.max(...Object.values(depthMap));
 
             // ===== 系統（血縁グループ）の確定 =====
