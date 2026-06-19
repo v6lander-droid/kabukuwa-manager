@@ -311,13 +311,39 @@
                     }
                 });
 
-                // ブロックの代表名（ソート用）：ブロック内の最小の名前
+                // ブロックの代表名（row=0など親を持たない場合の名前順ソート用）
                 const blockKey = (b) => {
                     if (b.type === 'single') return b.items[0].name;
                     if (b.type === 'pair') return [b.male.name, b.female.name].sort((x, y) => x.localeCompare(y, 'ja'))[0];
                     return [b.male.name, ...b.females.map(f => f.name)].sort((x, y) => x.localeCompare(y, 'ja'))[0];
                 };
-                blocks.sort((a, b) => blockKey(a).localeCompare(blockKey(b), 'ja'));
+
+                // ===== 手順3：親子関係が最短距離になるよう、親ブロックのX座標に近い順に並べ替える =====
+                // ブロックの代表個体（♂、または単独個体の最初の1人）の親（オス親優先）の配置済みX座標を基準にする。
+                // 親が未配置（祖先=row 0、または親が登録されていない）の場合は基準なし扱いとし、名前順を維持する。
+                const blockRepresentative = (b) => (b.type === 'single') ? b.items[0] : b.male;
+                const blockParentX = (b) => {
+                    const rep = blockRepresentative(b);
+                    const mp = getMale(rep), fp = getFemale(rep);
+                    const mx = (mp && posMap[mp.id] != null) ? posMap[mp.id].x : null;
+                    const fx = (fp && posMap[fp.id] != null) ? posMap[fp.id].x : null;
+                    if (mx != null && fx != null) return (mx + fx) / 2;
+                    if (mx != null) return mx;
+                    if (fx != null) return fx;
+                    return null;
+                };
+
+                blocks.forEach(b => { b._parentX = blockParentX(b); });
+                blocks.sort((a, b) => {
+                    const ax = a._parentX, bx = b._parentX;
+                    if (ax != null && bx != null) {
+                        if (ax !== bx) return ax - bx;
+                        return blockKey(a).localeCompare(blockKey(b), 'ja');
+                    }
+                    if (ax != null) return -1; // 親位置が分かる方を優先して左に
+                    if (bx != null) return 1;
+                    return blockKey(a).localeCompare(blockKey(b), 'ja');
+                });
 
                 // ブロックを順に配置
                 let cursorX = CARD_W / 2;
