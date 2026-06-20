@@ -1026,6 +1026,78 @@
 
             const [sort, setSort] = useState({ key: 'id', direction: 'asc' });
 
+            // 行・列の追加・削除処理。PedigreeViewのJSX内に巨大な無名関数として埋め込むのではなく、
+            // 独立した関数として定義することで、再レンダリング毎の関数再生成や、
+            // JSXトランスパイル時の挙動による問題を避ける。
+            const handleInsertRow = (index, cellH, cellGap) => {
+                const shiftY = cellH;
+                const thresholdY = cellGap / 2 + index * cellH - 0.01;
+                setCreatures(prev => prev.map(c => {
+                    if (c.gridPos && c.gridPos.row >= index) {
+                        return { ...c, gridPos: { ...c.gridPos, row: c.gridPos.row + 1 } };
+                    }
+                    return c;
+                }));
+                setPedigreeLines(prev => prev.map(l => {
+                    const newL = { ...l };
+                    if (l.y1 >= thresholdY) newL.y1 = l.y1 + shiftY;
+                    if (l.y2 >= thresholdY) newL.y2 = l.y2 + shiftY;
+                    return newL;
+                }));
+                setGridSize(prev => ({ ...prev, rows: prev.rows + 1 }));
+            };
+            const handleInsertCol = (index, cellW, cellGap) => {
+                const shiftX = cellW;
+                const thresholdX = cellGap / 2 + index * cellW - 0.01;
+                setCreatures(prev => prev.map(c => {
+                    if (c.gridPos && c.gridPos.col >= index) {
+                        return { ...c, gridPos: { ...c.gridPos, col: c.gridPos.col + 1 } };
+                    }
+                    return c;
+                }));
+                setPedigreeLines(prev => prev.map(l => {
+                    const newL = { ...l };
+                    if (l.x1 >= thresholdX) newL.x1 = l.x1 + shiftX;
+                    if (l.x2 >= thresholdX) newL.x2 = l.x2 + shiftX;
+                    return newL;
+                }));
+                setGridSize(prev => ({ ...prev, cols: prev.cols + 1 }));
+            };
+            const handleDeleteRow = (index, cellH, cellGap) => {
+                const shiftY = cellH;
+                const rowTopY = cellGap / 2 + index * cellH - cellH / 2;
+                setCreatures(prev => prev.map(c => {
+                    if (c.gridPos && c.gridPos.row > index) {
+                        return { ...c, gridPos: { ...c.gridPos, row: c.gridPos.row - 1 } };
+                    }
+                    return c;
+                }));
+                setPedigreeLines(prev => prev.map(l => {
+                    const newL = { ...l };
+                    if (l.y1 >= rowTopY) newL.y1 = l.y1 - shiftY;
+                    if (l.y2 >= rowTopY) newL.y2 = l.y2 - shiftY;
+                    return newL;
+                }));
+                setGridSize(prev => ({ ...prev, rows: Math.max(1, prev.rows - 1) }));
+            };
+            const handleDeleteCol = (index, cellW, cellGap) => {
+                const shiftX = cellW;
+                const colLeftX = cellGap / 2 + index * cellW - cellW / 2;
+                setCreatures(prev => prev.map(c => {
+                    if (c.gridPos && c.gridPos.col > index) {
+                        return { ...c, gridPos: { ...c.gridPos, col: c.gridPos.col - 1 } };
+                    }
+                    return c;
+                }));
+                setPedigreeLines(prev => prev.map(l => {
+                    const newL = { ...l };
+                    if (l.x1 >= colLeftX) newL.x1 = l.x1 - shiftX;
+                    if (l.x2 >= colLeftX) newL.x2 = l.x2 - shiftX;
+                    return newL;
+                }));
+                setGridSize(prev => ({ ...prev, cols: Math.max(1, prev.cols - 1) }));
+            };
+
             // 登録個体数の変化に応じて、グリッドサイズ（行数・列数）が常に「個体数×2」を下回らないよう自動拡大する。
             // 手動の行追加・列追加ボタンで広げたサイズより縮小することはない（Math.maxで両者の大きい方を採用）。
             useEffect(() => {
@@ -1457,81 +1529,10 @@
                             onUpdateLines={setPedigreeLines}
                             gridSize={gridSize}
                             onUpdateGridSize={setGridSize}
-                            onInsertRow={(index, cellH, cellGap) => {
-                                // index行目の「前」に新しい空行を挿入する。index以降の行に属するカード・線は1行分（下）にずらす。
-                                const shiftY = cellH;
-                                const thresholdY = cellGap / 2 + index * cellH - 0.01;
-                                setCreatures(prev => prev.map(c => {
-                                    if (c.gridPos && c.gridPos.row >= index) {
-                                        return { ...c, gridPos: { ...c.gridPos, row: c.gridPos.row + 1 } };
-                                    }
-                                    return c;
-                                }));
-                                setPedigreeLines(prev => prev.map(l => {
-                                    const newL = { ...l };
-                                    if (l.y1 >= thresholdY) newL.y1 = l.y1 + shiftY;
-                                    if (l.y2 >= thresholdY) newL.y2 = l.y2 + shiftY;
-                                    return newL;
-                                }));
-                                setGridSize(prev => ({ ...prev, rows: prev.rows + 1 }));
-                            }}
-                            onInsertCol={(index, cellW, cellGap) => {
-                                // index列目の「前」に新しい空列を挿入する。index以降の列に属するカード・線は1列分（右）にずらす。
-                                const shiftX = cellW;
-                                const thresholdX = cellGap / 2 + index * cellW - 0.01;
-                                setCreatures(prev => prev.map(c => {
-                                    if (c.gridPos && c.gridPos.col >= index) {
-                                        return { ...c, gridPos: { ...c.gridPos, col: c.gridPos.col + 1 } };
-                                    }
-                                    return c;
-                                }));
-                                setPedigreeLines(prev => prev.map(l => {
-                                    const newL = { ...l };
-                                    if (l.x1 >= thresholdX) newL.x1 = l.x1 + shiftX;
-                                    if (l.x2 >= thresholdX) newL.x2 = l.x2 + shiftX;
-                                    return newL;
-                                }));
-                                setGridSize(prev => ({ ...prev, cols: prev.cols + 1 }));
-                            }}
-                            onDeleteRow={(index, cellH, cellGap) => {
-                                // index行目を削除する。事前にカードが存在しないことは呼び出し側で保証済み。
-                                // index以降の行に属するカードは1行分（上）にずらす。
-                                // 線については、削除される行の範囲にあった部分も含めて、index行目以降の座標を
-                                // 一律1行分上にずらすことで、見た目の位置関係を保ったまま詰める（線の内容自体は無視してよい仕様）。
-                                const shiftY = cellH;
-                                const rowTopY = cellGap / 2 + index * cellH - cellH / 2;
-                                setCreatures(prev => prev.map(c => {
-                                    if (c.gridPos && c.gridPos.row > index) {
-                                        return { ...c, gridPos: { ...c.gridPos, row: c.gridPos.row - 1 } };
-                                    }
-                                    return c;
-                                }));
-                                setPedigreeLines(prev => prev.map(l => {
-                                    const newL = { ...l };
-                                    if (l.y1 >= rowTopY) newL.y1 = l.y1 - shiftY;
-                                    if (l.y2 >= rowTopY) newL.y2 = l.y2 - shiftY;
-                                    return newL;
-                                }));
-                                setGridSize(prev => ({ ...prev, rows: Math.max(1, prev.rows - 1) }));
-                            }}
-                            onDeleteCol={(index, cellW, cellGap) => {
-                                // index列目を削除する。事前にカードが存在しないことは呼び出し側で保証済み。
-                                const shiftX = cellW;
-                                const colLeftX = cellGap / 2 + index * cellW - cellW / 2;
-                                setCreatures(prev => prev.map(c => {
-                                    if (c.gridPos && c.gridPos.col > index) {
-                                        return { ...c, gridPos: { ...c.gridPos, col: c.gridPos.col - 1 } };
-                                    }
-                                    return c;
-                                }));
-                                setPedigreeLines(prev => prev.map(l => {
-                                    const newL = { ...l };
-                                    if (l.x1 >= colLeftX) newL.x1 = l.x1 - shiftX;
-                                    if (l.x2 >= colLeftX) newL.x2 = l.x2 - shiftX;
-                                    return newL;
-                                }));
-                                setGridSize(prev => ({ ...prev, cols: Math.max(1, prev.cols - 1) }));
-                            }}
+                            onInsertRow={handleInsertRow}
+                            onInsertCol={handleInsertCol}
+                            onDeleteRow={handleDeleteRow}
+                            onDeleteCol={handleDeleteCol}
                         />
                     ) : (
                         <div className="bg-neutral-900 p-6 rounded-lg space-y-6 text-white text-sm">
