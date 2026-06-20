@@ -698,6 +698,18 @@
             });
 
             const [sort, setSort] = useState({ key: 'id', direction: 'asc' });
+
+            // 登録個体数の変化に応じて、グリッドサイズ（行数・列数）が常に「個体数×2」を下回らないよう自動拡大する。
+            // 手動の行追加・列追加ボタンで広げたサイズより縮小することはない（Math.maxで両者の大きい方を採用）。
+            useEffect(() => {
+                const minSize = creatures.length * 2;
+                setGridSize(prev => {
+                    const newRows = Math.max(prev.rows, minSize, 1);
+                    const newCols = Math.max(prev.cols, minSize, 1);
+                    if (newRows === prev.rows && newCols === prev.cols) return prev;
+                    return { rows: newRows, cols: newCols };
+                });
+            }, [creatures.length]);
             const [filters, setFilters] = useState({ name: '', sex: '', saleStatus: '', stage: '', alias: '', generation: '' });
             const [showFilter, setShowFilter] = useState(false);
             const [agreedToTerms, setAgreedToTerms] = useState(() => localStorage.getItem('beetle_agreed') === 'true');
