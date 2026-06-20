@@ -212,8 +212,9 @@
             const [zoomFactor, setZoomFactor] = useState(1);
             const [pan, setPan] = useState({ x: 0, y: 0 });
             const [editMode, setEditMode] = useState(false);
-            // lineMode: null（通常）/ 'add'（線追加）/ 'edit'（線編集・移動）/ 'delete'（線削除）
+            // lineMode: null（通常）/ 'add'（線追加）/ 'edit'（線編集：タップで選択、端点/中間ドラッグで形状変更・移動）
             const [lineMode, setLineMode] = useState(null);
+            const [selectedLineId, setSelectedLineId] = useState(null); // 線編集モードで選択中の線
             const [draggingId, setDraggingId] = useState(null);
             const [draggingCreature, setDraggingCreature] = useState(null);
             const [dragFromTray, setDragFromTray] = useState(false);
@@ -392,8 +393,8 @@
                 setLineDraft(null);
             };
 
-            // ---- 線編集モード：端点ドラッグで形状変更、線の中間部ドラッグで平行移動 ----
-            const LINE_GRAB_THRESHOLD = 14; // 端点とみなす許容距離（グリッド座標系のpx）
+            // ---- 線編集モード：タップで選択、選択中の線のみ端点ドラッグで長さ変更・中間部ドラッグで移動可能 ----
+            const LINE_GRAB_THRESHOLD = 14; // 端点・線分とみなす許容距離（グリッド座標系のpx）
             const distToSegment = (px, py, x1, y1, x2, y2) => {
                 const dx = x2 - x1, dy = y2 - y1;
                 if (dx === 0 && dy === 0) return Math.hypot(px - x1, py - y1);
@@ -401,12 +402,8 @@
                 const projX = x1 + t * dx, projY = y1 + t * dy;
                 return Math.hypot(px - projX, py - projY);
             };
-            const handleLineEditStart = (e) => {
-                if (lineMode !== 'edit') return;
-                e.preventDefault();
-                e.stopPropagation();
-                const pt = getSvgPoint(e);
-                // タップ位置に最も近い線を探す（端点優先、なければ線分上の近さで判定）
+            const findNearestLineHit = (pt) => {
+                // タップ位置に最も近い線・部位を探す（端点優先、なければ線分上の近さで判定）
                 let best = null;
                 pedigreeLines.forEach(l => {
                     const distStart = Math.hypot(pt.x - l.x1, pt.y - l.y1);
@@ -415,7 +412,6 @@
                     if (distEnd <= LINE_GRAB_THRESHOLD && (!best || distEnd < best.dist)) best = { id: l.id, grabType: 'end', dist: distEnd };
                 });
                 if (!best) {
-                    // 端点でなければ、線分そのものに近いかどうかを見て「全体移動」とする
                     pedigreeLines.forEach(l => {
                         const midX = l.bendAfterX ? l.x2 : l.x1;
                         const midY = l.bendAfterX ? l.y1 : l.y2;
@@ -425,9 +421,27 @@
                         if (d <= LINE_GRAB_THRESHOLD && (!best || d < best.dist)) best = { id: l.id, grabType: 'whole', dist: d };
                     });
                 }
-                if (!best) return;
-                const target = pedigreeLines.find(l => l.id === best.id);
-                setEditingLine({ id: best.id, grabType: best.grabType, startSnapshot: { ...target }, startGX: pt.x, startGY: pt.y });
+                return best;
+            };
+            const handleLineEditStart = (e) => {
+                if (lineMode !== 'edit') return;
+                e.preventDefault();
+                e.stopPropagation();
+                const pt = getSvgPoint(e);
+                const hit = findNearestLineHit(pt);
+                if (!hit) {
+                    // 何もない場所をタップしたら選択解除
+                    setSelectedLineId(null);
+                    return;
+                }
+                if (hit.id !== selectedLineId) {
+                    // 未選択の線をタップした場合は、まず選択するだけ（この操作ではドラッグ編集は開始しない）
+                    setSelectedLineId(hit.id);
+                    return;
+                }
+                // 既に選択中の線の端点・中間部をタップした場合は、そのままドラッグ編集を開始する
+                const target = pedigreeLines.find(l => l.id === hit.id);
+                setEditingLine({ id: hit.id, grabType: hit.grabType, startSnapshot: { ...target }, startGX: pt.x, startGY: pt.y });
             };
             const handleLineEditMove = (e) => {
                 if (lineMode !== 'edit' || !editingLine) return;
@@ -497,7 +511,6 @@
             const handleTouchStart = (e) => {
                 if (lineMode === 'add') { handleLineStart(e); return; }
                 if (lineMode === 'edit') { handleLineEditStart(e); return; }
-                if (lineMode === 'delete') return; // 削除はタップ(onClick)で処理するため、ここでは何もしない
                 if (e.touches.length === 2) {
                     touchState.current.mode = 'pinch';
                     touchState.current.startDist = getTouchDist(e.touches);
@@ -592,7 +605,11 @@
                 if (l.bendAfterX) return `${l.x1},${l.y1} ${l.x2},${l.y1} ${l.x2},${l.y2}`;
                 return `${l.x1},${l.y1} ${l.x1},${l.y2} ${l.x2},${l.y2}`;
             };
-            const deleteLine = (id) => { onUpdateLines(pedigreeLines.filter(l => l.id !== id)); };
+            const deleteSelectedLine = () => {
+                if (!selectedLineId) return;
+                onUpdateLines(pedigreeLines.filter(l => l.id !== selectedLineId));
+                setSelectedLineId(null);
+            };
 
             return (
                 <React.Fragment>
@@ -603,34 +620,45 @@
                         <span className="text-[10px] flex items-center gap-1"><span className="inline-block w-3 h-0.5" style={{backgroundColor:'#f472b6'}}></span>メス</span>
                         <div className="ml-auto flex items-center gap-2 flex-wrap">
                             <button
-                                onClick={() => { setEditMode(!editMode); setLineMode(null); }}
+                                onClick={() => {
+                                    const next = !editMode;
+                                    setEditMode(next);
+                                    if (!next) { setLineMode(null); setSelectedLineId(null); }
+                                }}
                                 className={`px-2 py-1 rounded text-[10px] font-bold border ${editMode ? 'bg-amber-600 text-white border-amber-500' : 'bg-neutral-800 text-neutral-300 border-neutral-700 hover:border-neutral-500'}`}
                             >
                                 <i className="fa-solid fa-arrows-up-down-left-right mr-1"></i>{editMode ? '編集モード中' : '編集モード'}
                             </button>
-                            <button
-                                onClick={() => { setLineMode(lineMode === 'add' ? null : 'add'); setEditMode(false); }}
-                                className={`px-2 py-1 rounded text-[10px] font-bold border ${lineMode === 'add' ? 'bg-sky-600 text-white border-sky-500' : 'bg-neutral-800 text-neutral-300 border-neutral-700 hover:border-neutral-500'}`}
-                            >
-                                <i className="fa-solid fa-pen mr-1"></i>{lineMode === 'add' ? '線追加モード中' : '線追加'}
-                            </button>
-                            <button
-                                onClick={() => { setLineMode(lineMode === 'edit' ? null : 'edit'); setEditMode(false); }}
-                                className={`px-2 py-1 rounded text-[10px] font-bold border ${lineMode === 'edit' ? 'bg-violet-600 text-white border-violet-500' : 'bg-neutral-800 text-neutral-300 border-neutral-700 hover:border-neutral-500'}`}
-                            >
-                                <i className="fa-solid fa-arrows-up-down-left-right mr-1"></i>{lineMode === 'edit' ? '線編集モード中' : '線編集'}
-                            </button>
-                            <button
-                                onClick={() => { setLineMode(lineMode === 'delete' ? null : 'delete'); setEditMode(false); }}
-                                className={`px-2 py-1 rounded text-[10px] font-bold border ${lineMode === 'delete' ? 'bg-red-600 text-white border-red-500' : 'bg-neutral-800 text-neutral-300 border-neutral-700 hover:border-neutral-500'}`}
-                            >
-                                <i className="fa-solid fa-trash mr-1"></i>{lineMode === 'delete' ? '線削除モード中' : '線削除'}
-                            </button>
+                            {editMode && (
+                                <React.Fragment>
+                                    <button
+                                        onClick={() => { setLineMode(lineMode === 'add' ? null : 'add'); setSelectedLineId(null); }}
+                                        className={`px-2 py-1 rounded text-[10px] font-bold border ${lineMode === 'add' ? 'bg-sky-600 text-white border-sky-500' : 'bg-neutral-800 text-neutral-300 border-neutral-700 hover:border-neutral-500'}`}
+                                    >
+                                        <i className="fa-solid fa-pen mr-1"></i>{lineMode === 'add' ? '線追加モード中' : '線追加'}
+                                    </button>
+                                    <button
+                                        onClick={() => { setLineMode(lineMode === 'edit' ? null : 'edit'); setSelectedLineId(null); }}
+                                        className={`px-2 py-1 rounded text-[10px] font-bold border ${lineMode === 'edit' ? 'bg-violet-600 text-white border-violet-500' : 'bg-neutral-800 text-neutral-300 border-neutral-700 hover:border-neutral-500'}`}
+                                    >
+                                        <i className="fa-solid fa-arrows-up-down-left-right mr-1"></i>{lineMode === 'edit' ? '線編集モード中' : '線編集'}
+                                    </button>
+                                    {lineMode === 'edit' && (
+                                        <button
+                                            onClick={deleteSelectedLine}
+                                            disabled={!selectedLineId}
+                                            className={`px-2 py-1 rounded text-[10px] font-bold border ${selectedLineId ? 'bg-red-600 text-white border-red-500 hover:bg-red-500' : 'bg-neutral-900 text-neutral-600 border-neutral-800 cursor-not-allowed'}`}
+                                        >
+                                            <i className="fa-solid fa-trash mr-1"></i>削除
+                                        </button>
+                                    )}
+                                </React.Fragment>
+                            )}
                         </div>
                     </div>
-                    {editMode && (
+                    {editMode && lineMode === null && (
                         <div className="mb-2 px-3 py-2 bg-amber-900/30 border border-amber-700/50 rounded text-[10px] text-amber-300">
-                            左の一時置き場のカードを右の描画エリアへドラッグして配置できます。描画エリア内のカードを一時置き場側へ戻すこともできます（1セルに1枚まで）。
+                            左上の未配置リストのカードを下の描画エリアへドラッグして配置できます。描画エリア内のカードを未配置リスト側へ戻すこともできます（1セルに1枚まで）。
                         </div>
                     )}
                     {lineMode === 'add' && (
@@ -638,14 +666,14 @@
                             線を引きたい場所をドラッグしてください（縦・横・L字の直線のみ）。
                         </div>
                     )}
-                    {lineMode === 'edit' && (
+                    {lineMode === 'edit' && !selectedLineId && (
                         <div className="mb-2 px-3 py-2 bg-violet-900/30 border border-violet-700/50 rounded text-[10px] text-violet-300">
-                            線の端点をドラッグすると形状を変更、線の途中をドラッグすると線全体を平行移動できます。
+                            編集したい線をタップして選択してください。
                         </div>
                     )}
-                    {lineMode === 'delete' && (
-                        <div className="mb-2 px-3 py-2 bg-red-900/30 border border-red-700/50 rounded text-[10px] text-red-300">
-                            削除したい線をタップしてください。
+                    {lineMode === 'edit' && selectedLineId && (
+                        <div className="mb-2 px-3 py-2 bg-violet-900/30 border border-violet-700/50 rounded text-[10px] text-violet-300">
+                            線を選択中です。端点をドラッグすると長さを変更、線の途中をドラッグすると線全体を移動できます。削除する場合は「削除」ボタンを押してください。
                         </div>
                     )}
                     <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
@@ -669,7 +697,7 @@
                             style={{ height: TRAY_H, touchAction: 'pan-x' }}
                             className="shrink-0 overflow-x-auto overflow-y-hidden border border-neutral-800 rounded-t bg-neutral-950/50 p-2 flex flex-row gap-2 items-center"
                         >
-                            <div className="text-[9px] text-neutral-500 shrink-0 sticky left-0 px-1">一時置き場（{trayCreatures.length}）</div>
+                            <div className="text-[9px] text-neutral-500 shrink-0 sticky left-0 px-1">未配置リスト（{trayCreatures.length}）</div>
                             {trayCreatures.map(c => <TrayCard key={c.id} creature={c} />)}
                             {trayCreatures.length === 0 && (
                                 <div className="text-[9px] text-neutral-600 shrink-0 px-2">未配置の個体はありません</div>
@@ -698,16 +726,14 @@
                                     {/* 描画エリア（グリッド）全体を囲む外周線 */}
                                     <rect x={1} y={1} width={svgW - 2} height={svgH - 2} fill="none" stroke="#34d399" strokeWidth="2" />
                                 </svg>
-                                <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: (lineMode === 'delete') ? 'auto' : 'none' }}>
+                                <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
                                     {pedigreeLines.map(l => (
                                         <polyline
                                             key={l.id}
                                             points={linePoints(l)}
                                             fill="none"
-                                            stroke={lineMode === 'edit' && editingLine && editingLine.id === l.id ? '#a78bfa' : '#525252'}
-                                            strokeWidth="2"
-                                            style={{ pointerEvents: lineMode === 'delete' ? 'stroke' : 'none', cursor: lineMode === 'delete' ? 'pointer' : 'default' }}
-                                            onClick={(e) => { if (lineMode === 'delete') { e.stopPropagation(); deleteLine(l.id); } }}
+                                            stroke={lineMode === 'edit' && selectedLineId === l.id ? '#a78bfa' : '#525252'}
+                                            strokeWidth={lineMode === 'edit' && selectedLineId === l.id ? '3' : '2'}
                                         />
                                     ))}
                                     {lineDraft && (
