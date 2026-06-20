@@ -1743,35 +1743,27 @@
                                 </div>
                                 <div ref={tableScrollRef} onScroll={handleTableScroll} className="overflow-x-auto">
                                 <table className="text-sm border-collapse">
-                                    <thead className="invisible" aria-hidden="true">
-                                        <tr>
-                                            {tableHeaders.map((h, i) => (
-                                                <th key={h.k} ref={el => bodyHeaderCellRefs.current[i] = el} className="p-3 whitespace-nowrap">{h.l}</th>
-                                            ))}
-                                            <th ref={el => bodyHeaderCellRefs.current[tableHeaders.length] = el} className="p-3 whitespace-nowrap">操作</th>
-                                        </tr>
-                                    </thead>
                                     <tbody>
-                                        {processedCreatures.map(c => (
+                                        {processedCreatures.map((c, rowIdx) => (
                                             <tr key={c.id} className="border-t border-neutral-800 hover:bg-neutral-800 bg-neutral-900 cursor-pointer" onClick={() => setSelectedCreature(c)}>
-                                                <td className="p-3 whitespace-nowrap"><button onClick={(e) => toggleSaleStatus(c.id, e)} className={`px-2 py-1 rounded text-[10px] font-bold ${c.saleStatus === '使用' ? 'bg-emerald-600 text-white' : c.saleStatus === '予備' ? 'bg-amber-600 text-white' : 'bg-neutral-500 text-white'}`}>{c.saleStatus}</button></td>
-                                                <td className="p-3 font-bold whitespace-nowrap">{c.name}</td>
-                                                <td className="p-3 whitespace-nowrap"><span style={{color: sexColor(c.sex), fontWeight: 'bold'}}>{c.sex}</span></td>
-                                                <td className="p-3 whitespace-nowrap">{c.alias}</td>
-                                                <td className="p-3 whitespace-nowrap">{c.origin}</td>
-                                                <td className="p-3 whitespace-nowrap">{c.generation}</td>
-                                                <td className="p-3 whitespace-nowrap">{c.history.length > 0 ? c.history[c.history.length - 1].size : '-'}</td>
-                                                <td className="p-3 whitespace-nowrap">{c.hatchDate}</td>
-                                                <td className="p-3 whitespace-nowrap">{c.stage}</td>
-                                                <td className="p-3 whitespace-nowrap">{c.history.length > 0 ? c.history[c.history.length - 1].temp : '-'}</td>
-                                                <td className="p-3 whitespace-nowrap">{c.emergenceDate}</td>
-                                                <td className="p-3 whitespace-nowrap">{c.emergenceSize ? `${c.emergenceSize}mm` : '-'}</td>
-                                                <td className="p-3 whitespace-nowrap">{(c.maleParent && c.maleParent !== '-' && nameMap[c.maleParent]) ? c.maleParent : ''}</td>
-                                                <td className="p-3 whitespace-nowrap">{(c.femaleParent && c.femaleParent !== '-' && nameMap[c.femaleParent]) ? c.femaleParent : ''}</td>
-                                                <td className="p-3 whitespace-nowrap">
+                                                <td ref={rowIdx === 0 ? (el => bodyHeaderCellRefs.current[0] = el) : undefined} className="p-3 whitespace-nowrap text-center"><button onClick={(e) => toggleSaleStatus(c.id, e)} className={`px-2 py-1 rounded text-[10px] font-bold ${c.saleStatus === '使用' ? 'bg-emerald-600 text-white' : c.saleStatus === '予備' ? 'bg-amber-600 text-white' : 'bg-neutral-500 text-white'}`}>{c.saleStatus}</button></td>
+                                                <td ref={rowIdx === 0 ? (el => bodyHeaderCellRefs.current[1] = el) : undefined} className="p-3 font-bold whitespace-nowrap text-center">{c.name}</td>
+                                                <td ref={rowIdx === 0 ? (el => bodyHeaderCellRefs.current[2] = el) : undefined} className="p-3 whitespace-nowrap text-center"><span style={{color: sexColor(c.sex), fontWeight: 'bold'}}>{c.sex}</span></td>
+                                                <td ref={rowIdx === 0 ? (el => bodyHeaderCellRefs.current[3] = el) : undefined} className="p-3 whitespace-nowrap text-center">{c.alias}</td>
+                                                <td ref={rowIdx === 0 ? (el => bodyHeaderCellRefs.current[4] = el) : undefined} className="p-3 whitespace-nowrap text-center">{c.origin}</td>
+                                                <td ref={rowIdx === 0 ? (el => bodyHeaderCellRefs.current[5] = el) : undefined} className="p-3 whitespace-nowrap text-center">{c.generation}</td>
+                                                <td ref={rowIdx === 0 ? (el => bodyHeaderCellRefs.current[6] = el) : undefined} className="p-3 whitespace-nowrap text-center">{c.history.length > 0 ? c.history[c.history.length - 1].size : '-'}</td>
+                                                <td ref={rowIdx === 0 ? (el => bodyHeaderCellRefs.current[7] = el) : undefined} className="p-3 whitespace-nowrap text-center">{c.hatchDate}</td>
+                                                <td ref={rowIdx === 0 ? (el => bodyHeaderCellRefs.current[8] = el) : undefined} className="p-3 whitespace-nowrap text-center">{c.stage}</td>
+                                                <td ref={rowIdx === 0 ? (el => bodyHeaderCellRefs.current[9] = el) : undefined} className="p-3 whitespace-nowrap text-center">{c.history.length > 0 ? c.history[c.history.length - 1].temp : '-'}</td>
+                                                <td ref={rowIdx === 0 ? (el => bodyHeaderCellRefs.current[10] = el) : undefined} className="p-3 whitespace-nowrap text-center">{c.emergenceDate}</td>
+                                                <td ref={rowIdx === 0 ? (el => bodyHeaderCellRefs.current[11] = el) : undefined} className="p-3 whitespace-nowrap text-center">{c.emergenceSize ? `${c.emergenceSize}mm` : '-'}</td>
+                                                <td ref={rowIdx === 0 ? (el => bodyHeaderCellRefs.current[12] = el) : undefined} className="p-3 whitespace-nowrap text-center">{(c.maleParent && c.maleParent !== '-' && nameMap[c.maleParent]) ? c.maleParent : ''}</td>
+                                                <td ref={rowIdx === 0 ? (el => bodyHeaderCellRefs.current[13] = el) : undefined} className="p-3 whitespace-nowrap text-center">{(c.femaleParent && c.femaleParent !== '-' && nameMap[c.femaleParent]) ? c.femaleParent : ''}</td>
+                                                <td ref={rowIdx === 0 ? (el => bodyHeaderCellRefs.current[14] = el) : undefined} className="p-3 whitespace-nowrap text-center">
                                                     {(() => { const f = calcSelfF(c, nameMap); const col = gradColor(f, 0.25); return <span className="font-bold text-xs" style={{ color: col }}>{(f*100).toFixed(2)}%</span>; })()}
                                                 </td>
-                                                <td className="p-3 whitespace-nowrap"><button onClick={(e) => { e.stopPropagation(); if(confirm('削除?')) setCreatures(creatures.filter(x=>x.id!==c.id)) }} className="bg-emerald-600 px-2 py-1 rounded text-xs text-white">削除</button></td>
+                                                <td ref={rowIdx === 0 ? (el => bodyHeaderCellRefs.current[15] = el) : undefined} className="p-3 whitespace-nowrap text-center"><button onClick={(e) => { e.stopPropagation(); if(confirm('削除?')) setCreatures(creatures.filter(x=>x.id!==c.id)) }} className="bg-emerald-600 px-2 py-1 rounded text-xs text-white">削除</button></td>
                                             </tr>
                                         ))}
                                     </tbody>
