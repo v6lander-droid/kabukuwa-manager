@@ -194,799 +194,63 @@
 
         // =============================================
 
-        function PedigreeView({ creatures, highlightId, onSelect, onUpdateManualPos, onResetAllManualPos }) {
-            if (creatures.length === 0) return (
-                <div className="bg-neutral-900 p-8 rounded-lg text-center text-neutral-500 text-sm">個体が登録されていません</div>
-            );
+        function PedigreeView({ creatures, highlightId, onSelect, onUpdateGridPos, pedigreeLines, onUpdateLines, gridSize, onUpdateGridSize }) {
+            const CARD_W = 112;
+            const CARD_H = 72;
+            const CELL_GAP = 24;
+            const CELL_W = CARD_W + CELL_GAP;
+            const CELL_H = CARD_H + CELL_GAP;
 
             const containerRef = useRef(null);
-            const contentRef = useRef(null);
             const [containerWidth, setContainerWidth] = useState(0);
             const [zoomFactor, setZoomFactor] = useState(1);
             const [pan, setPan] = useState({ x: 0, y: 0 });
             const [editMode, setEditMode] = useState(false);
+            const [lineMode, setLineMode] = useState(false);
             const [draggingId, setDraggingId] = useState(null);
-            // ドラッグ中のプレビュー位置はuseRefで保持し、setStateを発生させない（重い再レンダリングを避けるため）。
-            // ドラッグ中はcardRefs経由でDOM要素のstyleを直接書き換えて見た目だけを動かす。
-            const dragPreviewRef = useRef(null);
+            const [lineDraft, setLineDraft] = useState(null); // { x1, y1, x2, y2 } 線描画中のプレビュー（グリッド座標系のpx）
             const cardRefs = useRef({});
-            const dragState = useRef({ startX: 0, startY: 0, origX: 0, origY: 0 });
-            const touchState = useRef({ mode: null, startDist: 0, startZoom: 1, startPan: {x:0,y:0}, startMid: {x:0,y:0}, startSingle: {x:0,y:0} });
+            const dragState = useRef({ startX: 0, startY: 0, origRow: 0, origCol: 0 });
+            const lineDragState = useRef({ startGX: 0, startGY: 0 });
+            const touchState = useRef({ mode: null, startDist: 0, startZoom: 1, startPan: { x: 0, y: 0 }, startMid: { x: 0, y: 0 }, startSingle: { x: 0, y: 0 } });
 
             useEffect(() => {
                 const updateWidth = () => {
-                    if (containerRef.current) {
-                        setContainerWidth(containerRef.current.clientWidth);
-                    }
+                    if (containerRef.current) setContainerWidth(containerRef.current.clientWidth);
                 };
                 updateWidth();
                 window.addEventListener('resize', updateWidth);
                 return () => window.removeEventListener('resize', updateWidth);
             }, []);
 
-            const CARD_W = 112;
-            const CARD_H = 72;
-            const H_GAP = 20;
-            const ROW_GAP = 144;
-            const STEP = CARD_W + H_GAP;
-            const MARRIAGE_GAP = 48; // 中点縦線の長さ（48px単位）
-
-            const getMale   = (c) => (c.maleParent   && c.maleParent   !== '-') ? creatures.find(x => x.name === c.maleParent)   : null;
-            const getFemale = (c) => (c.femaleParent && c.femaleParent !== '-') ? creatures.find(x => x.name === c.femaleParent) : null;
-            const getChildren = (c) => creatures.filter(ch => ch.maleParent === c.name || ch.femaleParent === c.name);
-
-            // 世代深度（祖先=0、子孫ほど大きい）
-            // 手動位置（manualPos）が設定されている個体は、そのY座標から仮想的なdepthを逆算して使う。
-            // これにより、手動位置の個体が親であっても、その子（自動配置対象）のdepth計算が破綻しない。
-            const depthMap = {};
-            const getDepth = (c, vis = new Set()) => {
-                if (depthMap[c.id] != null) return depthMap[c.id];
-                if (c.manualPos) {
-                    depthMap[c.id] = Math.max(0, Math.round(c.manualPos.y / (CARD_H + ROW_GAP)));
-                    return depthMap[c.id];
-                }
-                if (vis.has(c.id)) return 0;
-                vis.add(c.id);
-                const parents = [getMale(c), getFemale(c)].filter(Boolean);
-                depthMap[c.id] = parents.length
-                    ? Math.max(...parents.map(p => getDepth(p, new Set(vis)) + 1))
-                    : 0;
-                return depthMap[c.id];
-            };
-            creatures.forEach(c => getDepth(c));
-
-            // ===== 手順2＋3（移動前）：婚姻相手への移動を行う前のdepthMapでブロック化・ソートし、
-            //       各個体の「移動前の行内順位」を記録しておく =====
-            // これにより、後で手順5により行（世代）を移動させられた個体も、
-            // 元々その行で婚姻ペアを優先・単独ブロックを最後尾にする並び順が維持される。
-            const preMoveRank = {}; // creature.id -> 行内での並び順位（0始まり、ブロック単位で連番）
-            {
-                const preMaxDepth = Math.max(...Object.values(depthMap));
-                for (let row = 0; row <= preMaxDepth; row++) {
-                    const rowCreatures = creatures.filter(c => depthMap[c.id] === row && !c.manualPos);
-                    if (!rowCreatures.length) continue;
-                    const consumed = new Set();
-                    const blocks = [];
-                    rowCreatures.forEach(c => {
-                        if (consumed.has(c.id)) return;
-                        if (isMale(c.sex)) {
-                            const wives = rowCreatures.filter(other =>
-                                !consumed.has(other.id) && other.id !== c.id && isFemale(other.sex) &&
-                                getChildren(other).some(ch => ch.maleParent === c.name && ch.femaleParent === other.name)
-                            );
-                            if (wives.length === 1) {
-                                consumed.add(c.id); consumed.add(wives[0].id);
-                                blocks.push({ type: 'pair', male: c, female: wives[0] });
-                            } else if (wives.length > 1) {
-                                consumed.add(c.id);
-                                wives.forEach(w => consumed.add(w.id));
-                                const sortedWives = [...wives].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
-                                blocks.push({ type: 'multi', male: c, females: sortedWives });
-                            } else {
-                                consumed.add(c.id);
-                                blocks.push({ type: 'single', items: [c] });
-                            }
-                        } else if (isFemale(c.sex)) {
-                            const husband = rowCreatures.find(other =>
-                                !consumed.has(other.id) && other.id !== c.id && isMale(other.sex) &&
-                                getChildren(other).some(ch => ch.maleParent === other.name && ch.femaleParent === c.name)
-                            );
-                            if (husband) {
-                                const otherWives = rowCreatures.filter(other =>
-                                    !consumed.has(other.id) && other.id !== c.id && other.id !== husband.id && isFemale(other.sex) &&
-                                    getChildren(other).some(ch => ch.maleParent === husband.name && ch.femaleParent === other.name)
-                                );
-                                consumed.add(husband.id); consumed.add(c.id);
-                                if (otherWives.length > 0) {
-                                    otherWives.forEach(w => consumed.add(w.id));
-                                    const sortedWives = [c, ...otherWives].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
-                                    blocks.push({ type: 'multi', male: husband, females: sortedWives });
-                                } else {
-                                    blocks.push({ type: 'pair', male: husband, female: c });
-                                }
-                            } else {
-                                consumed.add(c.id);
-                                blocks.push({ type: 'single', items: [c] });
-                            }
-                        } else {
-                            consumed.add(c.id);
-                            blocks.push({ type: 'single', items: [c] });
-                        }
-                    });
-                    const preBlockKey = (b) => {
-                        if (b.type === 'single') return b.items[0].name;
-                        if (b.type === 'pair') return [b.male.name, b.female.name].sort((x, y) => x.localeCompare(y, 'ja'))[0];
-                        return [b.male.name, ...b.females.map(f => f.name)].sort((x, y) => x.localeCompare(y, 'ja'))[0];
-                    };
-                    // 単独ブロックを最後尾にして、それ以外は名前順
-                    blocks.sort((a, b) => {
-                        const aSingle = a.type === 'single' ? 1 : 0;
-                        const bSingle = b.type === 'single' ? 1 : 0;
-                        if (aSingle !== bSingle) return aSingle - bSingle;
-                        return preBlockKey(a).localeCompare(preBlockKey(b), 'ja');
-                    });
-                    blocks.forEach((b, idx) => {
-                        const members = b.type === 'single' ? b.items : b.type === 'pair' ? [b.male, b.female] : [b.male, ...b.females];
-                        members.forEach(m => { preMoveRank[m.id] = idx; });
-                    });
-                }
-            }
-
-            // ===== 手順5：親未登録の個体を、婚姻相手と同じ世代（行）に合わせる =====
-            // 親が登録されていない個体（祖先扱いでdepth=0）であっても、婚姻関係にある相手がいる場合は
-            // その相手と同じ行に表示する。複数組の外部婚姻が連鎖する可能性があるため、
-            // 変化がなくなるまで繰り返し伝播させる。
-            // ただし例外として、「両親が両方登録されている個体」は、この移動処理の対象外とする
-            // （系統が同じか別かに関わらず）。両親が揃っている個体は既に正規の世代（depth）を持つため、
-            // 婚姻相手に合わせてdepthを動かすと血統図全体の構造が崩れてしまう。
-            // この場合、カードの位置（depth）はそのままにし、婚姻線・接続線の描画だけで関係を表現する。
-            // 「親未設定」の祖先個体のみが、引き続きこの移動処理の対象となる。
-            {
-                const isExemptFromStep5 = (c) => {
-                    const mp = getMale(c), fp = getFemale(c);
-                    return !!(mp && fp); // 両親が両方とも設定されていれば対象外
-                };
-
-                let changed = true;
-                let guard = 0;
-                while (changed && guard < creatures.length + 5) {
-                    changed = false;
-                    guard++;
-                    creatures.forEach(c => {
-                        if (isExemptFromStep5(c)) return; // 両親が両方設定済みの個体はこの移動処理をスキップ
-                        const myChildren = getChildren(c);
-                        if (!myChildren.length) return;
-                        const partners = creatures.filter(other =>
-                            other.id !== c.id &&
-                            getChildren(other).some(ch => myChildren.some(c2 => c2.id === ch.id))
-                        );
-                        partners.forEach(p => {
-                            if (depthMap[p.id] > depthMap[c.id]) {
-                                depthMap[c.id] = depthMap[p.id];
-                                changed = true;
-                            }
-                        });
-                    });
-                }
-            }
-            const maxDepth = Math.max(...Object.values(depthMap));
-
-            // ===== 系統（血縁グループ）の確定 =====
-            // Union-Find で親子関係を辿り、繋がっている全個体を1つの「系統」としてグループ化する。
-            // 系統ごとに独立して横方向のレーンを割り当てることで、無関係な系統同士の子孫数の違いが
-            // 互いの配置に干渉しないようにする。
-            // 例外：両親が両方とも設定されている個体（クロス行婚姻の可能性がある個体、手順5の対象外）の場合、
-            // 父方・母方の両方の系統と無条件にunionすると、本来別々にレイアウトしたい既存の2系統が
-            // 統合されてしまう（系統全体の位置が大きく変わってしまう）。これを避けるため、
-            // この個体は父方の系統にのみ統合し、母方の系統との結合は行わない
-            // （＝既存の主要メンバーが持つ系統位置を尊重する）。
-            const uf = {};
-            creatures.forEach(c => { uf[c.id] = c.id; });
-            const ufFind = (id) => { if (uf[id] !== id) uf[id] = ufFind(uf[id]); return uf[id]; };
-            const ufUnion = (a, b) => { uf[ufFind(a)] = ufFind(b); };
-            creatures.forEach(c => {
-                const mp = getMale(c), fp = getFemale(c);
-                if (mp && fp) {
-                    // 両親が両方揃っている個体：父方の系統にのみ統合し、母方の系統とは結合しない
-                    ufUnion(c.id, mp.id);
-                } else {
-                    if (mp) ufUnion(c.id, mp.id);
-                    if (fp) ufUnion(c.id, fp.id);
-                }
-            });
-            const systemMap = {}; // groupRootId -> [creature, ...]
-            creatures.forEach(c => {
-                const g = ufFind(c.id);
-                if (!systemMap[g]) systemMap[g] = [];
-                systemMap[g].push(c);
-            });
-            // 系統の並び順：各系統の最小個体名（行0があればその名前、なければ全体の最小名）で安定ソート
-            const systems = Object.values(systemMap).sort((a, b) => {
-                const aName = [...a].sort((x, y) => x.name.localeCompare(y.name, 'ja'))[0].name;
-                const bName = [...b].sort((x, y) => x.name.localeCompare(y.name, 'ja'))[0].name;
-                return aName.localeCompare(bName, 'ja');
-            });
-
-            const posMap = {};
-            const marriagePairs = []; // { maleId, femaleId, rowIdx, maleX, femaleX } のペアごとの婚姻線情報
-
-            let systemOffsetX = 0;
-            systems.forEach(systemCreatures => {
-                const systemIdSet = new Set(systemCreatures.map(c => c.id));
-
-                // ===== 手順2：婚姻関係のブロック化（ブロック構成の確定、この系統内のみ） =====
-                // 同じ行内で、婚姻関係にあるオス親・メス親のペアを1ブロックとして扱う。
-                // ブロック内は「オス親が左・メス親が右」。1頭のオス親が複数のメス親と婚姻関係にある場合は、
-                // オス親1枚を中心に複数のメス親ブロックをまとめて1つの拡張ブロックとして扱う。
-                const rowBlocks = []; // 各行のブロック配列（この系統のみ）
-
-                for (let row = 0; row <= maxDepth; row++) {
-                    // 手動位置（manualPos）が設定されている個体は自動配置の計算対象から完全に除外する
-                    const rowCreatures = systemCreatures.filter(c => depthMap[c.id] === row && !c.manualPos);
-                    if (!rowCreatures.length) { rowBlocks[row] = []; continue; }
-                    const consumed = new Set();
-                    const blocks = [];
-
-                    rowCreatures.forEach(c => {
-                        if (consumed.has(c.id)) return;
-
-                        if (isMale(c.sex)) {
-                            const wives = rowCreatures.filter(other =>
-                                !consumed.has(other.id) && other.id !== c.id && isFemale(other.sex) &&
-                                getChildren(other).some(ch => ch.maleParent === c.name && ch.femaleParent === other.name)
-                            );
-                            if (wives.length === 1) {
-                                consumed.add(c.id); consumed.add(wives[0].id);
-                                blocks.push({ type: 'pair', male: c, female: wives[0] });
-                            } else if (wives.length > 1) {
-                                consumed.add(c.id);
-                                wives.forEach(w => consumed.add(w.id));
-                                const sortedWives = [...wives].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
-                                blocks.push({ type: 'multi', male: c, females: sortedWives });
-                            } else {
-                                consumed.add(c.id);
-                                blocks.push({ type: 'single', items: [c] });
-                            }
-                        } else if (isFemale(c.sex)) {
-                            const husband = rowCreatures.find(other =>
-                                !consumed.has(other.id) && other.id !== c.id && isMale(other.sex) &&
-                                getChildren(other).some(ch => ch.maleParent === other.name && ch.femaleParent === c.name)
-                            );
-                            if (husband) {
-                                const otherWives = rowCreatures.filter(other =>
-                                    !consumed.has(other.id) && other.id !== c.id && other.id !== husband.id && isFemale(other.sex) &&
-                                    getChildren(other).some(ch => ch.maleParent === husband.name && ch.femaleParent === other.name)
-                                );
-                                consumed.add(husband.id); consumed.add(c.id);
-                                if (otherWives.length > 0) {
-                                    otherWives.forEach(w => consumed.add(w.id));
-                                    const sortedWives = [c, ...otherWives].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
-                                    blocks.push({ type: 'multi', male: husband, females: sortedWives });
-                                } else {
-                                    blocks.push({ type: 'pair', male: husband, female: c });
-                                }
-                            } else {
-                                consumed.add(c.id);
-                                blocks.push({ type: 'single', items: [c] });
-                            }
-                        } else {
-                            consumed.add(c.id);
-                            blocks.push({ type: 'single', items: [c] });
-                        }
-                    });
-
-                    rowBlocks[row] = blocks;
-                }
-
-            // ブロックの代表名（row=0など親を持たない場合の名前順ソート用）
-            const blockKey = (b) => {
-                if (b.type === 'single') return b.items[0].name;
-                if (b.type === 'pair') return [b.male.name, b.female.name].sort((x, y) => x.localeCompare(y, 'ja'))[0];
-                return [b.male.name, ...b.females.map(f => f.name)].sort((x, y) => x.localeCompare(y, 'ja'))[0];
-            };
-            const blockRepresentative = (b) => (b.type === 'single') ? b.items[0] : b.male;
-            const blockMembers = (b) => (b.type === 'single') ? b.items : (b.type === 'pair') ? [b.male, b.female] : [b.male, ...b.females];
-
-            // ===== 手順3＋手順4 を、位置が安定するまで複数回繰り返す =====
-            // 手順3：各行のブロックを「親ブロックのX座標に近い順」に並べ替えて配置する。
-            // 手順4：深い行から浅い行へ向かって、各親ブロックを「子グループの左端」に合わせてスライドする。
-            //         複数♀の場合：♂は全子の最左端、1頭目の♀は♂の右隣固定、2頭目以降は個別に自分の子の左端へ。
-            // 1回のパスでは「直接の親子」しか整合しないため、祖先方向と子孫方向の調整が噛み合うまで反復する。
-            const LAYOUT_PASSES = 5;
-            for (let pass = 0; pass < LAYOUT_PASSES; pass++) {
-
-                // ---- 手順3：親ブロックのX座標に近い順に並べ替えて配置 ----
-                // 初回パス（pass=0）は直接の親の位置のみを基準にする。
-                // 2回目以降は、前回パスの手順4で調整済みの「自分自身の現在位置」（＝子孫全体の重心を反映した位置）
-                // と親の位置の両方を考慮することで、祖先側と子孫側の調整を徐々に噛み合わせて収束させる。
-                for (let row = 0; row <= maxDepth; row++) {
-                    const blocks = rowBlocks[row];
-                    if (!blocks || !blocks.length) continue;
-
-                    const blockParentX = (b) => {
-                        const rep = blockRepresentative(b);
-                        const mp = getMale(rep), fp = getFemale(rep);
-                        const mx = (mp && posMap[mp.id] != null) ? posMap[mp.id].x : null;
-                        const fx = (fp && posMap[fp.id] != null) ? posMap[fp.id].x : null;
-                        if (mx != null && fx != null) return (mx + fx) / 2;
-                        if (mx != null) return mx;
-                        if (fx != null) return fx;
-                        return null;
-                    };
-                    const blockOwnX = (b) => (posMap[b._leftId] != null) ? posMap[b._leftId].x : null;
-
-                    blocks.forEach(b => {
-                        const parentX = blockParentX(b);
-                        if (pass === 0 || b._leftId == null) {
-                            b._sortX = parentX;
-                        } else {
-                            const ownX = blockOwnX(b);
-                            if (parentX != null && ownX != null) b._sortX = (parentX + ownX) / 2;
-                            else if (ownX != null) b._sortX = ownX;
-                            else b._sortX = parentX;
-                        }
-                    });
-                    blocks.sort((a, b) => {
-                        const ax = a._sortX, bx = b._sortX;
-                        if (ax != null && bx != null) {
-                            if (ax !== bx) return ax - bx;
-                            return blockKey(a).localeCompare(blockKey(b), 'ja');
-                        }
-                        if (ax != null) return -1; // 位置が分かる方を優先して左に
-                        if (bx != null) return 1;
-                        // 両方とも親ブロックを持たない祖先ブロック同士の場合：
-                        // 「移動前（手順5適用前）の行内順位」が分かればそれを最優先で使う。
-                        // これにより、婚姻相手の行へ移動させられた個体の元の並び順（単独ブロック最後尾化を含む）を維持できる。
-                        const aRep = blockRepresentative(a), bRep = blockRepresentative(b);
-                        const aRank = preMoveRank[aRep.id];
-                        const bRank = preMoveRank[bRep.id];
-                        if (aRank != null && bRank != null && aRank !== bRank) return aRank - bRank;
-                        // 移動前順位が同点、または取得できない場合は従来通り：単独ブロックを最後尾、それ以外は名前順
-                        const aSingle = a.type === 'single' ? 1 : 0;
-                        const bSingle = b.type === 'single' ? 1 : 0;
-                        if (aSingle !== bSingle) return aSingle - bSingle;
-                        return blockKey(a).localeCompare(blockKey(b), 'ja');
-                    });
-                }
-
-                // marriagePairsを再構築するため、この系統に属するエントリだけをクリアしてから配置し直す
-                // （他の系統のmarriagePairsには影響を与えない）
-                for (let i = marriagePairs.length - 1; i >= 0; i--) {
-                    if (systemIdSet.has(marriagePairs[i].maleId)) marriagePairs.splice(i, 1);
-                }
-                for (let row = 0; row <= maxDepth; row++) {
-                    const blocks = rowBlocks[row];
-                    if (!blocks || !blocks.length) continue;
-
-                    let cursorX = CARD_W / 2;
-                    blocks.forEach(b => {
-                        if (b.type === 'single') {
-                            posMap[b.items[0].id] = { x: cursorX, rowIdx: row };
-                            b._leftId = b.items[0].id;
-                            cursorX += STEP;
-                        } else if (b.type === 'pair') {
-                            posMap[b.male.id] = { x: cursorX, rowIdx: row };
-                            const femaleX = cursorX + STEP;
-                            posMap[b.female.id] = { x: femaleX, rowIdx: row };
-                            marriagePairs.push({ maleId: b.male.id, femaleId: b.female.id, rowIdx: row, maleX: cursorX, femaleX: femaleX });
-                            b._leftId = b.male.id;
-                            cursorX = femaleX + STEP;
-                        } else if (b.type === 'multi') {
-                            // ♂をブロック左端に配置し、複数の♀をその右側にSTEP間隔で並べる
-                            const maleX = cursorX;
-                            posMap[b.male.id] = { x: maleX, rowIdx: row };
-                            const femaleXs = b.females.map((f, i) => cursorX + STEP * (i + 1));
-                            b.females.forEach((f, i) => {
-                                posMap[f.id] = { x: femaleXs[i], rowIdx: row };
-                                marriagePairs.push({ maleId: b.male.id, femaleId: f.id, rowIdx: row, maleX: maleX, femaleX: femaleXs[i] });
-                            });
-                            b._leftId = b.male.id;
-                            cursorX = femaleXs[femaleXs.length - 1] + STEP;
-                        }
-                    });
-                }
-
-                // 各個体IDから「その個体が属するブロックの左端ID」を引けるマップを構築。
-                // 手順4で「子個体自身の位置」ではなく「子が属するペアブロック全体の左端」を基準にスライドするために使う。
-                const idToBlockLeftId = {};
-                for (let row = 0; row <= maxDepth; row++) {
-                    const blocks = rowBlocks[row];
-                    if (!blocks) continue;
-                    blocks.forEach(b => {
-                        const members = blockMembers(b);
-                        members.forEach(m => { idToBlockLeftId[m.id] = b._leftId; });
-                    });
-                }
-
-                // ---- 手順4：深い行から浅い行へ向かって、子グループの左端に親ブロックを合わせてスライド ----
-                // 「配偶者の親ブロックの右隣に固定配置すべきブロック」は、通常スライドの対象から除外し、
-                // 全行の通常処理（スライド＋重なり解消）が完了した後に別パスでまとめて配置する
-                // （配偶者側の親ブロックの最終位置が確定してから固定する必要があるため）。
-                const fixedRightOfSpouseBlocks = []; // { row, block, spouseId }
-
-                for (let row = maxDepth - 1; row >= 0; row--) {
-                    const blocks = rowBlocks[row];
-                    if (!blocks || !blocks.length) continue;
-
-                    blocks.forEach(b => {
-                    if (b.type === 'multi') {
-                        // ① ♂を「全子供（全♀の子合計）の最左端」に配置
-                        const allChildrenOfMale = [];
-                        b.females.forEach(f => {
-                            getChildren(f).filter(ch => ch.maleParent === b.male.name && posMap[ch.id]).forEach(ch => allChildrenOfMale.push(ch));
-                        });
-                        if (allChildrenOfMale.length) {
-                            const childMinX = Math.min(...allChildrenOfMale.map(ch => posMap[ch.id].x));
-                            const maleDx = childMinX - posMap[b.male.id].x;
-                            if (maleDx !== 0) {
-                                posMap[b.male.id].x = childMinX;
-                                marriagePairs.forEach(mp => {
-                                    if (mp.maleId === b.male.id) mp.maleX = childMinX;
-                                });
-                            }
-                        }
-
-                        // ② 1頭目の♀は♂の右隣（♂のX + STEP）に固定
-                        const firstFemale = b.females[0];
-                        const fixedFirstX = posMap[b.male.id].x + STEP;
-                        const firstDx = fixedFirstX - posMap[firstFemale.id].x;
-                        if (firstDx !== 0) {
-                            posMap[firstFemale.id].x = fixedFirstX;
-                            marriagePairs.forEach(mp => {
-                                if (mp.femaleId === firstFemale.id) mp.femaleX = fixedFirstX;
-                            });
-                        }
-
-                        // ③ 2頭目以降の♀は、それぞれ自分が母親の子の左端へ個別スライド
-                        b.females.slice(1).forEach(f => {
-                            const ownChildren = getChildren(f).filter(ch => ch.maleParent === b.male.name && posMap[ch.id]);
-                            if (!ownChildren.length) return;
-                            const childMinX = Math.min(...ownChildren.map(ch => posMap[ch.id].x));
-                            const dx = childMinX - posMap[f.id].x;
-                            if (dx === 0) return;
-                            posMap[f.id].x += dx;
-                            marriagePairs.forEach(mp => {
-                                if (mp.femaleId === f.id) mp.femaleX += dx;
-                            });
-                        });
-
-                        // ♀同士（2頭目以降含む）がSTEP未満の間隔にならないよう解消（females配列の並び順を維持したまま左から）
-                        for (let i = 1; i < b.females.length; i++) {
-                            const prevX = posMap[b.females[i - 1].id].x;
-                            const curX = posMap[b.females[i].id].x;
-                            if (curX - prevX < STEP) {
-                                const dx = STEP - (curX - prevX);
-                                posMap[b.females[i].id].x += dx;
-                                marriagePairs.forEach(mp => {
-                                    if (mp.femaleId === b.females[i].id) mp.femaleX += dx;
-                                });
-                            }
-                        }
-                        return;
-                    }
-
-                    const members = blockMembers(b);
-                    // このブロックの個体（単独 or ♂♀ペア）から生まれた全子供を収集（重複排除）
-                    const allChildrenRaw = [];
-                    members.forEach(m => { getChildren(m).forEach(ch => { if (posMap[ch.id]) allChildrenRaw.push(ch); }); });
-                    const allChildren = Array.from(new Map(allChildrenRaw.map(ch => [ch.id, ch])).values());
-                    if (!allChildren.length) return;
-
-                    // 自分の唯一の子が、別の親ブロックの個体と「1対1の婚姻関係」にある♀である場合、
-                    // 通常スライドではなく「配偶者側の親ブロックの右隣」に固定配置する（後続パスで処理）。
-                    // これにより、同じ子ペアブロックを参照する2つの祖父母ブロック同士が同じ位置を取り合う衝突を避ける。
-                    // ただし配偶者が複数の妻を持つ（multiブロックの夫である）場合は対象外とする。
-                    // multiブロックでは妻ごとの位置が既に手順4の①〜③で確定しているため、
-                    // 「子(妻)自身の位置」に通常通り揃えれば衝突せず、特別な保護は不要かつ有害（配偶者自身の位置を
-                    // 誤って基準にしてしまうため）。
-                    if (allChildren.length === 1 && members.length === 2) {
-                        const onlyChild = allChildren[0];
-                        const isOnlyChildFemale = isFemale(onlyChild.sex);
-                        if (isOnlyChildFemale) {
-                            const onlyChildChildren = getChildren(onlyChild);
-                            const childSpouse = onlyChildChildren.length ? creatures.find(other =>
-                                other.id !== onlyChild.id &&
-                                getChildren(other).some(ch => onlyChildChildren.some(c2 => c2.id === ch.id))
-                            ) : null;
-                            if (childSpouse && isMale(childSpouse.sex)) {
-                                // 配偶者が複数の妻を持つか（multiの夫かどうか）を確認
-                                const spouseWives = creatures.filter(other =>
-                                    other.id !== childSpouse.id && isFemale(other.sex) &&
-                                    getChildren(other).some(ch => ch.maleParent === childSpouse.name && getMale(ch) && getMale(ch).id === childSpouse.id)
-                                );
-                                const spouseIsMultiHusband = spouseWives.length > 1;
-                                if (!spouseIsMultiHusband) {
-                                    const spouseParentId = idToBlockLeftId[childSpouse.id];
-                                    if (spouseParentId != null && !members.some(m => m.id === spouseParentId)) {
-                                        fixedRightOfSpouseBlocks.push({ row, block: b, spouseId: childSpouse.id });
-                                        return; // 通常スライドはスキップ
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-
-                    // 各子について、「子自身の位置」ではなく「子が属するペアブロック全体の左端」を基準値とする。
-                    // これにより、子が♀側（ペアの右側）であっても、そのペア全体の左端（通常は♂側）に揃えられる。
-                    const childBaseX = allChildren.map(ch => {
-                        const leftId = idToBlockLeftId[ch.id];
-                        return (leftId != null && posMap[leftId] != null) ? posMap[leftId].x : posMap[ch.id].x;
-                    });
-                    const childMinX = Math.min(...childBaseX);
-                    const currentLeftX = posMap[b._leftId].x;
-                    const dx = childMinX - currentLeftX;
-                    if (dx === 0) return;
-
-                    // ブロック全メンバーをdxだけスライド
-                    members.forEach(m => { posMap[m.id].x += dx; });
-                    // このブロックに紐づくmarriagePairsのスナップショットも更新
-                    marriagePairs.forEach(mp => {
-                        if (members.some(m => m.id === mp.maleId)) mp.maleX += dx;
-                        if (members.some(m => m.id === mp.femaleId)) mp.femaleX += dx;
-                    });
-                });
-
-                // 重なり解消：同じ行のブロックを現在のX座標順（＝手順3の並び順を維持したまま）に並べ、
-                // 隙間がSTEP未満なら後続ブロックを連動して右へ押し出す。
-                // multiブロックは♂・♀の配置がバラバラな可能性があるため、ブロック全体の最小Xを左端、最大Xを右端とする。
-                // 固定配置待ちのブロック（fixedRightOfSpouseBlocksに入れたもの）は、まだ位置が確定していないため、
-                // この時点での重なり解消の対象からは除外する。
-                const pendingIds = new Set(fixedRightOfSpouseBlocks.filter(f => f.row === row).map(f => f.block._leftId));
-                const activeBlocks = blocks.filter(b => !pendingIds.has(b._leftId));
-                const blockLeftX = (b) => Math.min(...blockMembers(b).map(m => posMap[m.id].x));
-                const blockRightX = (b) => {
-                    const xs = blockMembers(b).map(m => posMap[m.id].x);
-                    return Math.max(...xs);
-                };
-                // blocksは既に手順3の並び順（=配置順）になっているので、その順序のまま左から処理
-                for (let i = 1; i < activeBlocks.length; i++) {
-                    const prevRight = blockRightX(activeBlocks[i - 1]);
-                    const curLeft = blockLeftX(activeBlocks[i]);
-                    if (curLeft - prevRight < STEP) {
-                        const dx = STEP - (curLeft - prevRight);
-                        blockMembers(activeBlocks[i]).forEach(m => { posMap[m.id].x += dx; });
-                        marriagePairs.forEach(mp => {
-                            if (blockMembers(activeBlocks[i]).some(m => m.id === mp.maleId)) mp.maleX += dx;
-                            if (blockMembers(activeBlocks[i]).some(m => m.id === mp.femaleId)) mp.femaleX += dx;
-                        });
-                    }
-                }
-            }
-
-            // ---- 固定配置パス：配偶者側親ブロックの右隣に、保留していたブロックを配置する ----
-            // 各行ごとに、配偶者の親ブロックの最終的な右端を求めてから配置する。
-            // 複数のブロックが同じ配偶者親を参照する可能性は低いが、念のため出現順に処理する。
-            fixedRightOfSpouseBlocks.forEach(({ row, block, spouseId }) => {
-                const spouseParentId = idToBlockLeftId[spouseId];
-                if (spouseParentId == null || posMap[spouseParentId] == null) return;
-                // 配偶者側の親ブロックの右端を求める
-                let spouseParentBlockRightX = posMap[spouseParentId].x;
-                for (let rr = 0; rr <= maxDepth; rr++) {
-                    const bb = (rowBlocks[rr] || []).find(blk => blk._leftId === spouseParentId);
-                    if (bb) { spouseParentBlockRightX = Math.max(...blockMembers(bb).map(m => posMap[m.id].x)); break; }
-                }
-                const targetX = spouseParentBlockRightX + STEP;
-                const members = blockMembers(block);
-                const dx2 = targetX - posMap[block._leftId].x;
-                if (dx2 === 0) return;
-                members.forEach(m => { posMap[m.id].x += dx2; });
-                marriagePairs.forEach(mp => {
-                    if (members.some(m => m.id === mp.maleId)) mp.maleX += dx2;
-                    if (members.some(m => m.id === mp.femaleId)) mp.femaleX += dx2;
-                });
-                // 同じ行の他ブロックと重なっていないか最終チェックし、必要なら自分自身を右へずらす
-                const blocks = rowBlocks[row];
-                if (!blocks) return;
-                const myIdx = blocks.indexOf(block);
-                if (myIdx > 0) {
-                    const prevBlock = blocks[myIdx - 1];
-                    const prevRight = Math.max(...blockMembers(prevBlock).map(m => posMap[m.id].x));
-                    const myLeft = Math.min(...members.map(m => posMap[m.id].x));
-                    if (myLeft - prevRight < STEP) {
-                        const dx3 = STEP - (myLeft - prevRight);
-                        members.forEach(m => { posMap[m.id].x += dx3; });
-                        marriagePairs.forEach(mp => {
-                            if (members.some(m => m.id === mp.maleId)) mp.maleX += dx3;
-                            if (members.some(m => m.id === mp.femaleId)) mp.femaleX += dx3;
-                        });
-                    }
-                }
-            });
-            } // end of pass loop
-
-                // この系統に属する個体のXを、系統内の最小値が0になるよう正規化してから、
-                // 全体のオフセット（これまでに配置した他系統の右端）を加算する。
-                const systemMemberIds = systemCreatures.map(c => c.id).filter(id => posMap[id] != null);
-                if (systemMemberIds.length) {
-                    const systemMinX = Math.min(...systemMemberIds.map(id => posMap[id].x));
-                    const baseShift = systemOffsetX - systemMinX;
-                    systemMemberIds.forEach(id => { posMap[id].x += baseShift; });
-                    marriagePairs.forEach(mp => {
-                        if (systemIdSet.has(mp.maleId)) mp.maleX += baseShift;
-                        if (systemIdSet.has(mp.femaleId)) mp.femaleX += baseShift;
-                    });
-                    const systemMaxX = Math.max(...systemMemberIds.map(id => posMap[id].x));
-                    systemOffsetX = systemMaxX + STEP;
-                }
-            }); // end of systems.forEach
-
-            // 手順4のスライド処理でマイナス座標が発生する場合があるため、全体を左端（CARD_W/2）に正規化
-            {
-                const allX = Object.values(posMap).map(p => p.x);
-                const globalMinX = Math.min(...allX);
-                const shift = CARD_W / 2 - globalMinX;
-                if (shift !== 0) {
-                    Object.values(posMap).forEach(p => { p.x += shift; });
-                    marriagePairs.forEach(mp => { mp.maleX += shift; mp.femaleX += shift; });
-                }
-            }
-
-            // ===== 手動修正機能：手動位置（manualPos）を持つ個体は、自動配置計算を一切経由せず、
-            //       指定された座標をそのままposMapに登録する。 =====
-            creatures.forEach(c => {
-                if (c.manualPos) {
-                    posMap[c.id] = { x: c.manualPos.x, rowIdx: depthMap[c.id] != null ? depthMap[c.id] : 0, manualY: c.manualPos.y };
-                }
-            });
-
-            // 両親が揃っている場合：対応するmarriagePairsエントリのmaleX/femaleXの中点から、子のカード上端へ。
-            // 片親のみの場合：その親の下端中央から、子のカード上端へ直接1本。
-            // posMapのY座標を取得：手動位置（manualY）があればそれを優先、なければ世代(rowIdx)から計算
-            const getCardY = (pos) => pos.manualY != null ? pos.manualY : pos.rowIdx * (CARD_H + ROW_GAP);
-
-            const lines = [];
-            creatures.forEach(c => {
-                const cp = posMap[c.id];
-                if (!cp) return;
-                const maleParent = getMale(c);
-                const femaleParent = getFemale(c);
-
-                if (maleParent && femaleParent && posMap[maleParent.id] && posMap[femaleParent.id]) {
-                    // 子への接続線の起点：通常は♂の真下。
-                    // ただし♂が複数の♀と婚姻関係にある場合（multi）、1頭目の♀との子は♂の真下、
-                    // 2頭目以降の♀との子はその♀自身の真下から接続する。
-                    // 座標はmarriagePairsのスナップショット（maleX/femaleX）ではなく、
-                    // 常に最新のposMapから直接取得する（スナップショットが複数passを経て陳腐化することを防ぐ）。
-                    // なお、両親が異なる行（depth）にいる場合（例：両親が既に正規の親を持つ個体同士の婚姻で、
-                    // 手順5の対象外となり同じ行に揃えられなかったケース）でも、両親さえposMap上に存在すれば、
-                    // marriagePairsへの登録の有無に関わらずこのコの字（H字）接続線を描画する。
-                    const allWivesOfMale = creatures.filter(other =>
-                        other.id !== maleParent.id && isFemale(other.sex) &&
-                        getChildren(other).some(ch => ch.maleParent === maleParent.name && getMale(ch) && getMale(ch).id === maleParent.id)
-                    );
-                    let originX = posMap[maleParent.id].x;
-                    if (allWivesOfMale.length > 1) {
-                        const sortedWives = [...allWivesOfMale].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
-                        const isFirstWife = sortedWives[0].id === femaleParent.id;
-                        originX = isFirstWife ? posMap[maleParent.id].x : posMap[femaleParent.id].x;
-                    }
-                    const cy_top = getCardY(cp);
-                    const midY = cy_top - 48 - MARRIAGE_GAP;
-                    const py_bottom = Math.max(getCardY(posMap[maleParent.id]), getCardY(posMap[femaleParent.id])) + CARD_H;
-                    const pairKey = `pair_${maleParent.id}_${femaleParent.id}`;
-                    lines.push({ x1: originX, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: true, pairKey });
-                    return;
-                }
-                // 片親のみ（または婚姻ペアが見つからない）場合
-                const singleParent = maleParent && posMap[maleParent.id] ? maleParent : (femaleParent && posMap[femaleParent.id] ? femaleParent : null);
-                if (!singleParent) return;
-                const pPos = posMap[singleParent.id];
-                const cy_top = getCardY(cp);
-                const midY = cy_top - 48 - MARRIAGE_GAP;
-                const py_bottom = getCardY(pPos) + CARD_H;
-                const pairKey = `single_${singleParent.id}`;
-                lines.push({ x1: pPos.x, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: false, pairKey });
-            });
-
-            // ===== 異なる行（depth）にいる♂♀の婚姻ペアを検出し、直角線（縦→横→縦）で結ぶ =====
-            // 手順2のブロック化は同じ行内でのみ婚姻ペアを検出するため、両親が両方揃っている個体同士
-            // （手順5の対象外＝行が揃えられない）が異なる行で婚姻している場合、marriagePairsには登録されない。
-            // この場合でも、♂と♀を直角線で視覚的に結ぶ。斜め線は使わず、必ず縦→横→縦の直角経路にする。
-            const crossRowMarriages = [];
-            {
-                const registeredPairKeys = new Set(marriagePairs.map(mp => `${mp.maleId}_${mp.femaleId}`));
-                const seenPairs = new Set();
-                creatures.forEach(c => {
-                    const maleParent = getMale(c);
-                    const femaleParent = getFemale(c);
-                    if (!maleParent || !femaleParent) return;
-                    if (!posMap[maleParent.id] || !posMap[femaleParent.id]) return;
-                    const key = `${maleParent.id}_${femaleParent.id}`;
-                    if (registeredPairKeys.has(key) || seenPairs.has(key)) return;
-                    if (posMap[maleParent.id].rowIdx === posMap[femaleParent.id].rowIdx &&
-                        getCardY(posMap[maleParent.id]) === getCardY(posMap[femaleParent.id])) return; // 同じ行ならmarriagePairs側で処理済みのはず
-                    seenPairs.add(key);
-                    crossRowMarriages.push({ maleId: maleParent.id, femaleId: femaleParent.id });
-                });
-            }
-
-            const allX = Object.values(posMap).map(p => p.x);
-            const allY = Object.values(posMap).map(p => getCardY(p));
-            const svgW = Math.max(...allX) + CARD_W / 2 + 8;
-            const svgH = Math.max((maxDepth + 1) * (CARD_H + ROW_GAP), Math.max(...allY) + CARD_H + ROW_GAP);
-            // 全体が画面に収まる基準スケール（拡大はしない）
+            const rows = gridSize.rows;
+            const cols = gridSize.cols;
+            const svgW = cols * CELL_W + CELL_GAP;
+            const svgH = rows * CELL_H + CELL_GAP;
             const baseScale = containerWidth > 0 ? Math.min(1, containerWidth / svgW) : 1;
             const scale = baseScale * zoomFactor;
 
-            const getTouchDist = (touches) => {
-                const dx = touches[0].clientX - touches[1].clientX;
-                const dy = touches[0].clientY - touches[1].clientY;
-                return Math.sqrt(dx * dx + dy * dy);
-            };
-            const getTouchMid = (touches) => ({
-                x: (touches[0].clientX + touches[1].clientX) / 2,
-                y: (touches[0].clientY + touches[1].clientY) / 2,
+            const cellToPx = (row, col) => ({
+                x: CELL_GAP / 2 + col * CELL_W + CARD_W / 2,
+                y: CELL_GAP / 2 + row * CELL_H + CARD_H / 2,
+            });
+            const pxToCell = (x, y) => ({
+                col: Math.max(0, Math.min(cols - 1, Math.round((x - CELL_GAP / 2 - CARD_W / 2) / CELL_W))),
+                row: Math.max(0, Math.min(rows - 1, Math.round((y - CELL_GAP / 2 - CARD_H / 2) / CELL_H))),
             });
 
-            const handleTouchStart = (e) => {
-                if (e.touches.length === 2) {
-                    touchState.current.mode = 'pinch';
-                    touchState.current.startDist = getTouchDist(e.touches);
-                    touchState.current.startZoom = zoomFactor;
-                    touchState.current.startPan = { ...pan };
-                    const mid = getTouchMid(e.touches);
-                    const rect = containerRef.current.getBoundingClientRect();
-                    // コンテナ左上を基準にした中点座標（pan/scale適用前のスクリーン座標系）
-                    touchState.current.startMid = { x: mid.x - rect.left, y: mid.y - rect.top };
-                } else if (e.touches.length === 1) {
-                    touchState.current.mode = 'pan';
-                    touchState.current.startPan = { ...pan };
-                    touchState.current.startSingle = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-                }
-            };
+            const occupied = {}; // "row_col" -> creature
+            creatures.forEach(c => { if (c.gridPos) occupied[`${c.gridPos.row}_${c.gridPos.col}`] = c; });
 
-            const handleTouchMove = (e) => {
-                if (touchState.current.mode === 'pinch' && e.touches.length === 2) {
-                    e.preventDefault();
-                    const dist = getTouchDist(e.touches);
-                    const ratio = dist / touchState.current.startDist;
-                    const newZoom = Math.min(20, Math.max(0.3, touchState.current.startZoom * ratio));
-
-                    const oldScale = baseScale * touchState.current.startZoom;
-                    const newScale = baseScale * newZoom;
-                    const mid = touchState.current.startMid;
-                    const startPan = touchState.current.startPan;
-                    // 中点が指していたコンテンツ座標を求め、ズーム後も同じ画面位置に来るようpanを調整
-                    const contentX = (mid.x - startPan.x) / oldScale;
-                    const contentY = (mid.y - startPan.y) / oldScale;
-                    const newPanX = mid.x - contentX * newScale;
-                    const newPanY = mid.y - contentY * newScale;
-
-                    setZoomFactor(newZoom);
-                    setPan({ x: newPanX, y: newPanY });
-                } else if (touchState.current.mode === 'pan' && e.touches.length === 1) {
-                    const dx = e.touches[0].clientX - touchState.current.startSingle.x;
-                    const dy = e.touches[0].clientY - touchState.current.startSingle.y;
-                    setPan({ x: touchState.current.startPan.x + dx, y: touchState.current.startPan.y + dy });
-                }
-            };
-
-            const handleTouchEnd = (e) => {
-                if (e.touches.length === 0) {
-                    touchState.current.mode = null;
-                } else if (e.touches.length === 1) {
-                    touchState.current.mode = 'pan';
-                    touchState.current.startPan = { ...pan };
-                    touchState.current.startSingle = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-                }
-            };
-
+            // ---- カードのドラッグ＆ドロップ ----
             const handleCardPointerDown = (e, creature) => {
-                if (!editMode) return;
+                if (!editMode || lineMode) return;
                 e.stopPropagation();
                 e.preventDefault();
-                const pos = posMap[creature.id];
-                if (!pos) return;
-                setDraggingId(creature.id); // ドラッグ開始のみstate更新（カーソル・枠等の見た目変更のため1回だけ再レンダリング）
+                if (!creature.gridPos) return;
+                setDraggingId(creature.id);
                 const point = e.touches ? e.touches[0] : e;
-                dragState.current = {
-                    startX: point.clientX,
-                    startY: point.clientY,
-                    origX: pos.x,
-                    origY: getCardY(pos),
-                };
-                dragPreviewRef.current = { x: pos.x, y: getCardY(pos) };
+                dragState.current = { startX: point.clientX, startY: point.clientY, origRow: creature.gridPos.row, origCol: creature.gridPos.col };
             };
 
             useEffect(() => {
@@ -995,33 +259,30 @@
                     const point = e.touches ? e.touches[0] : e;
                     const dxScreen = point.clientX - dragState.current.startX;
                     const dyScreen = point.clientY - dragState.current.startY;
-                    // 画面上のドラッグ量をコンテンツ座標系（scale適用前）に変換
-                    const dx = dxScreen / scale;
-                    const dy = dyScreen / scale;
-                    // 移動量(dx, dy)自体をカード1枚分単位にスナップしてから元の位置に加算する。
-                    // 絶対座標をグリッドにスナップすると、自動配置のカード位置（CARD_W/2起点等）と
-                    // スナップグリッドの起点がズレてしまい、ドラッグ開始時点で半枚分ジャンプしてしまうため、
-                    // 必ず「元の位置からの相対移動量」を丸める方式にする。
-                    const snappedDx = Math.round(dx / STEP) * STEP;
-                    const snappedDy = Math.round(dy / CARD_H) * CARD_H;
-                    const snappedX = dragState.current.origX + snappedDx;
-                    const snappedY = dragState.current.origY + snappedDy;
-                    dragPreviewRef.current = { x: snappedX, y: snappedY };
-                    // setStateは呼ばない。DOM要素を直接書き換えてカードの見た目だけを動かす
-                    // （Reactの再レンダリング・レイアウト再計算を一切発生させないため、ドラッグ中も滑らかに動く）。
-                    // 接続線は指を離すまで追従しない仕様のため、ここでは更新しない。
+                    const dCol = Math.round((dxScreen / scale) / CELL_W);
+                    const dRow = Math.round((dyScreen / scale) / CELL_H);
+                    const newRow = Math.max(0, Math.min(rows - 1, dragState.current.origRow + dRow));
+                    const newCol = Math.max(0, Math.min(cols - 1, dragState.current.origCol + dCol));
                     const el = cardRefs.current[draggingId];
                     if (el) {
-                        el.style.left = (snappedX - CARD_W / 2) + 'px';
-                        el.style.top = snappedY + 'px';
+                        const p = cellToPx(newRow, newCol);
+                        el.style.left = (p.x - CARD_W / 2) + 'px';
+                        el.style.top = (p.y - CARD_H / 2) + 'px';
+                        el.dataset.targetRow = newRow;
+                        el.dataset.targetCol = newCol;
                     }
                 };
                 const handleUp = () => {
-                    // ドロップ時に初めて確定保存（ここで初めて重いレイアウト再計算が1回だけ走る）
-                    if (dragPreviewRef.current) {
-                        onUpdateManualPos(draggingId, dragPreviewRef.current);
+                    const el = cardRefs.current[draggingId];
+                    if (el && el.dataset.targetRow != null) {
+                        const newRow = parseInt(el.dataset.targetRow, 10);
+                        const newCol = parseInt(el.dataset.targetCol, 10);
+                        const key = `${newRow}_${newCol}`;
+                        // 移動先に既に別のカードがいる場合は移動をキャンセル（1セル1枚ルール）
+                        if (!occupied[key] || occupied[key].id === draggingId) {
+                            onUpdateGridPos(draggingId, { row: newRow, col: newCol });
+                        }
                     }
-                    dragPreviewRef.current = null;
                     setDraggingId(null);
                 };
                 window.addEventListener('mousemove', handleMove);
@@ -1034,23 +295,111 @@
                     window.removeEventListener('touchmove', handleMove);
                     window.removeEventListener('touchend', handleUp);
                 };
-            }, [draggingId, scale]);
+            }, [draggingId, scale, rows, cols]);
+
+            // ---- 線の追加（タップ＆ドラッグ、直線またはL字のみ） ----
+            const getSvgPoint = (e) => {
+                const rect = containerRef.current.getBoundingClientRect();
+                const point = e.touches ? e.touches[0] : e;
+                const screenX = point.clientX - rect.left - pan.x;
+                const screenY = point.clientY - rect.top - pan.y;
+                return { x: screenX / scale, y: screenY / scale };
+            };
+
+            const handleLineStart = (e) => {
+                if (!lineMode) return;
+                e.preventDefault();
+                const pt = getSvgPoint(e);
+                lineDragState.current = { startGX: pt.x, startGY: pt.y };
+                setLineDraft({ x1: pt.x, y1: pt.y, x2: pt.x, y2: pt.y });
+            };
+            const handleLineMove = (e) => {
+                if (!lineMode || !lineDraft) return;
+                e.preventDefault();
+                const pt = getSvgPoint(e);
+                setLineDraft(prev => prev ? { ...prev, x2: pt.x, y2: pt.y } : null);
+            };
+            const handleLineEnd = () => {
+                if (!lineMode || !lineDraft) return;
+                const dx = Math.abs(lineDraft.x2 - lineDraft.x1);
+                const dy = Math.abs(lineDraft.y2 - lineDraft.y1);
+                if (dx > 5 || dy > 5) {
+                    // 縦横どちらの移動が大きいかでL字の折れ方向を決める（直線も自然に含まれる）
+                    const newLine = {
+                        id: `line_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                        x1: lineDraft.x1, y1: lineDraft.y1, x2: lineDraft.x2, y2: lineDraft.y2,
+                        bendAfterX: dx >= dy, // true: 先に横移動してから縦移動（横→縦のL字）, false: 縦→横
+                    };
+                    onUpdateLines([...pedigreeLines, newLine]);
+                }
+                setLineDraft(null);
+            };
+
+            // ---- ピンチズーム・パン（線モード・編集モードでないときだけ有効） ----
+            const getTouchDist = (touches) => { const dx = touches[0].clientX - touches[1].clientX; const dy = touches[0].clientY - touches[1].clientY; return Math.sqrt(dx * dx + dy * dy); };
+            const getTouchMid = (touches) => ({ x: (touches[0].clientX + touches[1].clientX) / 2, y: (touches[0].clientY + touches[1].clientY) / 2 });
+            const handleTouchStart = (e) => {
+                if (lineMode) { handleLineStart(e); return; }
+                if (editMode) return;
+                if (e.touches.length === 2) {
+                    touchState.current.mode = 'pinch';
+                    touchState.current.startDist = getTouchDist(e.touches);
+                    touchState.current.startZoom = zoomFactor;
+                    touchState.current.startPan = { ...pan };
+                    const mid = getTouchMid(e.touches);
+                    const rect = containerRef.current.getBoundingClientRect();
+                    touchState.current.startMid = { x: mid.x - rect.left, y: mid.y - rect.top };
+                } else if (e.touches.length === 1) {
+                    touchState.current.mode = 'pan';
+                    touchState.current.startPan = { ...pan };
+                    touchState.current.startSingle = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                }
+            };
+            const handleTouchMove = (e) => {
+                if (lineMode) { handleLineMove(e); return; }
+                if (editMode) return;
+                if (touchState.current.mode === 'pinch' && e.touches.length === 2) {
+                    e.preventDefault();
+                    const dist = getTouchDist(e.touches);
+                    const ratio = dist / touchState.current.startDist;
+                    const newZoom = Math.min(20, Math.max(0.3, touchState.current.startZoom * ratio));
+                    const oldScale = baseScale * touchState.current.startZoom;
+                    const newScale = baseScale * newZoom;
+                    const mid = touchState.current.startMid;
+                    const startPan = touchState.current.startPan;
+                    const contentX = (mid.x - startPan.x) / oldScale;
+                    const contentY = (mid.y - startPan.y) / oldScale;
+                    setZoomFactor(newZoom);
+                    setPan({ x: mid.x - contentX * newScale, y: mid.y - contentY * newScale });
+                } else if (touchState.current.mode === 'pan' && e.touches.length === 1) {
+                    const dx = e.touches[0].clientX - touchState.current.startSingle.x;
+                    const dy = e.touches[0].clientY - touchState.current.startSingle.y;
+                    setPan({ x: touchState.current.startPan.x + dx, y: touchState.current.startPan.y + dy });
+                }
+            };
+            const handleTouchEnd = (e) => {
+                if (lineMode) { handleLineEnd(); return; }
+                if (e.touches.length === 0) touchState.current.mode = null;
+                else if (e.touches.length === 1) {
+                    touchState.current.mode = 'pan';
+                    touchState.current.startPan = { ...pan };
+                    touchState.current.startSingle = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                }
+            };
 
             const Card = ({ creature }) => {
-                const pos = posMap[creature.id];
-                if (!pos) return null;
-                const cardY = getCardY(pos);
-                const isBeingDragged = draggingId === creature.id;
+                if (!creature.gridPos) return null;
+                const p = cellToPx(creature.gridPos.row, creature.gridPos.col);
                 return (
                     <div
                         ref={(el) => { if (el) cardRefs.current[creature.id] = el; else delete cardRefs.current[creature.id]; }}
-                        onClick={() => { if (!editMode) onSelect(creature); }}
+                        onClick={() => { if (!editMode && !lineMode) onSelect(creature); }}
                         onMouseDown={(e) => handleCardPointerDown(e, creature)}
                         onTouchStart={(e) => handleCardPointerDown(e, creature)}
-                        style={{ position: 'absolute', left: pos.x - CARD_W/2, top: cardY, width: CARD_W, height: CARD_H, borderTopWidth: 4, borderTopStyle: 'solid', borderTopColor: isMale(creature.sex) ? '#60a5fa' : '#f472b6', zIndex: isBeingDragged ? 50 : 1, transition: isBeingDragged ? 'none' : undefined }}
-                        className={`${editMode ? 'cursor-move' : 'cursor-pointer'} rounded-lg border px-2 py-1.5 text-center select-none ${isBeingDragged ? '' : 'transition-all hover:scale-105'} ${highlightId === creature.id ? 'bg-emerald-900 border-emerald-400' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-400'} ${creature.manualPos ? 'ring-1 ring-amber-500' : ''}`}
+                        style={{ position: 'absolute', left: p.x - CARD_W / 2, top: p.y - CARD_H / 2, width: CARD_W, height: CARD_H, borderTopWidth: 4, borderTopStyle: 'solid', borderTopColor: isMale(creature.sex) ? '#60a5fa' : '#f472b6', zIndex: draggingId === creature.id ? 50 : 1 }}
+                        className={`${editMode && !lineMode ? 'cursor-move' : lineMode ? 'cursor-crosshair' : 'cursor-pointer'} rounded-lg border px-2 py-1.5 text-center select-none transition-all hover:scale-105 ${highlightId === creature.id ? 'bg-emerald-900 border-emerald-400' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-400'}`}
                     >
-                        <div style={{color: sexColor(creature.sex)}} className="text-[9px] font-bold">
+                        <div style={{ color: sexColor(creature.sex) }} className="text-[9px] font-bold">
                             <i className={`fa-solid ${isMale(creature.sex) ? 'fa-mars' : 'fa-venus'}`}></i>
                         </div>
                         <div className="font-bold text-[11px] text-white leading-tight truncate mt-0.5">{creature.name}</div>
@@ -1060,36 +409,59 @@
                 );
             };
 
+            // 線の経路（L字対応）をSVGのpolyline点列に変換
+            const linePoints = (l) => {
+                if (l.bendAfterX) {
+                    return `${l.x1},${l.y1} ${l.x2},${l.y1} ${l.x2},${l.y2}`;
+                }
+                return `${l.x1},${l.y1} ${l.x1},${l.y2} ${l.x2},${l.y2}`;
+            };
+
+            const deleteLine = (id) => { onUpdateLines(pedigreeLines.filter(l => l.id !== id)); };
+
             return (
                 <div className="bg-neutral-900 p-4 rounded-lg">
-                    <div className="flex items-center gap-3 mb-4">
+                    <div className="flex items-center gap-3 mb-4 flex-wrap">
                         <h3 className="font-bold text-emerald-400 text-sm">血統図</h3>
-                        <span className="text-[10px] text-neutral-500">上が祖先・下が子孫</span>
                         <span className="text-[10px] flex items-center gap-1"><span className="inline-block w-3 h-0.5" style={{backgroundColor:'#60a5fa'}}></span>オス</span>
                         <span className="text-[10px] flex items-center gap-1"><span className="inline-block w-3 h-0.5" style={{backgroundColor:'#f472b6'}}></span>メス</span>
-                        <button
-                            onClick={() => setEditMode(!editMode)}
-                            className={`ml-auto px-2 py-1 rounded text-[10px] font-bold border ${editMode ? 'bg-amber-600 text-white border-amber-500' : 'bg-neutral-800 text-neutral-300 border-neutral-700 hover:border-neutral-500'}`}
-                        >
-                            <i className="fa-solid fa-arrows-up-down-left-right mr-1"></i>{editMode ? '編集モード中' : '編集モード'}
-                        </button>
-                    </div>
-                    {editMode && (
-                        <div className="mb-2 px-3 py-2 bg-amber-900/30 border border-amber-700/50 rounded text-[10px] text-amber-300 flex items-center justify-between gap-2">
-                            <span>カードをドラッグして自由に位置を移動できます（カード1枚分の単位でスナップします）。移動した個体には黄色い枠が付きます。</span>
+                        <div className="ml-auto flex items-center gap-2">
                             <button
-                                onClick={() => { if (confirm('手動で移動した全てのカード位置をリセットし、自動配置に戻します。よろしいですか？')) onResetAllManualPos(); }}
-                                className="shrink-0 px-2 py-1 bg-neutral-800 hover:bg-neutral-700 rounded text-[10px] text-white border border-neutral-700"
+                                onClick={() => { setEditMode(!editMode); setLineMode(false); }}
+                                className={`px-2 py-1 rounded text-[10px] font-bold border ${editMode ? 'bg-amber-600 text-white border-amber-500' : 'bg-neutral-800 text-neutral-300 border-neutral-700 hover:border-neutral-500'}`}
                             >
-                                位置リセット
+                                <i className="fa-solid fa-arrows-up-down-left-right mr-1"></i>{editMode ? '編集モード中' : '編集モード'}
+                            </button>
+                            <button
+                                onClick={() => { setLineMode(!lineMode); setEditMode(false); }}
+                                className={`px-2 py-1 rounded text-[10px] font-bold border ${lineMode ? 'bg-sky-600 text-white border-sky-500' : 'bg-neutral-800 text-neutral-300 border-neutral-700 hover:border-neutral-500'}`}
+                            >
+                                <i className="fa-solid fa-pen mr-1"></i>{lineMode ? '線モード中' : '線追加'}
                             </button>
                         </div>
+                    </div>
+                    {editMode && (
+                        <div className="mb-2 px-3 py-2 bg-amber-900/30 border border-amber-700/50 rounded text-[10px] text-amber-300">
+                            カードをドラッグして任意のセルに移動できます（1セルに1枚まで）。
+                        </div>
                     )}
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                        <span className="text-[10px] text-neutral-500">2本指で拡大・縮小、1本指でドラッグして移動できます</span>
+                    {lineMode && (
+                        <div className="mb-2 px-3 py-2 bg-sky-900/30 border border-sky-700/50 rounded text-[10px] text-sky-300">
+                            線を引きたい場所をドラッグしてください（縦・横・L字の直線のみ）。既存の線をタップすると削除できます。
+                        </div>
+                    )}
+                    <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                        <div className="flex items-center gap-2">
+                            <button onClick={() => onUpdateGridSize(prev => ({ ...prev, rows: prev.rows + 1 }))} className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 rounded text-[10px] text-white border border-neutral-700">
+                                <i className="fa-solid fa-plus mr-1"></i>行追加
+                            </button>
+                            <button onClick={() => onUpdateGridSize(prev => ({ ...prev, cols: prev.cols + 1 }))} className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 rounded text-[10px] text-white border border-neutral-700">
+                                <i className="fa-solid fa-plus mr-1"></i>列追加
+                            </button>
+                        </div>
                         <div className="flex items-center gap-2">
                             <span className="text-[10px] text-neutral-400">{Math.round(zoomFactor * 100)}%</span>
-                            <button onClick={() => { setZoomFactor(1); setPan({x:0,y:0}); }} className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 rounded text-[10px] text-white border border-neutral-700">リセット</button>
+                            <button onClick={() => { setZoomFactor(1); setPan({ x: 0, y: 0 }); }} className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 rounded text-[10px] text-white border border-neutral-700">リセット</button>
                         </div>
                     </div>
                     <div
@@ -1099,106 +471,51 @@
                         onTouchStart={handleTouchStart}
                         onTouchMove={handleTouchMove}
                         onTouchEnd={handleTouchEnd}
+                        onMouseDown={lineMode ? handleLineStart : undefined}
+                        onMouseMove={lineMode ? handleLineMove : undefined}
+                        onMouseUp={lineMode ? handleLineEnd : undefined}
                     >
-                        <div style={{
-                            width: svgW, height: svgH,
-                            transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
-                            transformOrigin: 'top left'
-                        }}>
-                                <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
-                                    {(() => {
-                                        // 同じ親（x1, midY）でグループ化してH字構造を描く
-                                        const groups = {};
-                                        lines.forEach(l => {
-                                            const key = l.pairKey || `${l.x1.toFixed(1)}_${l.midY.toFixed(1)}`;
-                                            if (!groups[key]) groups[key] = { x1: l.x1, midY: l.midY, isPair: l.isPair, children: [] };
-                                            groups[key].children.push({ x: l.x2, y2: l.y2 });
-                                        });
-                                        return Object.values(groups).map((g, i) => {
-                                            // 横線の範囲には子カードのX座標群に加え、親からの接続起点（g.x1）も必ず含める。
-                                            // これにより、子が1人だけで親の起点とX座標がずれている場合でも、
-                                            // 親からの縦線と子への縦線の間を結ぶ横線が途切れない。
-                                            const xs = [...g.children.map(c => c.x), g.x1];
-                                            const minX = Math.min(...xs);
-                                            const maxX = Math.max(...xs);
-                                            const branchY = g.isPair ? g.midY + MARRIAGE_GAP : g.midY;
-                                            return (
-                                                <g key={i}>
-                                                    {/* 接続横線（子の範囲＋親の接続起点をカバー） */}
-                                                    <line x1={minX} y1={branchY} x2={maxX} y2={branchY} stroke="#525252" strokeWidth="1.5" />
-                                                    {/* 各子への縦線 */}
-                                                    {g.children.map((c, j) => (
-                                                        <line key={j} x1={c.x} y1={branchY} x2={c.x} y2={c.y2} stroke="#525252" strokeWidth="1.5" />
-                                                    ))}
-                                                </g>
-                                            );
-                                        });
-                                    })()}
-                            </svg>
-                            {creatures.map(c => <Card key={c.id} creature={c} />)}
+                        <div style={{ width: svgW, height: svgH, transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`, transformOrigin: 'top left' }}>
+                            {/* グリッド枠線（薄く表示） */}
                             <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
-                                {marriagePairs.map((m, i) => {
-                                    const mPos = posMap[m.maleId];
-                                    const fPos = posMap[m.femaleId];
-                                    if (!mPos || !fPos) return null;
-                                    // posMapの実位置を正とする（marriagePairsのmaleX/femaleXスナップショットは
-                                    // 複数passを経て陳腐化する場合があるため使用しない）。
-                                    const mx1 = mPos.x;
-                                    const mx2 = fPos.x;
-                                    const my = Math.max(getCardY(mPos), getCardY(fPos)) + CARD_H + 48;
-                                    const cardBottom = my - 48;
-                                    // 子への接続線の起点に合わせる：対応するpairKeyのlinesエントリのx1（通常は♂の真下、
-                                    // multiの2頭目以降の♀の場合はその♀の真下）を使う。見つからなければ婚姻線の中点にフォールバック。
-                                    const pairKeyForM = `pair_${m.maleId}_${m.femaleId}`;
-                                    const matchedLine = lines.find(l => l.isPair && l.pairKey === pairKeyForM);
-                                    const midX = matchedLine ? matchedLine.x1 : (mx1 + mx2) / 2;
-                                    const branchY = my + MARRIAGE_GAP;
-                                    return (
-                                        <React.Fragment key={`m${i}`}>
-                                            {/* 両親カード下端→婚姻線 縦線 */}
-                                            <line x1={mx1} y1={cardBottom} x2={mx1} y2={my} stroke="#525252" strokeWidth="1.5" />
-                                            <line x1={mx2} y1={cardBottom} x2={mx2} y2={my} stroke="#525252" strokeWidth="1.5" />
-                                            {/* 婚姻線（横） */}
-                                            <line x1={mx1} y1={my} x2={mx2} y2={my} stroke="#525252" strokeWidth="1.5" />
-                                            {/* 婚姻線→接続横線 縦線（起点は♂の真下、複数婚姻の2頭目以降は♀の真下） */}
-                                            <line x1={midX} y1={my} x2={midX} y2={branchY} stroke="#525252" strokeWidth="1.5" />
-                                        </React.Fragment>
-                                    );
-                                })}
-                                {lines.map((l, i) => (
-                                    !l.isPair && (
-                                        <line key={`vfrag${i}`} x1={l.x1} y1={l.y1} x2={l.x1} y2={l.midY} stroke="#525252" strokeWidth="1.5" />
-                                    )
+                                {Array.from({ length: rows + 1 }, (_, r) => (
+                                    <line key={`h${r}`} x1={0} y1={r * CELL_H + CELL_GAP / 2} x2={svgW} y2={r * CELL_H + CELL_GAP / 2} stroke="#262626" strokeWidth="1" />
                                 ))}
-                                {/* 異なる行にいる♂♀の婚姻ペアを直角線（縦→横→縦）で結ぶ。斜め線は使わない。 */}
-                                {crossRowMarriages.map((cm, i) => {
-                                    const mPos = posMap[cm.maleId];
-                                    const fPos = posMap[cm.femaleId];
-                                    if (!mPos || !fPos) return null;
-                                    const mY = getCardY(mPos);
-                                    const fY = getCardY(fPos);
-                                    // 浅い方（上にいる方）の下端から、深い方（下にいる方）のカード中央の高さまで垂直に下り、
-                                    // そこで水平移動して深い方のカードへ接続する。
-                                    const shallowIsMale = mY <= fY;
-                                    const shallowX = shallowIsMale ? mPos.x : fPos.x;
-                                    const shallowBottomY = (shallowIsMale ? mY : fY) + CARD_H;
-                                    const deepX = shallowIsMale ? fPos.x : mPos.x;
-                                    const deepY = shallowIsMale ? fY : mY;
-                                    const deepMidY = deepY + CARD_H / 2;
-                                    return (
-                                        <React.Fragment key={`cross${i}`}>
-                                            {/* 浅い親の下端から、深い親の高さ（中央）まで垂直に下りる */}
-                                            <line x1={shallowX} y1={shallowBottomY} x2={shallowX} y2={deepMidY} stroke="#525252" strokeWidth="1.5" strokeDasharray="4 3" />
-                                            {/* 深い親の高さで水平移動 */}
-                                            <line x1={shallowX} y1={deepMidY} x2={deepX} y2={deepMidY} stroke="#525252" strokeWidth="1.5" strokeDasharray="4 3" />
-                                            {/* 深い親のカード側面へ接続 */}
-                                            <line x1={deepX} y1={deepMidY} x2={deepX} y2={deepY + CARD_H} stroke="#525252" strokeWidth="1.5" strokeDasharray="4 3" />
-                                        </React.Fragment>
-                                    );
-                                })}
+                                {Array.from({ length: cols + 1 }, (_, c) => (
+                                    <line key={`v${c}`} x1={c * CELL_W + CELL_GAP / 2} y1={0} x2={c * CELL_W + CELL_GAP / 2} y2={svgH} stroke="#262626" strokeWidth="1" />
+                                ))}
                             </svg>
+                            {/* 手動で描画した線 */}
+                            <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: lineMode ? 'auto' : 'none' }}>
+                                {pedigreeLines.map(l => (
+                                    <polyline
+                                        key={l.id}
+                                        points={linePoints(l)}
+                                        fill="none"
+                                        stroke="#525252"
+                                        strokeWidth="2"
+                                        style={{ pointerEvents: lineMode ? 'stroke' : 'none', cursor: lineMode ? 'pointer' : 'default' }}
+                                        onClick={(e) => { if (lineMode) { e.stopPropagation(); deleteLine(l.id); } }}
+                                    />
+                                ))}
+                                {lineDraft && (
+                                    <polyline
+                                        points={linePoints({ ...lineDraft, bendAfterX: Math.abs(lineDraft.x2 - lineDraft.x1) >= Math.abs(lineDraft.y2 - lineDraft.y1) })}
+                                        fill="none"
+                                        stroke="#38bdf8"
+                                        strokeWidth="2"
+                                        strokeDasharray="4 3"
+                                    />
+                                )}
+                            </svg>
+                            {creatures.filter(c => c.gridPos).map(c => <Card key={c.id} creature={c} />)}
                         </div>
                     </div>
+                    {creatures.some(c => !c.gridPos) && (
+                        <div className="mt-3 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded text-[10px] text-neutral-400">
+                            グリッドに未配置の個体が{creatures.filter(c => !c.gridPos).length}件あります。一覧から個体を確認し、編集モードで配置してください。
+                        </div>
+                    )}
                 </div>
             );
         }
@@ -1238,6 +555,33 @@
             const [femaleSelection, setFemaleSelection] = useState('');
             const [saveError, setSaveError] = useState(false);
             const [loadFailed, setLoadFailed] = useState(false);
+            const [pedigreeLines, setPedigreeLines] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('beetle_pedigree_lines');
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        if (Array.isArray(parsed)) return parsed;
+                    }
+                } catch (e) { console.warn('血統図の線データの読み込みに失敗しました。', e); }
+                return [];
+            });
+            const [gridSize, setGridSize] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('beetle_grid_size');
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        if (parsed && parsed.rows && parsed.cols) return parsed;
+                    }
+                } catch (e) { console.warn('グリッドサイズの読み込みに失敗しました。', e); }
+                return { rows: 1, cols: 1 };
+            });
+
+            useEffect(() => {
+                try { localStorage.setItem('beetle_pedigree_lines', JSON.stringify(pedigreeLines)); } catch (e) { console.error('線データの保存に失敗しました。', e); }
+            }, [pedigreeLines]);
+            useEffect(() => {
+                try { localStorage.setItem('beetle_grid_size', JSON.stringify(gridSize)); } catch (e) { console.error('グリッドサイズの保存に失敗しました。', e); }
+            }, [gridSize]);
 
             const [creatures, setCreatures] = useState(() => {
                 try {
@@ -1341,7 +685,16 @@
                 setCreatures(creatures.map(c => c.id === id ? { ...c, saleStatus: statuses[(statuses.indexOf(c.saleStatus) + 1) % 3] } : c));
             };
             const confirmAdd = () => {
-                const newCreature = { ...newCreatureData, id: `${Date.now().toString()}_${Math.random().toString(36).slice(2, 8)}`, history: [] };
+                // グリッド左端（col=0）の空いている行を探す。全て埋まっていれば行を1つ追加してそこに配置する。
+                const occupiedRowsAtCol0 = new Set(
+                    creatures.filter(c => c.gridPos && c.gridPos.col === 0).map(c => c.gridPos.row)
+                );
+                let targetRow = 0;
+                while (occupiedRowsAtCol0.has(targetRow)) targetRow++;
+                if (targetRow >= gridSize.rows) {
+                    setGridSize(prev => ({ ...prev, rows: targetRow + 1 }));
+                }
+                const newCreature = { ...newCreatureData, id: `${Date.now().toString()}_${Math.random().toString(36).slice(2, 8)}`, history: [], gridPos: { row: targetRow, col: 0 } };
                 setCreatures([newCreature, ...creatures]);
                 setShowAddModal(false);
                 setNewCreatureData({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '', femaleParent: '', stage: '幼虫', saleStatus: '使用', sex: 'オス', emergenceSize: '' });
@@ -1688,7 +1041,16 @@
                             </div>
                         </>
                     ) : activeTab === '血統図' ? (
-                        <PedigreeView creatures={creatures} highlightId={highlightId} onSelect={setSelectedCreature} onUpdateManualPos={(id, pos) => setCreatures(prev => prev.map(c => c.id === id ? { ...c, manualPos: pos } : c))} onResetAllManualPos={() => setCreatures(prev => prev.map(c => c.manualPos ? { ...c, manualPos: undefined } : c))} />
+                        <PedigreeView
+                            creatures={creatures}
+                            highlightId={highlightId}
+                            onSelect={setSelectedCreature}
+                            onUpdateGridPos={(id, gridPos) => setCreatures(prev => prev.map(c => c.id === id ? { ...c, gridPos } : c))}
+                            pedigreeLines={pedigreeLines}
+                            onUpdateLines={setPedigreeLines}
+                            gridSize={gridSize}
+                            onUpdateGridSize={setGridSize}
+                        />
                     ) : (
                         <div className="bg-neutral-900 p-6 rounded-lg space-y-6 text-white text-sm">
                             <h3 className="font-bold text-emerald-400 text-lg border-b border-neutral-700 pb-2">交配シミュレーション</h3>
