@@ -1561,7 +1561,7 @@
                                                 if (loadedGridSize) setGridSize(loadedGridSize);
                                             }
                                         } catch (err) {
-                                            alert('ファイルの読み込みに失敗しました。正しいバックアップファイルか確認してください。');
+                                            alert('ファイルの読み込みに失敗しました。正しいバックアップファイルか確認してください。\n[詳細: ' + (err && err.message ? err.message : String(err)) + ']');
                                         }
                                     };
                                     reader.readAsText(file);
