@@ -206,6 +206,10 @@
             const [pan, setPan] = useState({ x: 0, y: 0 });
             const [editMode, setEditMode] = useState(false);
             const [draggingId, setDraggingId] = useState(null);
+            // ドラッグ中のプレビュー位置はuseRefで保持し、setStateを発生させない（重い再レンダリングを避けるため）。
+            // ドラッグ中はcardRefs経由でDOM要素のstyleを直接書き換えて見た目だけを動かす。
+            const dragPreviewRef = useRef(null);
+            const cardRefs = useRef({});
             const dragState = useRef({ startX: 0, startY: 0, origX: 0, origY: 0 });
             const touchState = useRef({ mode: null, startDist: 0, startZoom: 1, startPan: {x:0,y:0}, startMid: {x:0,y:0}, startSingle: {x:0,y:0} });
 
@@ -931,7 +935,7 @@
                 e.preventDefault();
                 const pos = posMap[creature.id];
                 if (!pos) return;
-                setDraggingId(creature.id);
+                setDraggingId(creature.id); // ドラッグ開始のみstate更新（カーソル・枠等の見た目変更のため1回だけ再レンダリング）
                 const point = e.touches ? e.touches[0] : e;
                 dragState.current = {
                     startX: point.clientX,
@@ -939,6 +943,7 @@
                     origX: pos.x,
                     origY: getCardY(pos),
                 };
+                dragPreviewRef.current = { x: pos.x, y: getCardY(pos) };
             };
 
             useEffect(() => {
@@ -950,18 +955,32 @@
                     // 画面上のドラッグ量をコンテンツ座標系（scale適用前）に変換
                     const dx = dxScreen / scale;
                     const dy = dyScreen / scale;
-                    const rawX = dragState.current.origX + dx;
-                    const rawY = dragState.current.origY + dy;
-                    // カード1枚分（STEP / ROW_GAP+CARD_H相当）単位にスナップ
-                    const snappedX = Math.round(rawX / STEP) * STEP;
-                    const snapUnitY = CARD_H + ROW_GAP;
-                    const snappedY = Math.round(rawY / snapUnitY) * snapUnitY;
-                    const creature = creatures.find(c => c.id === draggingId);
-                    if (creature) {
-                        onUpdateManualPos(draggingId, { x: snappedX, y: snappedY });
+                    // 移動量(dx, dy)自体をカード1枚分単位にスナップしてから元の位置に加算する。
+                    // 絶対座標をグリッドにスナップすると、自動配置のカード位置（CARD_W/2起点等）と
+                    // スナップグリッドの起点がズレてしまい、ドラッグ開始時点で半枚分ジャンプしてしまうため、
+                    // 必ず「元の位置からの相対移動量」を丸める方式にする。
+                    const snappedDx = Math.round(dx / STEP) * STEP;
+                    const snappedDy = Math.round(dy / CARD_H) * CARD_H;
+                    const snappedX = dragState.current.origX + snappedDx;
+                    const snappedY = dragState.current.origY + snappedDy;
+                    dragPreviewRef.current = { x: snappedX, y: snappedY };
+                    // setStateは呼ばない。DOM要素を直接書き換えてカードの見た目だけを動かす
+                    // （Reactの再レンダリング・レイアウト再計算を一切発生させないため、ドラッグ中も滑らかに動く）。
+                    // 接続線は指を離すまで追従しない仕様のため、ここでは更新しない。
+                    const el = cardRefs.current[draggingId];
+                    if (el) {
+                        el.style.left = (snappedX - CARD_W / 2) + 'px';
+                        el.style.top = snappedY + 'px';
                     }
                 };
-                const handleUp = () => { setDraggingId(null); };
+                const handleUp = () => {
+                    // ドロップ時に初めて確定保存（ここで初めて重いレイアウト再計算が1回だけ走る）
+                    if (dragPreviewRef.current) {
+                        onUpdateManualPos(draggingId, dragPreviewRef.current);
+                    }
+                    dragPreviewRef.current = null;
+                    setDraggingId(null);
+                };
                 window.addEventListener('mousemove', handleMove);
                 window.addEventListener('mouseup', handleUp);
                 window.addEventListener('touchmove', handleMove);
@@ -978,13 +997,15 @@
                 const pos = posMap[creature.id];
                 if (!pos) return null;
                 const cardY = getCardY(pos);
+                const isBeingDragged = draggingId === creature.id;
                 return (
                     <div
+                        ref={(el) => { if (el) cardRefs.current[creature.id] = el; else delete cardRefs.current[creature.id]; }}
                         onClick={() => { if (!editMode) onSelect(creature); }}
                         onMouseDown={(e) => handleCardPointerDown(e, creature)}
                         onTouchStart={(e) => handleCardPointerDown(e, creature)}
-                        style={{ position: 'absolute', left: pos.x - CARD_W/2, top: cardY, width: CARD_W, height: CARD_H, borderTopWidth: 4, borderTopStyle: 'solid', borderTopColor: isMale(creature.sex) ? '#60a5fa' : '#f472b6' }}
-                        className={`${editMode ? 'cursor-move' : 'cursor-pointer'} rounded-lg border px-2 py-1.5 text-center transition-all hover:scale-105 select-none ${highlightId === creature.id ? 'bg-emerald-900 border-emerald-400' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-400'} ${creature.manualPos ? 'ring-1 ring-amber-500' : ''}`}
+                        style={{ position: 'absolute', left: pos.x - CARD_W/2, top: cardY, width: CARD_W, height: CARD_H, borderTopWidth: 4, borderTopStyle: 'solid', borderTopColor: isMale(creature.sex) ? '#60a5fa' : '#f472b6', zIndex: isBeingDragged ? 50 : 1, transition: isBeingDragged ? 'none' : undefined }}
+                        className={`${editMode ? 'cursor-move' : 'cursor-pointer'} rounded-lg border px-2 py-1.5 text-center select-none ${isBeingDragged ? '' : 'transition-all hover:scale-105'} ${highlightId === creature.id ? 'bg-emerald-900 border-emerald-400' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-400'} ${creature.manualPos ? 'ring-1 ring-amber-500' : ''}`}
                     >
                         <div style={{color: sexColor(creature.sex)}} className="text-[9px] font-bold">
                             <i className={`fa-solid ${isMale(creature.sex) ? 'fa-mars' : 'fa-venus'}`}></i>
