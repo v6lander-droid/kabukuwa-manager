@@ -376,12 +376,30 @@
                 setLineDraft(null);
             };
 
+            // 線モード中のtouchmove/touchendは、Reactの合成イベント（onTouchMove等）だと
+            // ブラウザによってはpassiveリスナーとして扱われpreventDefault()が効かない場合があるため、
+            // カードドラッグと同様にwindow.addEventListenerで確実にハンドリングする。
+            useEffect(() => {
+                if (!lineMode || !lineDraft) return;
+                const moveHandler = (e) => handleLineMove(e);
+                const endHandler = () => handleLineEnd();
+                window.addEventListener('touchmove', moveHandler, { passive: false });
+                window.addEventListener('touchend', endHandler);
+                window.addEventListener('mousemove', moveHandler);
+                window.addEventListener('mouseup', endHandler);
+                return () => {
+                    window.removeEventListener('touchmove', moveHandler);
+                    window.removeEventListener('touchend', endHandler);
+                    window.removeEventListener('mousemove', moveHandler);
+                    window.removeEventListener('mouseup', endHandler);
+                };
+            }, [lineMode, lineDraft, scale, pan]);
+
             // ---- ピンチズーム・パン ----
             const getTouchDist = (touches) => { const dx = touches[0].clientX - touches[1].clientX; const dy = touches[0].clientY - touches[1].clientY; return Math.sqrt(dx * dx + dy * dy); };
             const getTouchMid = (touches) => ({ x: (touches[0].clientX + touches[1].clientX) / 2, y: (touches[0].clientY + touches[1].clientY) / 2 });
             const handleTouchStart = (e) => {
                 if (lineMode) { handleLineStart(e); return; }
-                if (editMode) return;
                 if (e.touches.length === 2) {
                     touchState.current.mode = 'pinch';
                     touchState.current.startDist = getTouchDist(e.touches);
@@ -390,15 +408,15 @@
                     const rect = containerRef.current.getBoundingClientRect();
                     // ズームの基準は指の位置ではなく、常に「現在表示されているエリアの中心」（コンテナの中心）にする
                     touchState.current.startMid = { x: rect.width / 2, y: rect.height / 2 };
-                } else if (e.touches.length === 1) {
+                } else if (e.touches.length === 1 && !editMode) {
+                    // 編集モード中は1本指操作をカードドラッグに譲り、コンテナ自体のパンは行わない
                     touchState.current.mode = 'pan';
                     touchState.current.startPan = { ...pan };
                     touchState.current.startSingle = { x: e.touches[0].clientX, y: e.touches[0].clientY };
                 }
             };
             const handleTouchMove = (e) => {
-                if (lineMode) { handleLineMove(e); return; }
-                if (editMode) return;
+                if (lineMode) return; // 線モードのtouchmoveはuseEffect内のwindowリスナーで一元処理する
                 if (touchState.current.mode === 'pinch' && e.touches.length === 2) {
                     e.preventDefault();
                     const dist = getTouchDist(e.touches);
@@ -412,16 +430,16 @@
                     const contentY = (mid.y - startPan.y) / oldScale;
                     setZoomFactor(newZoom);
                     setPan({ x: mid.x - contentX * newScale, y: mid.y - contentY * newScale });
-                } else if (touchState.current.mode === 'pan' && e.touches.length === 1) {
+                } else if (touchState.current.mode === 'pan' && e.touches.length === 1 && !editMode) {
                     const dx = e.touches[0].clientX - touchState.current.startSingle.x;
                     const dy = e.touches[0].clientY - touchState.current.startSingle.y;
                     setPan({ x: touchState.current.startPan.x + dx, y: touchState.current.startPan.y + dy });
                 }
             };
             const handleTouchEnd = (e) => {
-                if (lineMode) { handleLineEnd(); return; }
+                if (lineMode) return; // 線モードのtouchendはuseEffect内のwindowリスナーで一元処理する
                 if (e.touches.length === 0) touchState.current.mode = null;
-                else if (e.touches.length === 1) {
+                else if (e.touches.length === 1 && !editMode) {
                     touchState.current.mode = 'pan';
                     touchState.current.startPan = { ...pan };
                     touchState.current.startSingle = { x: e.touches[0].clientX, y: e.touches[0].clientY };
@@ -548,8 +566,6 @@
                             onTouchMove={handleTouchMove}
                             onTouchEnd={handleTouchEnd}
                             onMouseDown={lineMode ? handleLineStart : undefined}
-                            onMouseMove={lineMode ? handleLineMove : undefined}
-                            onMouseUp={lineMode ? handleLineEnd : undefined}
                         >
                             <div style={{ width: svgW, height: svgH, transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`, transformOrigin: 'top left' }}>
                                 <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
@@ -559,6 +575,8 @@
                                     {Array.from({ length: cols + 1 }, (_, c) => (
                                         <line key={`v${c}`} x1={c * CELL_W + CELL_GAP / 2} y1={0} x2={c * CELL_W + CELL_GAP / 2} y2={svgH} stroke="#262626" strokeWidth="1" />
                                     ))}
+                                    {/* 描画エリア（グリッド）全体を囲む外周線 */}
+                                    <rect x={1} y={1} width={svgW - 2} height={svgH - 2} fill="none" stroke="#34d399" strokeWidth="2" />
                                 </svg>
                                 <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: lineMode ? 'auto' : 'none' }}>
                                     {pedigreeLines.map(l => (
