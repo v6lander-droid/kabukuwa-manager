@@ -204,12 +204,14 @@
 
             const containerRef = useRef(null);
             const trayRef = useRef(null);
+            const ghostRef = useRef(null);
             const [containerWidth, setContainerWidth] = useState(0);
             const [zoomFactor, setZoomFactor] = useState(1);
             const [pan, setPan] = useState({ x: 0, y: 0 });
             const [editMode, setEditMode] = useState(false);
             const [lineMode, setLineMode] = useState(false);
             const [draggingId, setDraggingId] = useState(null);
+            const [draggingCreature, setDraggingCreature] = useState(null);
             const [dragFromTray, setDragFromTray] = useState(false);
             const [lineDraft, setLineDraft] = useState(null);
             const cardRefs = useRef({});
@@ -251,6 +253,7 @@
                 e.stopPropagation();
                 e.preventDefault();
                 setDraggingId(creature.id);
+                setDraggingCreature(creature);
                 setDragFromTray(fromTray);
                 const point = e.touches ? e.touches[0] : e;
                 dragState.current = {
@@ -259,44 +262,48 @@
                     origRow: creature.gridPos ? creature.gridPos.row : 0,
                     origCol: creature.gridPos ? creature.gridPos.col : 0,
                 };
+                // ゴースト要素の初期位置をポインタ位置に合わせる
+                requestAnimationFrame(() => {
+                    if (ghostRef.current) {
+                        ghostRef.current.style.left = (point.clientX - CARD_W / 2) + 'px';
+                        ghostRef.current.style.top = (point.clientY - CARD_H / 2) + 'px';
+                    }
+                });
             };
 
             useEffect(() => {
                 if (!draggingId) return;
                 const handleMove = (e) => {
                     const point = e.touches ? e.touches[0] : e;
-                    const el = cardRefs.current[draggingId];
-                    if (!el) return;
-                    // 描画エリアのコンテナを基準に、現在のポインタ位置がどのセルに対応するかを直接計算する
-                    // （一時置き場からのドラッグ開始時はorigRow/origColが無意味なため、絶対位置から計算する）。
+                    const ghost = ghostRef.current;
+                    if (!ghost) return;
+                    // ゴースト要素はtransformの影響を受けない最上位に配置されているため、
+                    // ポインタの画面座標（clientX/clientY）をそのままfixed位置として使える。
+                    ghost.style.left = (point.clientX - CARD_W / 2) + 'px';
+                    ghost.style.top = (point.clientY - CARD_H / 2) + 'px';
+
                     const containerRect = containerRef.current.getBoundingClientRect();
                     const localX = (point.clientX - containerRect.left - pan.x) / scale;
                     const localY = (point.clientY - containerRect.top - pan.y) / scale;
                     const targetCol = Math.max(0, Math.min(cols - 1, Math.round((localX - CELL_GAP / 2 - CARD_W / 2) / CELL_W)));
                     const targetRow = Math.max(0, Math.min(rows - 1, Math.round((localY - CELL_GAP / 2 - CARD_H / 2) / CELL_H)));
                     const isOverGrid = point.clientX >= containerRect.left && point.clientX <= containerRect.right && point.clientY >= containerRect.top && point.clientY <= containerRect.bottom;
+                    ghost.dataset.overGrid = isOverGrid ? '1' : '0';
                     if (isOverGrid) {
-                        const p = cellToPx(targetRow, targetCol);
-                        el.style.position = 'fixed';
-                        el.style.left = (containerRect.left + pan.x + p.x * scale - (CARD_W * scale) / 2) + 'px';
-                        el.style.top = (containerRect.top + pan.y + p.y * scale - (CARD_H * scale) / 2) + 'px';
-                        el.dataset.targetRow = targetRow;
-                        el.dataset.targetCol = targetCol;
-                        el.dataset.overGrid = '1';
+                        ghost.dataset.targetRow = targetRow;
+                        ghost.dataset.targetCol = targetCol;
+                        ghost.style.outline = '2px solid #34d399';
                     } else {
-                        el.style.position = 'fixed';
-                        el.style.left = (point.clientX - CARD_W / 2) + 'px';
-                        el.style.top = (point.clientY - CARD_H / 2) + 'px';
-                        el.dataset.overGrid = '0';
+                        ghost.style.outline = 'none';
                     }
                 };
                 const handleUp = () => {
-                    const el = cardRefs.current[draggingId];
-                    if (el) {
-                        const overGrid = el.dataset.overGrid === '1';
-                        if (overGrid && el.dataset.targetRow != null) {
-                            const newRow = parseInt(el.dataset.targetRow, 10);
-                            const newCol = parseInt(el.dataset.targetCol, 10);
+                    const ghost = ghostRef.current;
+                    if (ghost) {
+                        const overGrid = ghost.dataset.overGrid === '1';
+                        if (overGrid && ghost.dataset.targetRow != null) {
+                            const newRow = parseInt(ghost.dataset.targetRow, 10);
+                            const newCol = parseInt(ghost.dataset.targetCol, 10);
                             const key = `${newRow}_${newCol}`;
                             if (!occupied[key] || occupied[key].id === draggingId) {
                                 onUpdateGridPos(draggingId, { row: newRow, col: newCol });
@@ -305,12 +312,9 @@
                             // 描画エリアのカードを一時置き場側（グリッド外）にドロップしたら、一時置き場に戻す
                             onUpdateGridPos(draggingId, null);
                         }
-                        // スタイルをリセット（次回レンダリングで通常のabsolute位置に戻る）
-                        el.style.position = '';
-                        el.style.left = '';
-                        el.style.top = '';
                     }
                     setDraggingId(null);
+                    setDraggingCreature(null);
                     setDragFromTray(false);
                 };
                 window.addEventListener('mousemove', handleMove);
@@ -416,13 +420,14 @@
             const GridCard = ({ creature }) => {
                 if (!creature.gridPos) return null;
                 const p = cellToPx(creature.gridPos.row, creature.gridPos.col);
+                const isDragging = draggingId === creature.id;
                 return (
                     <div
                         ref={(el) => { if (el) cardRefs.current[creature.id] = el; else delete cardRefs.current[creature.id]; }}
                         onClick={() => { if (!editMode && !lineMode) onSelect(creature); }}
                         onMouseDown={(e) => handleCardPointerDown(e, creature, false)}
                         onTouchStart={(e) => handleCardPointerDown(e, creature, false)}
-                        style={{ position: 'absolute', left: p.x - CARD_W / 2, top: p.y - CARD_H / 2, width: CARD_W, height: CARD_H, borderTopWidth: 4, borderTopStyle: 'solid', borderTopColor: isMale(creature.sex) ? '#60a5fa' : '#f472b6', zIndex: draggingId === creature.id ? 50 : 1 }}
+                        style={{ position: 'absolute', left: p.x - CARD_W / 2, top: p.y - CARD_H / 2, width: CARD_W, height: CARD_H, borderTopWidth: 4, borderTopStyle: 'solid', borderTopColor: isMale(creature.sex) ? '#60a5fa' : '#f472b6', opacity: isDragging ? 0.3 : 1 }}
                         className={`${editMode && !lineMode ? 'cursor-move' : lineMode ? 'cursor-crosshair' : 'cursor-pointer'} rounded-lg border px-2 py-1.5 text-center select-none transition-all hover:scale-105 ${highlightId === creature.id ? 'bg-emerald-900 border-emerald-400' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-400'}`}
                     >
                         <div style={{ color: sexColor(creature.sex) }} className="text-[9px] font-bold">
@@ -435,23 +440,26 @@
                 );
             };
 
-            const TrayCard = ({ creature }) => (
-                <div
-                    ref={(el) => { if (el) cardRefs.current[creature.id] = el; else delete cardRefs.current[creature.id]; }}
-                    onClick={() => { if (!editMode && !lineMode) onSelect(creature); }}
-                    onMouseDown={(e) => handleCardPointerDown(e, creature, true)}
-                    onTouchStart={(e) => handleCardPointerDown(e, creature, true)}
-                    style={{ width: CARD_W, height: CARD_H, borderTopWidth: 4, borderTopStyle: 'solid', borderTopColor: isMale(creature.sex) ? '#60a5fa' : '#f472b6', zIndex: draggingId === creature.id ? 50 : 1 }}
-                    className={`${editMode ? 'cursor-move' : 'cursor-pointer'} rounded-lg border px-2 py-1.5 text-center select-none transition-all hover:scale-105 shrink-0 ${highlightId === creature.id ? 'bg-emerald-900 border-emerald-400' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-400'}`}
-                >
-                    <div style={{ color: sexColor(creature.sex) }} className="text-[9px] font-bold">
-                        <i className={`fa-solid ${isMale(creature.sex) ? 'fa-mars' : 'fa-venus'}`}></i>
+            const TrayCard = ({ creature }) => {
+                const isDragging = draggingId === creature.id;
+                return (
+                    <div
+                        ref={(el) => { if (el) cardRefs.current[creature.id] = el; else delete cardRefs.current[creature.id]; }}
+                        onClick={() => { if (!editMode && !lineMode) onSelect(creature); }}
+                        onMouseDown={(e) => handleCardPointerDown(e, creature, true)}
+                        onTouchStart={(e) => handleCardPointerDown(e, creature, true)}
+                        style={{ width: CARD_W, height: CARD_H, borderTopWidth: 4, borderTopStyle: 'solid', borderTopColor: isMale(creature.sex) ? '#60a5fa' : '#f472b6', opacity: isDragging ? 0.3 : 1 }}
+                        className={`${editMode ? 'cursor-move' : 'cursor-pointer'} rounded-lg border px-2 py-1.5 text-center select-none transition-all hover:scale-105 shrink-0 ${highlightId === creature.id ? 'bg-emerald-900 border-emerald-400' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-400'}`}
+                    >
+                        <div style={{ color: sexColor(creature.sex) }} className="text-[9px] font-bold">
+                            <i className={`fa-solid ${isMale(creature.sex) ? 'fa-mars' : 'fa-venus'}`}></i>
+                        </div>
+                        <div className="font-bold text-[11px] text-white leading-tight truncate mt-0.5">{creature.name}</div>
+                        <div className="text-[9px] text-neutral-400">{creature.generation}</div>
+                        <div className="text-[9px] text-neutral-300">{creature.stage}</div>
                     </div>
-                    <div className="font-bold text-[11px] text-white leading-tight truncate mt-0.5">{creature.name}</div>
-                    <div className="text-[9px] text-neutral-400">{creature.generation}</div>
-                    <div className="text-[9px] text-neutral-300">{creature.stage}</div>
-                </div>
-            );
+                );
+            };
 
             const linePoints = (l) => {
                 if (l.bendAfterX) return `${l.x1},${l.y1} ${l.x2},${l.y1} ${l.x2},${l.y2}`;
@@ -460,6 +468,7 @@
             const deleteLine = (id) => { onUpdateLines(pedigreeLines.filter(l => l.id !== id)); };
 
             return (
+                <React.Fragment>
                 <div className="bg-neutral-900 p-4 rounded-lg">
                     <div className="flex items-center gap-3 mb-4 flex-wrap">
                         <h3 className="font-bold text-emerald-400 text-sm">血統図</h3>
@@ -508,7 +517,7 @@
                         {/* 一時置き場：縦1列スクロール、登録順（新しい順） */}
                         <div
                             ref={trayRef}
-                            style={{ width: TRAY_W }}
+                            style={{ width: TRAY_W, touchAction: editMode ? 'none' : 'pan-y' }}
                             className="shrink-0 overflow-y-auto overflow-x-hidden border border-neutral-800 rounded-l bg-neutral-950/50 p-2 flex flex-col gap-2 items-center"
                         >
                             <div className="text-[9px] text-neutral-500 sticky top-0 w-full text-center pb-1">一時置き場（{trayCreatures.length}）</div>
@@ -567,6 +576,23 @@
                         </div>
                     </div>
                 </div>
+                {/* ドラッグ中のゴースト要素：transformの影響を受けない最上位（PedigreeViewのルート直下）に配置し、
+                    画面の絶対座標（clientX/clientY）をそのままfixed位置として使えるようにする。 */}
+                {draggingCreature && (
+                    <div
+                        ref={ghostRef}
+                        style={{ position: 'fixed', width: CARD_W, height: CARD_H, pointerEvents: 'none', zIndex: 1000, borderTopWidth: 4, borderTopStyle: 'solid', borderTopColor: isMale(draggingCreature.sex) ? '#60a5fa' : '#f472b6', opacity: 0.9 }}
+                        className="rounded-lg border px-2 py-1.5 text-center bg-neutral-800 border-neutral-700 shadow-2xl"
+                    >
+                        <div style={{ color: sexColor(draggingCreature.sex) }} className="text-[9px] font-bold">
+                            <i className={`fa-solid ${isMale(draggingCreature.sex) ? 'fa-mars' : 'fa-venus'}`}></i>
+                        </div>
+                        <div className="font-bold text-[11px] text-white leading-tight truncate mt-0.5">{draggingCreature.name}</div>
+                        <div className="text-[9px] text-neutral-400">{draggingCreature.generation}</div>
+                        <div className="text-[9px] text-neutral-300">{draggingCreature.stage}</div>
+                    </div>
+                )}
+                </React.Fragment>
             );
         }
 
