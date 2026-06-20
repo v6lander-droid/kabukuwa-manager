@@ -336,13 +336,38 @@
             // 親が登録されていない個体（祖先扱いでdepth=0）であっても、婚姻関係にある相手がいる場合は
             // その相手と同じ行に表示する。複数組の外部婚姻が連鎖する可能性があるため、
             // 変化がなくなるまで繰り返し伝播させる。
+            // ただし例外として、「両親が両方登録されており、かつその両親が互いに別系統（血縁関係なし）
+            // 出身である個体」は、この移動処理の対象外とする。
+            // 例：父Xと母Yが別系統出身で、その子Zが新規登録された場合、Zはこの段階では「正規の親子関係を
+            // 持つ個体」であり、外部の祖先個体（親未設定）とは性質が異なるため、婚姻相手への強制移動は行わない。
             {
+                // 簡易Union-Find（親子関係のみ）で、各個体の「祖先系統」を仮判定する
+                const preUf = {};
+                creatures.forEach(c => { preUf[c.id] = c.id; });
+                const preUfFind = (id) => { if (preUf[id] !== id) preUf[id] = preUfFind(preUf[id]); return preUf[id]; };
+                const preUfUnion = (a, b) => { preUf[preUfFind(a)] = preUfFind(b); };
+                creatures.forEach(c => {
+                    const mp = getMale(c), fp = getFemale(c);
+                    if (mp) preUfUnion(c.id, mp.id);
+                    if (fp) preUfUnion(c.id, fp.id);
+                });
+
+                const isExemptFromStep5 = (c) => {
+                    const mp = getMale(c), fp = getFemale(c);
+                    if (!mp || !fp) return false; // 両親のどちらかが未設定なら対象外条件に該当しない（通常通り手順5の対象）
+                    // 両親それぞれの「自分を含まない」系統ルートを比較する：
+                    // 親同士が同じ系統（preUfFind結果が同じ）なら近親婚なので例外にしない。
+                    // 親同士が別系統なら、この個体（子）は「2つの別系統を結ぶ婚姻の子」なので手順5の対象外とする。
+                    return preUfFind(mp.id) !== preUfFind(fp.id);
+                };
+
                 let changed = true;
                 let guard = 0;
                 while (changed && guard < creatures.length + 5) {
                     changed = false;
                     guard++;
                     creatures.forEach(c => {
+                        if (isExemptFromStep5(c)) return; // 両親が別系統出身の個体はこの移動処理をスキップ
                         const myChildren = getChildren(c);
                         if (!myChildren.length) return;
                         const partners = creatures.filter(other =>
