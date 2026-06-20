@@ -194,7 +194,7 @@
 
         // =============================================
 
-        function PedigreeView({ creatures, highlightId, onSelect, onUpdateGridPos, pedigreeLines, onUpdateLines, gridSize, onUpdateGridSize, onInsertRow, onInsertCol }) {
+        function PedigreeView({ creatures, highlightId, onSelect, onUpdateGridPos, pedigreeLines, onUpdateLines, gridSize, onUpdateGridSize, onInsertRow, onInsertCol, onDeleteRow, onDeleteCol }) {
             const CARD_W = 112;
             const CARD_H = 72;
             const CELL_GAP = 24;
@@ -221,10 +221,10 @@
             const [lineDraft, setLineDraft] = useState(null);
             // 線編集モード用：どの線の何を掴んでいるか（'start'端点 / 'end'端点 / 'whole'全体移動）
             const [editingLine, setEditingLine] = useState(null); // { id, grabType, startSnapshot: {x1,y1,x2,y2,bendAfterX}, startGX, startGY }
-            // 行・列挿入モード：null（通常）/ 'row'（行挿入位置選択中）/ 'col'（列挿入位置選択中）
+            // 行・列挿入/削除モード：null（通常）/ 'insertRow' / 'insertCol' / 'deleteRow' / 'deleteCol'
             const [insertMode, setInsertMode] = useState(null);
-            const [insertTargetIndex, setInsertTargetIndex] = useState(null); // ドラッグ中、挿入先として選択されているインデックス
-            const [pendingInsert, setPendingInsert] = useState(null); // { type: 'row'|'col', index } 確認ダイアログ表示中の挿入予定
+            const [insertTargetIndex, setInsertTargetIndex] = useState(null); // ドラッグ中、対象として選択されているインデックス
+            const [pendingInsert, setPendingInsert] = useState(null); // { type, index } 確認ダイアログ表示中の操作予定
             const cardRefs = useRef({});
             const dragState = useRef({ startX: 0, startY: 0, origRow: 0, origCol: 0 });
             const lineDragState = useRef({ startGX: 0, startGY: 0 });
@@ -369,15 +369,25 @@
             };
 
             // ---- 行・列挿入モード：ドラッグで挿入位置（帯）を選び、指を離した位置で確認ダイアログを出す ----
+            const isRowMode = (m) => m === 'row' || m === 'deleteRow';
+            const isDeleteMode = (m) => m === 'deleteRow' || m === 'deleteCol';
+            // 削除対象の行・列にカードが1枚でも配置されているかを判定する
+            const rowHasCard = (idx) => creatures.some(c => isValidGridPos(c.gridPos) && c.gridPos.row === idx);
+            const colHasCard = (idx) => creatures.some(c => isValidGridPos(c.gridPos) && c.gridPos.col === idx);
+
             const handleInsertStart = (e) => {
                 if (!insertMode) return;
                 e.preventDefault();
                 const pt = getSvgPoint(e);
-                if (insertMode === 'row') {
-                    const idx = Math.max(0, Math.min(rows, Math.round((pt.y - CELL_GAP / 2) / CELL_H)));
+                if (isRowMode(insertMode)) {
+                    const idx = isDeleteMode(insertMode)
+                        ? Math.max(0, Math.min(rows - 1, Math.floor((pt.y - CELL_GAP / 2) / CELL_H)))
+                        : Math.max(0, Math.min(rows, Math.round((pt.y - CELL_GAP / 2) / CELL_H)));
                     setInsertTargetIndex(idx);
                 } else {
-                    const idx = Math.max(0, Math.min(cols, Math.round((pt.x - CELL_GAP / 2) / CELL_W)));
+                    const idx = isDeleteMode(insertMode)
+                        ? Math.max(0, Math.min(cols - 1, Math.floor((pt.x - CELL_GAP / 2) / CELL_W)))
+                        : Math.max(0, Math.min(cols, Math.round((pt.x - CELL_GAP / 2) / CELL_W)));
                     setInsertTargetIndex(idx);
                 }
             };
@@ -385,16 +395,30 @@
                 if (!insertMode) return;
                 e.preventDefault();
                 const pt = getSvgPoint(e);
-                if (insertMode === 'row') {
-                    const idx = Math.max(0, Math.min(rows, Math.round((pt.y - CELL_GAP / 2) / CELL_H)));
+                if (isRowMode(insertMode)) {
+                    const idx = isDeleteMode(insertMode)
+                        ? Math.max(0, Math.min(rows - 1, Math.floor((pt.y - CELL_GAP / 2) / CELL_H)))
+                        : Math.max(0, Math.min(rows, Math.round((pt.y - CELL_GAP / 2) / CELL_H)));
                     setInsertTargetIndex(idx);
                 } else {
-                    const idx = Math.max(0, Math.min(cols, Math.round((pt.x - CELL_GAP / 2) / CELL_W)));
+                    const idx = isDeleteMode(insertMode)
+                        ? Math.max(0, Math.min(cols - 1, Math.floor((pt.x - CELL_GAP / 2) / CELL_W)))
+                        : Math.max(0, Math.min(cols, Math.round((pt.x - CELL_GAP / 2) / CELL_W)));
                     setInsertTargetIndex(idx);
                 }
             };
             const handleInsertEnd = () => {
                 if (!insertMode || insertTargetIndex == null) return;
+                // カードが配置されている行/列は削除不可。ドラッグ中は赤帯で示しているため、
+                // ここでは確認ダイアログを出さず、何も起きないようにする（エラー表示もしない）。
+                if (insertMode === 'deleteRow' && rowHasCard(insertTargetIndex)) {
+                    setInsertTargetIndex(null);
+                    return;
+                }
+                if (insertMode === 'deleteCol' && colHasCard(insertTargetIndex)) {
+                    setInsertTargetIndex(null);
+                    return;
+                }
                 setPendingInsert({ type: insertMode, index: insertTargetIndex });
             };
             useEffect(() => {
@@ -727,29 +751,48 @@
                             線を選択中です。端点をドラッグすると長さを変更、線の途中をドラッグすると線全体を移動できます。削除する場合は「削除」ボタンを押してください。
                         </div>
                     )}
-                    <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => { setInsertMode(insertMode === 'row' ? null : 'row'); setInsertTargetIndex(null); }}
-                                className={`px-2 py-1 rounded text-[10px] font-bold border ${insertMode === 'row' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-700'}`}
-                            >
-                                <i className="fa-solid fa-plus mr-1"></i>{insertMode === 'row' ? '行追加：位置を選択中' : '行追加'}
-                            </button>
-                            <button
-                                onClick={() => { setInsertMode(insertMode === 'col' ? null : 'col'); setInsertTargetIndex(null); }}
-                                className={`px-2 py-1 rounded text-[10px] font-bold border ${insertMode === 'col' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-700'}`}
-                            >
-                                <i className="fa-solid fa-plus mr-1"></i>{insertMode === 'col' ? '列追加：位置を選択中' : '列追加'}
-                            </button>
+                    {editMode && (
+                        <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <button
+                                    onClick={() => { setInsertMode(insertMode === 'row' ? null : 'row'); setInsertTargetIndex(null); }}
+                                    className={`px-2 py-1 rounded text-[10px] font-bold border ${insertMode === 'row' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-700'}`}
+                                >
+                                    <i className="fa-solid fa-plus mr-1"></i>{insertMode === 'row' ? '行追加：位置を選択中' : '行追加'}
+                                </button>
+                                <button
+                                    onClick={() => { setInsertMode(insertMode === 'col' ? null : 'col'); setInsertTargetIndex(null); }}
+                                    className={`px-2 py-1 rounded text-[10px] font-bold border ${insertMode === 'col' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-700'}`}
+                                >
+                                    <i className="fa-solid fa-plus mr-1"></i>{insertMode === 'col' ? '列追加：位置を選択中' : '列追加'}
+                                </button>
+                                <button
+                                    onClick={() => { setInsertMode(insertMode === 'deleteRow' ? null : 'deleteRow'); setInsertTargetIndex(null); }}
+                                    className={`px-2 py-1 rounded text-[10px] font-bold border ${insertMode === 'deleteRow' ? 'bg-red-600 text-white border-red-500' : 'bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-700'}`}
+                                >
+                                    <i className="fa-solid fa-minus mr-1"></i>{insertMode === 'deleteRow' ? '行削除：位置を選択中' : '行削除'}
+                                </button>
+                                <button
+                                    onClick={() => { setInsertMode(insertMode === 'deleteCol' ? null : 'deleteCol'); setInsertTargetIndex(null); }}
+                                    className={`px-2 py-1 rounded text-[10px] font-bold border ${insertMode === 'deleteCol' ? 'bg-red-600 text-white border-red-500' : 'bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-700'}`}
+                                >
+                                    <i className="fa-solid fa-minus mr-1"></i>{insertMode === 'deleteCol' ? '列削除：位置を選択中' : '列削除'}
+                                </button>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-neutral-400">{Math.round(zoomFactor * 100)}%</span>
+                                <button onClick={() => { setZoomFactor(1); setPan({ x: 0, y: 0 }); }} className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 rounded text-[10px] text-white border border-neutral-700">リセット</button>
+                            </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <span className="text-[10px] text-neutral-400">{Math.round(zoomFactor * 100)}%</span>
-                            <button onClick={() => { setZoomFactor(1); setPan({ x: 0, y: 0 }); }} className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 rounded text-[10px] text-white border border-neutral-700">リセット</button>
-                        </div>
-                    </div>
-                    {insertMode && (
+                    )}
+                    {(insertMode === 'row' || insertMode === 'col') && (
                         <div className="mb-2 px-3 py-2 bg-emerald-900/30 border border-emerald-700/50 rounded text-[10px] text-emerald-300">
                             描画エリア上を指でドラッグして挿入したい{insertMode === 'row' ? '行' : '列'}の位置を選び、指を離して確定してください。
+                        </div>
+                    )}
+                    {(insertMode === 'deleteRow' || insertMode === 'deleteCol') && (
+                        <div className="mb-2 px-3 py-2 bg-red-900/30 border border-red-700/50 rounded text-[10px] text-red-300">
+                            描画エリア上を指でドラッグして削除したい{insertMode === 'deleteRow' ? '行' : '列'}を選び、指を離して確定してください（カードが配置されている{insertMode === 'deleteRow' ? '行' : '列'}は削除できません）。
                         </div>
                     )}
                     <div className="flex flex-col" style={{ height: 500 + TRAY_H + 1 }}>
@@ -787,12 +830,18 @@
                                     ))}
                                     {/* 描画エリア（グリッド）全体を囲む外周線 */}
                                     <rect x={1} y={1} width={svgW - 2} height={svgH - 2} fill="none" stroke="#34d399" strokeWidth="2" />
-                                    {/* 行・列挿入モード中の挿入位置プレビュー（帯） */}
+                                    {/* 行・列挿入/削除モード中の対象位置プレビュー（帯） */}
                                     {insertMode === 'row' && insertTargetIndex != null && (
                                         <rect x={0} y={insertTargetIndex * CELL_H + CELL_GAP / 2 - CELL_H / 2} width={svgW} height={CELL_H} fill="#34d399" fillOpacity="0.25" stroke="#34d399" strokeWidth="2" />
                                     )}
                                     {insertMode === 'col' && insertTargetIndex != null && (
                                         <rect x={insertTargetIndex * CELL_W + CELL_GAP / 2 - CELL_W / 2} y={0} width={CELL_W} height={svgH} fill="#34d399" fillOpacity="0.25" stroke="#34d399" strokeWidth="2" />
+                                    )}
+                                    {insertMode === 'deleteRow' && insertTargetIndex != null && (
+                                        <rect x={0} y={insertTargetIndex * CELL_H} width={svgW} height={CELL_H} fill={rowHasCard(insertTargetIndex) ? '#ef4444' : '#34d399'} fillOpacity="0.25" stroke={rowHasCard(insertTargetIndex) ? '#ef4444' : '#34d399'} strokeWidth="2" />
+                                    )}
+                                    {insertMode === 'deleteCol' && insertTargetIndex != null && (
+                                        <rect x={insertTargetIndex * CELL_W} y={0} width={CELL_W} height={svgH} fill={colHasCard(insertTargetIndex) ? '#ef4444' : '#34d399'} fillOpacity="0.25" stroke={colHasCard(insertTargetIndex) ? '#ef4444' : '#34d399'} strokeWidth="2" />
                                     )}
                                 </svg>
                                 <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
@@ -840,9 +889,10 @@
                     <div style={{ position: 'fixed', inset: 0, zIndex: 2000 }} className="bg-black/60 flex items-center justify-center">
                         <div className="bg-neutral-800 border border-neutral-700 rounded-lg p-5 max-w-xs w-full mx-4">
                             <div className="text-sm text-white mb-4">
-                                {pendingInsert.type === 'row'
-                                    ? `行${pendingInsert.index + 1}の位置に新しい行を追加しますか？`
-                                    : `列${pendingInsert.index + 1}の位置に新しい列を追加しますか？`}
+                                {pendingInsert.type === 'row' && `行${pendingInsert.index + 1}の位置に新しい行を追加しますか？`}
+                                {pendingInsert.type === 'col' && `列${pendingInsert.index + 1}の位置に新しい列を追加しますか？`}
+                                {pendingInsert.type === 'deleteRow' && `行${pendingInsert.index + 1}を削除しますか？`}
+                                {pendingInsert.type === 'deleteCol' && `列${pendingInsert.index + 1}を削除しますか？`}
                             </div>
                             <div className="flex gap-2 justify-end">
                                 <button
@@ -854,12 +904,14 @@
                                 <button
                                     onClick={() => {
                                         if (pendingInsert.type === 'row') onInsertRow(pendingInsert.index, CELL_H, CELL_GAP);
-                                        else onInsertCol(pendingInsert.index, CELL_W, CELL_GAP);
+                                        else if (pendingInsert.type === 'col') onInsertCol(pendingInsert.index, CELL_W, CELL_GAP);
+                                        else if (pendingInsert.type === 'deleteRow') onDeleteRow(pendingInsert.index, CELL_H, CELL_GAP);
+                                        else if (pendingInsert.type === 'deleteCol') onDeleteCol(pendingInsert.index, CELL_W, CELL_GAP);
                                         setPendingInsert(null);
                                         setInsertMode(null);
                                         setInsertTargetIndex(null);
                                     }}
-                                    className="px-3 py-1.5 rounded text-xs text-white bg-emerald-600 hover:bg-emerald-500"
+                                    className={`px-3 py-1.5 rounded text-xs text-white ${pendingInsert.type === 'deleteRow' || pendingInsert.type === 'deleteCol' ? 'bg-red-600 hover:bg-red-500' : 'bg-emerald-600 hover:bg-emerald-500'}`}
                                 >
                                     OK
                                 </button>
@@ -1440,6 +1492,45 @@
                                     return newL;
                                 }));
                                 setGridSize(prev => ({ ...prev, cols: prev.cols + 1 }));
+                            }}
+                            onDeleteRow={(index, cellH, cellGap) => {
+                                // index行目を削除する。事前にカードが存在しないことは呼び出し側で保証済み。
+                                // index以降の行に属するカードは1行分（上）にずらす。
+                                // 線については、削除される行の範囲にあった部分も含めて、index行目以降の座標を
+                                // 一律1行分上にずらすことで、見た目の位置関係を保ったまま詰める（線の内容自体は無視してよい仕様）。
+                                const shiftY = cellH;
+                                const rowTopY = cellGap / 2 + index * cellH - cellH / 2;
+                                setCreatures(prev => prev.map(c => {
+                                    if (c.gridPos && c.gridPos.row > index) {
+                                        return { ...c, gridPos: { ...c.gridPos, row: c.gridPos.row - 1 } };
+                                    }
+                                    return c;
+                                }));
+                                setPedigreeLines(prev => prev.map(l => {
+                                    const newL = { ...l };
+                                    if (l.y1 >= rowTopY) newL.y1 = l.y1 - shiftY;
+                                    if (l.y2 >= rowTopY) newL.y2 = l.y2 - shiftY;
+                                    return newL;
+                                }));
+                                setGridSize(prev => ({ ...prev, rows: Math.max(1, prev.rows - 1) }));
+                            }}
+                            onDeleteCol={(index, cellW, cellGap) => {
+                                // index列目を削除する。事前にカードが存在しないことは呼び出し側で保証済み。
+                                const shiftX = cellW;
+                                const colLeftX = cellGap / 2 + index * cellW - cellW / 2;
+                                setCreatures(prev => prev.map(c => {
+                                    if (c.gridPos && c.gridPos.col > index) {
+                                        return { ...c, gridPos: { ...c.gridPos, col: c.gridPos.col - 1 } };
+                                    }
+                                    return c;
+                                }));
+                                setPedigreeLines(prev => prev.map(l => {
+                                    const newL = { ...l };
+                                    if (l.x1 >= colLeftX) newL.x1 = l.x1 - shiftX;
+                                    if (l.x2 >= colLeftX) newL.x2 = l.x2 - shiftX;
+                                    return newL;
+                                }));
+                                setGridSize(prev => ({ ...prev, cols: Math.max(1, prev.cols - 1) }));
                             }}
                         />
                     ) : (
