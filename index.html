@@ -714,12 +714,26 @@
                     const mp = marriagePairs.find(p => p.maleId === maleParent.id && p.femaleId === femaleParent.id);
                     if (mp) {
                         const parentRowIdx = mp.rowIdx;
-                        const midX = (mp.maleX + mp.femaleX) / 2;
+                        // 子への接続線の起点：通常は♂の真下。
+                        // ただし♂が複数の♀と婚姻関係にある場合（multi）、1頭目の♀との子は♂の真下、
+                        // 2頭目以降の♀との子はその♀自身の真下から接続する。
+                        // 座標はmarriagePairsのスナップショット（maleX/femaleX）ではなく、
+                        // 常に最新のposMapから直接取得する（スナップショットが複数passを経て陳腐化することを防ぐ）。
+                        const allWivesOfMale = creatures.filter(other =>
+                            other.id !== maleParent.id && isFemale(other.sex) &&
+                            getChildren(other).some(ch => ch.maleParent === maleParent.name && getMale(ch) && getMale(ch).id === maleParent.id)
+                        );
+                        let originX = posMap[maleParent.id].x;
+                        if (allWivesOfMale.length > 1) {
+                            const sortedWives = [...allWivesOfMale].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+                            const isFirstWife = sortedWives[0].id === femaleParent.id;
+                            originX = isFirstWife ? posMap[maleParent.id].x : posMap[femaleParent.id].x;
+                        }
                         const cy_top = cp.rowIdx * (CARD_H + ROW_GAP);
                         const midY = cy_top - 48 - MARRIAGE_GAP;
                         const py_bottom = parentRowIdx * (CARD_H + ROW_GAP) + CARD_H;
                         const pairKey = `pair_${maleParent.id}_${femaleParent.id}`;
-                        lines.push({ x1: midX, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: true, pairKey });
+                        lines.push({ x1: originX, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: true, pairKey });
                         return;
                     }
                 }
@@ -884,11 +898,17 @@
                                     const mPos = posMap[m.maleId];
                                     const fPos = posMap[m.femaleId];
                                     if (!mPos || !fPos) return null;
-                                    const mx1 = m.maleX !== undefined ? m.maleX : mPos.x;
-                                    const mx2 = m.femaleX !== undefined ? m.femaleX : fPos.x;
+                                    // posMapの実位置を正とする（marriagePairsのmaleX/femaleXスナップショットは
+                                    // 複数passを経て陳腐化する場合があるため使用しない）。
+                                    const mx1 = mPos.x;
+                                    const mx2 = fPos.x;
                                     const my = m.rowIdx * (CARD_H + ROW_GAP) + CARD_H + 48;
                                     const cardBottom = my - 48;
-                                    const midX = (mx1 + mx2) / 2;
+                                    // 子への接続線の起点に合わせる：対応するpairKeyのlinesエントリのx1（通常は♂の真下、
+                                    // multiの2頭目以降の♀の場合はその♀の真下）を使う。見つからなければ婚姻線の中点にフォールバック。
+                                    const pairKeyForM = `pair_${m.maleId}_${m.femaleId}`;
+                                    const matchedLine = lines.find(l => l.isPair && l.pairKey === pairKeyForM);
+                                    const midX = matchedLine ? matchedLine.x1 : (mx1 + mx2) / 2;
                                     const branchY = my + MARRIAGE_GAP;
                                     return (
                                         <React.Fragment key={`m${i}`}>
@@ -897,7 +917,7 @@
                                             <line x1={mx2} y1={cardBottom} x2={mx2} y2={my} stroke="#525252" strokeWidth="1.5" />
                                             {/* 婚姻線（横） */}
                                             <line x1={mx1} y1={my} x2={mx2} y2={my} stroke="#525252" strokeWidth="1.5" />
-                                            {/* 婚姻線中点→接続横線 縦線 */}
+                                            {/* 婚姻線→接続横線 縦線（起点は♂の真下、複数婚姻の2頭目以降は♀の真下） */}
                                             <line x1={midX} y1={my} x2={midX} y2={branchY} stroke="#525252" strokeWidth="1.5" />
                                         </React.Fragment>
                                     );
