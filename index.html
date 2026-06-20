@@ -1428,11 +1428,19 @@
                                 <>
                                     <section className="space-y-2">
                                         <h2 className="font-bold text-emerald-400">基本操作</h2>
-                                        <p className="text-neutral-300 leading-relaxed">「一覧」タブで個体を管理します。行をタップすると詳細画面へ移動します。「追加」ボタンで新規個体を登録できます。</p>
+                                        <p className="text-neutral-300 leading-relaxed">「一覧」タブで個体を管理します。行をタップすると詳細画面へ移動します。「追加」ボタンで新規個体を登録できます。詳細画面では写真を、ヘッダーの「アイコン」ボタンからはアプリ全体のアイコン画像を設定できます。いずれも画像選択後にトリミング範囲（位置・拡大縮小）を調整してから保存されます。</p>
                                     </section>
                                     <section className="space-y-2">
                                         <h2 className="font-bold text-emerald-400">血統図</h2>
-                                        <p className="text-neutral-300 leading-relaxed">「血統図」タブで親子関係を視覚的に確認できます。各個体の詳細編集画面でオス親・メス親を登録することで自動的に接続されます。</p>
+                                        <p className="text-neutral-300 leading-relaxed">「血統図」タブでは、個体カードをグリッド上に自由に配置し、線で親子・婚姻関係を手動で描いて家系図を作成します。自動配置・自動接続は行われません。</p>
+                                        <ul className="text-neutral-300 leading-relaxed space-y-1.5 list-none">
+                                            <li>・ 新しく登録した個体は、画面上部の「未配置リスト」に追加されます。</li>
+                                            <li>・「編集モード」をONにすると、未配置リストのカードをグリッドへドラッグして配置できます。グリッド上のカードを未配置リスト側へ戻すこともできます（1セルに1枚まで）。</li>
+                                            <li>・ 編集モード中は「行追加」「列追加」「行削除」「列削除」ボタンも表示され、ドラッグで挿入・削除位置を選んで確認のうえグリッドを拡張・縮小できます（カードがある行・列は削除できません）。</li>
+                                            <li>・「線追加」ボタンで、カード間をドラッグして直線・L字型の接続線を描けます。</li>
+                                            <li>・「線編集」ボタンで、既存の線をタップして選択し、端点のドラッグで長さ変更、線の途中のドラッグで平行移動ができます。選択中は「削除」ボタンで線を削除できます。</li>
+                                            <li>・ 2本指のピンチ操作で拡大・縮小、空セル部分を1本指でドラッグすると画面を移動できます。</li>
+                                        </ul>
                                     </section>
                                     <section className="space-y-2">
                                         <h2 className="font-bold text-emerald-400">交配シミュレーション</h2>
@@ -1441,11 +1449,11 @@
                                     <section className="space-y-2">
                                         <h2 className="font-bold text-white bg-red-800/50 border border-red-600 rounded px-3 py-2">⚠ データ消失について（必読）</h2>
                                         <ul className="text-neutral-300 leading-relaxed space-y-1.5 list-none">
-                                            <li>・ データはお使いのブラウザ内（localStorage）にのみ保存されます。</li>
+                                            <li>・ 個体データ・血統図のカード配置・接続線は、お使いのブラウザ内（localStorage）にのみ保存されます。</li>
                                             <li>・ <span className="text-red-400 font-bold">ブラウザのキャッシュ・履歴・Cookieを削除するとデータが完全に消失します。</span></li>
                                             <li>・ <span className="text-red-400 font-bold">ブラウザの変更・PCの買い替え・OSの再インストール時もデータは引き継がれません。</span></li>
                                             <li>・ ストレージ容量が不足した場合、保存に失敗することがあります。</li>
-                                            <li>・ 上記リスクを避けるため、ヘッダーの「<span className="text-emerald-400 font-bold">保存</span>」ボタンから定期的にJSONファイルへバックアップしてください。</li>
+                                            <li>・ 上記リスクを避けるため、ヘッダーの「<span className="text-emerald-400 font-bold">保存</span>」ボタンから定期的にJSONファイルへバックアップしてください（個体データ・血統図の配置・接続線を含めて保存されます）。</li>
                                             <li>・ バックアップファイルは「<span className="text-emerald-400 font-bold">読込</span>」ボタンから復元できます。</li>
                                         </ul>
                                     </section>
