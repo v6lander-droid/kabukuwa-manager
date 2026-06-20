@@ -1726,13 +1726,11 @@
                                         <thead className="bg-neutral-800">
                                             <tr>
                                                 {tableHeaders.map((h, i) => (
-                                                    <th key={h.k} className="p-3 cursor-pointer hover:bg-neutral-700 select-none whitespace-nowrap" style={colWidths[i] ? { width: colWidths[i] } : undefined} onClick={() => setSort({key:h.k, direction: sort.key===h.k && sort.direction==='asc'?'desc':'asc'})}>
-                                                        <span className="flex items-center justify-center gap-1">
-                                                            {h.l}
-                                                            <span className="flex flex-col leading-none">
-                                                                <i className={`fa-solid fa-caret-up text-[8px] ${sort.key === h.k && sort.direction === 'asc' ? 'text-emerald-400' : 'text-neutral-600'}`}></i>
-                                                                <i className={`fa-solid fa-caret-down text-[8px] ${sort.key === h.k && sort.direction === 'desc' ? 'text-emerald-400' : 'text-neutral-600'}`}></i>
-                                                            </span>
+                                                    <th key={h.k} className="p-3 cursor-pointer hover:bg-neutral-700 select-none whitespace-nowrap relative" style={colWidths[i] ? { width: colWidths[i] } : undefined} onClick={() => setSort({key:h.k, direction: sort.key===h.k && sort.direction==='asc'?'desc':'asc'})}>
+                                                        <span className="block text-center">{h.l}</span>
+                                                        <span className="flex flex-col leading-none absolute top-1/2 -translate-y-1/2" style={{ right: 6 }}>
+                                                            <i className={`fa-solid fa-caret-up text-[8px] ${sort.key === h.k && sort.direction === 'asc' ? 'text-emerald-400' : 'text-neutral-600'}`}></i>
+                                                            <i className={`fa-solid fa-caret-down text-[8px] ${sort.key === h.k && sort.direction === 'desc' ? 'text-emerald-400' : 'text-neutral-600'}`}></i>
                                                         </span>
                                                     </th>
                                                 ))}
