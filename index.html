@@ -551,6 +551,18 @@
                     });
                 }
 
+                // 各個体IDから「その個体が属するブロックの左端ID」を引けるマップを構築。
+                // 手順4で「子個体自身の位置」ではなく「子が属するペアブロック全体の左端」を基準にスライドするために使う。
+                const idToBlockLeftId = {};
+                for (let row = 0; row <= maxDepth; row++) {
+                    const blocks = rowBlocks[row];
+                    if (!blocks) continue;
+                    blocks.forEach(b => {
+                        const members = blockMembers(b);
+                        members.forEach(m => { idToBlockLeftId[m.id] = b._leftId; });
+                    });
+                }
+
                 // ---- 手順4：深い行から浅い行へ向かって、子グループの左端に親ブロックを合わせてスライド ----
                 for (let row = maxDepth - 1; row >= 0; row--) {
                     const blocks = rowBlocks[row];
@@ -619,7 +631,13 @@
                     members.forEach(m => { getChildren(m).forEach(ch => { if (posMap[ch.id]) allChildren.push(ch); }); });
                     if (!allChildren.length) return;
 
-                    const childMinX = Math.min(...allChildren.map(ch => posMap[ch.id].x));
+                    // 各子について、「子自身の位置」ではなく「子が属するペアブロック全体の左端」を基準値とする。
+                    // これにより、子が♀側（ペアの右側）であっても、そのペア全体の左端（通常は♂側）に揃えられる。
+                    const childBaseX = allChildren.map(ch => {
+                        const leftId = idToBlockLeftId[ch.id];
+                        return (leftId != null && posMap[leftId] != null) ? posMap[leftId].x : posMap[ch.id].x;
+                    });
+                    const childMinX = Math.min(...childBaseX);
                     const currentLeftX = posMap[b._leftId].x;
                     const dx = childMinX - currentLeftX;
                     if (dx === 0) return;
