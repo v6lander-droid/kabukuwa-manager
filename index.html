@@ -422,6 +422,11 @@
                         }
                         if (ax != null) return -1; // 位置が分かる方を優先して左に
                         if (bx != null) return 1;
+                        // 両方とも親ブロックを持たない祖先ブロック同士の場合：
+                        // 婚姻ペア・multi（複数♀）ブロックを左、単独ブロック（未婚姻の祖先）を右に寄せる
+                        const aSingle = a.type === 'single' ? 1 : 0;
+                        const bSingle = b.type === 'single' ? 1 : 0;
+                        if (aSingle !== bSingle) return aSingle - bSingle;
                         return blockKey(a).localeCompare(blockKey(b), 'ja');
                     });
                 }
