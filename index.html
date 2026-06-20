@@ -375,14 +375,24 @@
             // Union-Find で親子関係を辿り、繋がっている全個体を1つの「系統」としてグループ化する。
             // 系統ごとに独立して横方向のレーンを割り当てることで、無関係な系統同士の子孫数の違いが
             // 互いの配置に干渉しないようにする。
+            // 例外：両親が両方とも設定されている個体（クロス行婚姻の可能性がある個体、手順5の対象外）の場合、
+            // 父方・母方の両方の系統と無条件にunionすると、本来別々にレイアウトしたい既存の2系統が
+            // 統合されてしまう（系統全体の位置が大きく変わってしまう）。これを避けるため、
+            // この個体は父方の系統にのみ統合し、母方の系統との結合は行わない
+            // （＝既存の主要メンバーが持つ系統位置を尊重する）。
             const uf = {};
             creatures.forEach(c => { uf[c.id] = c.id; });
             const ufFind = (id) => { if (uf[id] !== id) uf[id] = ufFind(uf[id]); return uf[id]; };
             const ufUnion = (a, b) => { uf[ufFind(a)] = ufFind(b); };
             creatures.forEach(c => {
                 const mp = getMale(c), fp = getFemale(c);
-                if (mp) ufUnion(c.id, mp.id);
-                if (fp) ufUnion(c.id, fp.id);
+                if (mp && fp) {
+                    // 両親が両方揃っている個体：父方の系統にのみ統合し、母方の系統とは結合しない
+                    ufUnion(c.id, mp.id);
+                } else {
+                    if (mp) ufUnion(c.id, mp.id);
+                    if (fp) ufUnion(c.id, fp.id);
+                }
             });
             const systemMap = {}; // groupRootId -> [creature, ...]
             creatures.forEach(c => {
