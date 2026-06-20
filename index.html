@@ -1267,6 +1267,11 @@
             }, [creatures.length]);
             const [filters, setFilters] = useState({ name: '', sex: '', saleStatus: '', stage: '', alias: '', generation: '' });
             const [showFilter, setShowFilter] = useState(false);
+            // 上部の固定領域（ロゴ・タブ・フィルター等）の実際の高さを計測し、
+            // テーブルのthead（項目名行）のsticky位置（top）に反映する。
+            // showFilterの開閉等でこの領域の高さが変わるため、関連する状態が変化するたびに再計測する。
+            const stickyHeaderRef = useRef(null);
+            const [stickyHeaderHeight, setStickyHeaderHeight] = useState(0);
             const [agreedToTerms, setAgreedToTerms] = useState(() => localStorage.getItem('beetle_agreed') === 'true');
             const [termsTab, setTermsTab] = useState('使用方法');
             const [appIcon, setAppIcon] = useState(() => localStorage.getItem('beetle_icon') || '');
@@ -1351,6 +1356,15 @@
 
             const resetFilters = () => setFilters({ name: '', sex: '', saleStatus: '', stage: '', alias: '', generation: '' });
             const activeFilterCount = Object.values(filters).filter(v => v !== '').length;
+            useEffect(() => {
+                const update = () => {
+                    if (stickyHeaderRef.current) setStickyHeaderHeight(stickyHeaderRef.current.getBoundingClientRect().height);
+                };
+                update();
+                window.addEventListener('resize', update);
+                const timer = setTimeout(update, 50); // フォントやアイコン読み込み後の高さ変化にも対応
+                return () => { window.removeEventListener('resize', update); clearTimeout(timer); };
+            }, [showFilter, activeTab, appIcon, activeFilterCount]);
             const toggleSaleStatus = (id, e) => {
                 e.stopPropagation();
                 const statuses = ['使用', '予備', '不要'];
@@ -1480,6 +1494,7 @@
 
             return (
                 <div className="min-h-screen p-4">
+                    <div ref={stickyHeaderRef} className="sticky top-0 z-30 bg-neutral-950 -mx-4 px-4 pt-4">
                     <nav className="mb-4 font-bold text-emerald-400">
                         <div className="flex justify-between items-center mb-2">
                             <div className="flex items-center gap-2">
@@ -1586,6 +1601,39 @@
                             <button key={tab} onClick={() => { setActiveTab(tab); setHighlightId(null); }} className={`px-4 py-2 text-sm font-bold ${activeTab === tab ? 'text-emerald-400 border-b-2 border-emerald-400' : 'text-neutral-200'}`}>{tab}</button>
                         ))}
                     </div>
+                    {activeTab === '一覧' && (
+                        <div className="mb-3">
+                            <div className="flex gap-2 items-center mb-2">
+                                <button onClick={() => setShowFilter(!showFilter)} className={`flex items-center gap-1 px-3 py-1.5 rounded text-xs font-bold transition-colors ${showFilter ? 'bg-emerald-600 text-white' : 'bg-neutral-700 text-white hover:bg-neutral-600'}`}>
+                                    <i className="fa-solid fa-filter"></i>
+                                    フィルター
+                                    {activeFilterCount > 0 && <span className="bg-emerald-400 text-black rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-bold">{activeFilterCount}</span>}
+                                </button>
+                                {activeFilterCount > 0 && <button onClick={resetFilters} className="text-xs text-neutral-400 hover:text-white transition-colors"><i className="fa-solid fa-xmark mr-1"></i>リセット</button>}
+                                <span className="text-xs text-neutral-500 ml-auto">{processedCreatures.length} / {creatures.length} 件</span>
+                            </div>
+                            {showFilter && (
+                                <div className="bg-neutral-800 rounded-lg p-3 space-y-2 border border-neutral-700">
+                                    <input type="text" placeholder="個体名で検索..." value={filters.name} onChange={e => setFilters({...filters, name: e.target.value})} className="w-full bg-neutral-700 text-white text-xs rounded px-2 py-1.5 border border-neutral-600 focus:outline-none focus:border-emerald-500" />
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {[
+                                            { key: 'sex', label: '性別', options: ['オス', 'メス'] },
+                                            { key: 'saleStatus', label: '計画', options: ['使用', '予備', '不要'] },
+                                            { key: 'stage', label: 'ステージ', options: [...new Set(creatures.map(c => c.stage).filter(Boolean))] },
+                                            { key: 'alias', label: '名称', options: [...new Set(creatures.map(c => c.alias).filter(Boolean))] },
+                                            { key: 'generation', label: '累代', options: [...new Set(creatures.map(c => c.generation).filter(Boolean))].sort() },
+                                        ].map(f => (
+                                            <select key={f.key} value={filters[f.key]} onChange={e => setFilters({...filters, [f.key]: e.target.value})} className="bg-neutral-700 text-white text-xs rounded px-2 py-1.5 border border-neutral-600 focus:outline-none focus:border-emerald-500">
+                                                <option value="">全て（{f.label}）</option>
+                                                {f.options.map(o => <option key={o} value={o}>{o}</option>)}
+                                            </select>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    </div>
 
                     {activeTab === '一覧' ? (
                         <>
@@ -1629,39 +1677,9 @@
                                     </div>
                                 </div>
                             )}
-                            <div className="mb-3">
-                                <div className="flex gap-2 items-center mb-2">
-                                    <button onClick={() => setShowFilter(!showFilter)} className={`flex items-center gap-1 px-3 py-1.5 rounded text-xs font-bold transition-colors ${showFilter ? 'bg-emerald-600 text-white' : 'bg-neutral-700 text-white hover:bg-neutral-600'}`}>
-                                        <i className="fa-solid fa-filter"></i>
-                                        フィルター
-                                        {activeFilterCount > 0 && <span className="bg-emerald-400 text-black rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-bold">{activeFilterCount}</span>}
-                                    </button>
-                                    {activeFilterCount > 0 && <button onClick={resetFilters} className="text-xs text-neutral-400 hover:text-white transition-colors"><i className="fa-solid fa-xmark mr-1"></i>リセット</button>}
-                                    <span className="text-xs text-neutral-500 ml-auto">{processedCreatures.length} / {creatures.length} 件</span>
-                                </div>
-                                {showFilter && (
-                                    <div className="bg-neutral-800 rounded-lg p-3 space-y-2 border border-neutral-700">
-                                        <input type="text" placeholder="個体名で検索..." value={filters.name} onChange={e => setFilters({...filters, name: e.target.value})} className="w-full bg-neutral-700 text-white text-xs rounded px-2 py-1.5 border border-neutral-600 focus:outline-none focus:border-emerald-500" />
-                                        <div className="grid grid-cols-2 gap-2">
-                                            {[
-                                                { key: 'sex', label: '性別', options: ['オス', 'メス'] },
-                                                { key: 'saleStatus', label: '計画', options: ['使用', '予備', '不要'] },
-                                                { key: 'stage', label: 'ステージ', options: [...new Set(creatures.map(c => c.stage).filter(Boolean))] },
-                                                { key: 'alias', label: '名称', options: [...new Set(creatures.map(c => c.alias).filter(Boolean))] },
-                                                { key: 'generation', label: '累代', options: [...new Set(creatures.map(c => c.generation).filter(Boolean))].sort() },
-                                            ].map(f => (
-                                                <select key={f.key} value={filters[f.key]} onChange={e => setFilters({...filters, [f.key]: e.target.value})} className="bg-neutral-700 text-white text-xs rounded px-2 py-1.5 border border-neutral-600 focus:outline-none focus:border-emerald-500">
-                                                    <option value="">全て（{f.label}）</option>
-                                                    {f.options.map(o => <option key={o} value={o}>{o}</option>)}
-                                                </select>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
                             <div className="overflow-x-auto bg-neutral-900 rounded-lg shadow-xl">
                                 <table className="w-full text-sm border-collapse whitespace-nowrap">
-                                    <thead className="bg-neutral-800">
+                                    <thead className="bg-neutral-800 sticky z-20" style={{ top: stickyHeaderHeight }}>
                                         <tr>
                                             {tableHeaders.map((h, i) => (
                                                 <th key={h.k} className={`p-3 cursor-pointer hover:bg-neutral-700 select-none ${i < 2 ? `sticky-col-${i+1}` : ''}`} onClick={() => setSort({key:h.k, direction: sort.key===h.k && sort.direction==='asc'?'desc':'asc'})}>
@@ -1950,7 +1968,7 @@
 
             return (
                 <div className="p-6 max-w-lg mx-auto">
-                    <div className="flex justify-between items-center mb-4">
+                    <div className="flex justify-between items-center mb-4 sticky top-0 z-30 bg-neutral-950 -mx-6 px-6 py-3">
                         <button onClick={onBack} className="text-emerald-400 font-bold">← 戻る</button>
                         <div className="flex gap-2">
                             <button onClick={() => onGoToTree(creature.id)} className="bg-neutral-700 px-4 py-1 rounded text-sm font-bold">血統図へ</button>
