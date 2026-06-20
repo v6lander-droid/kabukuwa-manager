@@ -1313,15 +1313,15 @@
                     })
                     .sort((a, b) => {
                         let av, bv;
-                        if (sort.key === 'size') {
-                            // 体重はcreature自体のプロパティではなく、飼育記録（history）の最新値を見る必要がある。
-                            // 単位付き文字列（例:"15g"）から数値部分だけを抽出して数値として比較する。
-                            const aLatest = a.history.length > 0 ? a.history[a.history.length - 1].size : null;
-                            const bLatest = b.history.length > 0 ? b.history[b.history.length - 1].size : null;
-                            const aNum = aLatest ? parseFloat(String(aLatest).replace(/[^0-9.]/g, '')) : null;
-                            const bNum = bLatest ? parseFloat(String(bLatest).replace(/[^0-9.]/g, '')) : null;
-                            av = isNaN(aNum) ? null : aNum;
-                            bv = isNaN(bNum) ? null : bNum;
+                        if (sort.key === 'size' || sort.key === 'temp') {
+                            // 体重・温度はcreature自体のプロパティではなく、飼育記録（history）の最新値を見る必要がある。
+                            // 単位付き文字列（例:"15g","26℃"）から数値部分だけを抽出して数値として比較する。
+                            const aLatest = a.history.length > 0 ? a.history[a.history.length - 1][sort.key] : null;
+                            const bLatest = b.history.length > 0 ? b.history[b.history.length - 1][sort.key] : null;
+                            const aNum = aLatest ? parseFloat(String(aLatest).replace(/[^0-9.\-]/g, '')) : null;
+                            const bNum = bLatest ? parseFloat(String(bLatest).replace(/[^0-9.\-]/g, '')) : null;
+                            av = (aNum == null || isNaN(aNum)) ? null : aNum;
+                            bv = (bNum == null || isNaN(bNum)) ? null : bNum;
                         } else {
                             av = a[sort.key];
                             bv = b[sort.key];
