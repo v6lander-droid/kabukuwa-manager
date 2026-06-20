@@ -1640,38 +1640,57 @@
                     if (!c) return;
                     const color = COMPARE_COLORS[idx + 1];
                     datasets.push({
-                        label: c.name, data: [], _history: c.history,
+                        label: c.name, data: [], _history: c.history, _hatchDate: c.hatchDate,
                         borderColor: color.border, backgroundColor: color.bg, tension: 0.3, fill: false,
                         pointBackgroundColor: color.border, pointRadius: 4, borderDash: [4, 3], borderWidth: 1.5, _isCompare: true,
                     });
                 });
                 datasets.push({
-                    label: mainCreature.name, data: [], _history: mainCreature.history,
+                    label: mainCreature.name, data: [], _history: mainCreature.history, _hatchDate: mainCreature.hatchDate,
                     borderColor: COMPARE_COLORS[0].border, backgroundColor: COMPARE_COLORS[0].bg, tension: 0.3, fill: true,
                     pointBackgroundColor: '#fff', pointRadius: 5, borderWidth: 2.5, _isCompare: false,
                 });
 
-                const allDates = new Set();
-                mainCreature.history.forEach(h => allDates.add(h.date));
-                compareIds.forEach(cid => {
-                    const c = allCreatures.find(x => x.id === cid);
-                    if (c) c.history.forEach(h => allDates.add(h.date));
-                });
-                const sortedDates = Array.from(allDates).sort();
+                // 横軸を「孵化日からの経過日数」に変換する。
+                // 孵化日が未設定（'-'等、有効な日付でない）の個体は、その個体自身の測定履歴の中で
+                // 最も古い日付を代わりの起点（経過0日）として扱う。
+                const parseDateSafe = (s) => {
+                    if (!s || s === '-') return null;
+                    const d = new Date(s);
+                    return isNaN(d.getTime()) ? null : d;
+                };
+                const dayDiff = (from, to) => Math.round((to.getTime() - from.getTime()) / 86400000);
 
-                const mappedDatasets = datasets.map(ds => {
-                    const map = {};
-                    ds._history.forEach(h => {
+                const elapsedDatasets = datasets.map(ds => {
+                    const validHistory = ds._history.filter(h => parseDateSafe(h.date));
+                    let origin = parseDateSafe(ds._hatchDate);
+                    if (!origin && validHistory.length > 0) {
+                        // 孵化日が未設定の場合、測定履歴の中で最も古い日付を起点にする
+                        origin = validHistory.map(h => parseDateSafe(h.date)).sort((a, b) => a - b)[0];
+                    }
+                    const points = validHistory.map(h => {
                         const val = parseFloat(h.size.replace(/[^0-9.]/g, ''));
-                        map[h.date] = isNaN(val) ? null : val;
-                    });
-                    const { _history, _isCompare, ...rest } = ds;
-                    return { ...rest, data: sortedDates.map(d => map[d] ?? null) };
+                        const elapsed = origin ? dayDiff(origin, parseDateSafe(h.date)) : null;
+                        return { elapsed, value: isNaN(val) ? null : val };
+                    }).filter(p => p.elapsed != null);
+                    return { ds, points };
+                });
+
+                // 全データセットに登場する経過日数の和集合を横軸ラベルとする
+                const allElapsedSet = new Set();
+                elapsedDatasets.forEach(({ points }) => points.forEach(p => allElapsedSet.add(p.elapsed)));
+                const sortedElapsed = Array.from(allElapsedSet).sort((a, b) => a - b);
+
+                const mappedDatasets = elapsedDatasets.map(({ ds, points }) => {
+                    const map = {};
+                    points.forEach(p => { map[p.elapsed] = p.value; });
+                    const { _history, _isCompare, _hatchDate, ...rest } = ds;
+                    return { ...rest, data: sortedElapsed.map(e => map[e] ?? null) };
                 });
 
                 chartInstance.current = new Chart(chartRef.current, {
                     type: 'line',
-                    data: { labels: sortedDates, datasets: mappedDatasets },
+                    data: { labels: sortedElapsed.map(e => `${e}日`), datasets: mappedDatasets },
                     options: {
                         responsive: true, maintainAspectRatio: false, spanGaps: true,
                         plugins: {
@@ -1680,7 +1699,7 @@
                         },
                         scales: {
                             y: { beginAtZero: true, grid: { color: '#333' }, ticks: { color: '#fff', callback: v => `${v}g` } },
-                            x: { grid: { color: '#333' }, ticks: { color: '#fff', maxRotation: 30, font: { size: 9 } } }
+                            x: { grid: { color: '#333' }, ticks: { color: '#fff', maxRotation: 30, font: { size: 9 } }, title: { display: true, text: '孵化日からの経過日数', color: '#aaa', font: { size: 10 } } }
                         }
                     }
                 });
