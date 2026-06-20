@@ -51,15 +51,6 @@
 </head>
 <body class="bg-neutral-950 text-white font-sans">
     <div id="root"></div>
-    <script>
-        // デバッグ用：画面上でエラー内容を確認できるよう、JSエラーをキャッチしてalert表示する。
-        window.addEventListener('error', function (e) {
-            alert('JSエラー: ' + e.message + '\n' + (e.filename || '') + ':' + (e.lineno || '') + ':' + (e.colno || ''));
-        });
-        window.addEventListener('unhandledrejection', function (e) {
-            alert('Promiseエラー: ' + (e.reason && e.reason.message ? e.reason.message : String(e.reason)));
-        });
-    </script>
 
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
@@ -917,17 +908,13 @@
                                 </button>
                                 <button
                                     onClick={() => {
-                                        try {
-                                            if (pendingInsert.type === 'row') onInsertRow(pendingInsert.index, CELL_H, CELL_GAP);
-                                            else if (pendingInsert.type === 'col') onInsertCol(pendingInsert.index, CELL_W, CELL_GAP);
-                                            else if (pendingInsert.type === 'deleteRow') onDeleteRow(pendingInsert.index, CELL_H, CELL_GAP);
-                                            else if (pendingInsert.type === 'deleteCol') onDeleteCol(pendingInsert.index, CELL_W, CELL_GAP);
-                                            setPendingInsert(null);
-                                            setInsertMode(null);
-                                            setInsertTargetIndex(null);
-                                        } catch (err) {
-                                            alert('エラーが発生しました: ' + (err && err.message ? err.message : String(err)) + '\\n' + (err && err.stack ? err.stack.slice(0, 300) : ''));
-                                        }
+                                        if (pendingInsert.type === 'row') onInsertRow(pendingInsert.index, CELL_H, CELL_GAP);
+                                        else if (pendingInsert.type === 'col') onInsertCol(pendingInsert.index, CELL_W, CELL_GAP);
+                                        else if (pendingInsert.type === 'deleteRow') onDeleteRow(pendingInsert.index, CELL_H, CELL_GAP);
+                                        else if (pendingInsert.type === 'deleteCol') onDeleteCol(pendingInsert.index, CELL_W, CELL_GAP);
+                                        setPendingInsert(null);
+                                        setInsertMode(null);
+                                        setInsertTargetIndex(null);
                                     }}
                                     className={`px-3 py-1.5 rounded text-xs text-white ${pendingInsert.type === 'deleteRow' || pendingInsert.type === 'deleteCol' ? 'bg-red-600 hover:bg-red-500' : 'bg-emerald-600 hover:bg-emerald-500'}`}
                                 >
@@ -1677,7 +1664,7 @@
                                     </div>
                                 </div>
                             )}
-                            <div className="overflow-x-auto bg-neutral-900 rounded-lg shadow-xl">
+                            <div className="overflow-x-auto overflow-y-visible bg-neutral-900 rounded-lg shadow-xl">
                                 <table className="w-full text-sm border-collapse whitespace-nowrap">
                                     <thead className="bg-neutral-800 sticky z-20" style={{ top: stickyHeaderHeight }}>
                                         <tr>
