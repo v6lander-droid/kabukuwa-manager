@@ -244,12 +244,18 @@
                 y: CELL_GAP / 2 + row * CELL_H + CARD_H / 2,
             });
 
-            const occupied = {};
-            creatures.forEach(c => { if (c.gridPos) occupied[`${c.gridPos.row}_${c.gridPos.col}`] = c; });
+            // gridPosが現在のグリッドサイズの範囲内にある有効な値かどうかを判定する。
+            // 過去のバージョンとの互換性や、グリッド縮小等で範囲外になったgridPosを持つ個体を
+            // 「行方不明」にしないため、無効なgridPosは未配置（一時置き場行き）として扱う。
+            const isValidGridPos = (gp) => gp && Number.isInteger(gp.row) && Number.isInteger(gp.col) && gp.row >= 0 && gp.row < rows && gp.col >= 0 && gp.col < cols;
 
-            // 一時置き場に表示する個体：gridPos未設定のもの。登録順（新しい順）はcreatures配列の並び順に依存する
+            const occupied = {};
+            creatures.forEach(c => { if (isValidGridPos(c.gridPos)) occupied[`${c.gridPos.row}_${c.gridPos.col}`] = c; });
+
+            // 一時置き場に表示する個体：gridPos未設定、または範囲外の無効なgridPosを持つもの。
+            // 登録順（新しい順）はcreatures配列の並び順に依存する
             // （Appで新規追加時に配列の先頭に追加しているため、creatures配列自体が新しい順）。
-            const trayCreatures = creatures.filter(c => !c.gridPos);
+            const trayCreatures = creatures.filter(c => !isValidGridPos(c.gridPos));
 
             // ---- カードのドラッグ＆ドロップ（一時置き場からも、描画エリア内でも同じ仕組みで扱う） ----
             const handleCardPointerDown = (e, creature, fromTray) => {
@@ -423,7 +429,7 @@
             };
 
             const GridCard = ({ creature }) => {
-                if (!creature.gridPos) return null;
+                if (!isValidGridPos(creature.gridPos)) return null;
                 const p = cellToPx(creature.gridPos.row, creature.gridPos.col);
                 const isDragging = draggingId === creature.id;
                 return (
@@ -576,7 +582,7 @@
                                         />
                                     )}
                                 </svg>
-                                {creatures.filter(c => c.gridPos).map(c => <GridCard key={c.id} creature={c} />)}
+                                {creatures.filter(c => isValidGridPos(c.gridPos)).map(c => <GridCard key={c.id} creature={c} />)}
                             </div>
                         </div>
                     </div>
