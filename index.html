@@ -194,7 +194,7 @@
 
         // =============================================
 
-        function PedigreeView({ creatures, highlightId, onSelect, onUpdateGridPos, pedigreeLines, onUpdateLines, gridSize, onUpdateGridSize }) {
+        function PedigreeView({ creatures, highlightId, onSelect, onUpdateGridPos, pedigreeLines, onUpdateLines, gridSize, onUpdateGridSize, onInsertRow, onInsertCol }) {
             const CARD_W = 112;
             const CARD_H = 72;
             const CELL_GAP = 24;
@@ -221,6 +221,10 @@
             const [lineDraft, setLineDraft] = useState(null);
             // 線編集モード用：どの線の何を掴んでいるか（'start'端点 / 'end'端点 / 'whole'全体移動）
             const [editingLine, setEditingLine] = useState(null); // { id, grabType, startSnapshot: {x1,y1,x2,y2,bendAfterX}, startGX, startGY }
+            // 行・列挿入モード：null（通常）/ 'row'（行挿入位置選択中）/ 'col'（列挿入位置選択中）
+            const [insertMode, setInsertMode] = useState(null);
+            const [insertTargetIndex, setInsertTargetIndex] = useState(null); // ドラッグ中、挿入先として選択されているインデックス
+            const [pendingInsert, setPendingInsert] = useState(null); // { type: 'row'|'col', index } 確認ダイアログ表示中の挿入予定
             const cardRefs = useRef({});
             const dragState = useRef({ startX: 0, startY: 0, origRow: 0, origCol: 0 });
             const lineDragState = useRef({ startGX: 0, startGY: 0 });
@@ -363,6 +367,51 @@
                 const r = Math.round((pt.y - CELL_GAP / 2) / CELL_H);
                 return { x: CELL_GAP / 2 + c * CELL_W, y: CELL_GAP / 2 + r * CELL_H };
             };
+
+            // ---- 行・列挿入モード：ドラッグで挿入位置（帯）を選び、指を離した位置で確認ダイアログを出す ----
+            const handleInsertStart = (e) => {
+                if (!insertMode) return;
+                e.preventDefault();
+                const pt = getSvgPoint(e);
+                if (insertMode === 'row') {
+                    const idx = Math.max(0, Math.min(rows, Math.round((pt.y - CELL_GAP / 2) / CELL_H)));
+                    setInsertTargetIndex(idx);
+                } else {
+                    const idx = Math.max(0, Math.min(cols, Math.round((pt.x - CELL_GAP / 2) / CELL_W)));
+                    setInsertTargetIndex(idx);
+                }
+            };
+            const handleInsertMove = (e) => {
+                if (!insertMode) return;
+                e.preventDefault();
+                const pt = getSvgPoint(e);
+                if (insertMode === 'row') {
+                    const idx = Math.max(0, Math.min(rows, Math.round((pt.y - CELL_GAP / 2) / CELL_H)));
+                    setInsertTargetIndex(idx);
+                } else {
+                    const idx = Math.max(0, Math.min(cols, Math.round((pt.x - CELL_GAP / 2) / CELL_W)));
+                    setInsertTargetIndex(idx);
+                }
+            };
+            const handleInsertEnd = () => {
+                if (!insertMode || insertTargetIndex == null) return;
+                setPendingInsert({ type: insertMode, index: insertTargetIndex });
+            };
+            useEffect(() => {
+                if (!insertMode) return;
+                const moveHandler = (e) => handleInsertMove(e);
+                const endHandler = () => handleInsertEnd();
+                window.addEventListener('touchmove', moveHandler, { passive: false });
+                window.addEventListener('touchend', endHandler);
+                window.addEventListener('mousemove', moveHandler);
+                window.addEventListener('mouseup', endHandler);
+                return () => {
+                    window.removeEventListener('touchmove', moveHandler);
+                    window.removeEventListener('touchend', endHandler);
+                    window.removeEventListener('mousemove', moveHandler);
+                    window.removeEventListener('mouseup', endHandler);
+                };
+            }, [insertMode, insertTargetIndex, scale, pan, rows, cols]);
 
             // ---- 線追加モード ----
             const handleLineStart = (e) => {
@@ -511,6 +560,7 @@
             const handleTouchStart = (e) => {
                 if (lineMode === 'add') { handleLineStart(e); return; }
                 if (lineMode === 'edit') { handleLineEditStart(e); return; }
+                if (insertMode) { handleInsertStart(e); return; }
                 if (e.touches.length === 2) {
                     touchState.current.mode = 'pinch';
                     touchState.current.startDist = getTouchDist(e.touches);
@@ -528,7 +578,7 @@
                 }
             };
             const handleTouchMove = (e) => {
-                if (lineMode === 'add' || lineMode === 'edit') return; // useEffect内のwindowリスナーで一元処理する
+                if (lineMode === 'add' || lineMode === 'edit' || insertMode) return; // useEffect内のwindowリスナーで一元処理する
                 if (touchState.current.mode === 'pinch' && e.touches.length === 2) {
                     e.preventDefault();
                     const dist = getTouchDist(e.touches);
@@ -549,7 +599,7 @@
                 }
             };
             const handleTouchEnd = (e) => {
-                if (lineMode === 'add' || lineMode === 'edit') return; // useEffect内のwindowリスナーで一元処理する
+                if (lineMode === 'add' || lineMode === 'edit' || insertMode) return; // useEffect内のwindowリスナーで一元処理する
                 if (e.touches.length === 0) touchState.current.mode = null;
                 else if (e.touches.length === 1) {
                     touchState.current.mode = 'pan';
@@ -679,11 +729,17 @@
                     )}
                     <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
                         <div className="flex items-center gap-2">
-                            <button onClick={() => onUpdateGridSize(prev => ({ ...prev, rows: prev.rows + 1 }))} className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 rounded text-[10px] text-white border border-neutral-700">
-                                <i className="fa-solid fa-plus mr-1"></i>行追加
+                            <button
+                                onClick={() => { setInsertMode(insertMode === 'row' ? null : 'row'); setInsertTargetIndex(null); }}
+                                className={`px-2 py-1 rounded text-[10px] font-bold border ${insertMode === 'row' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-700'}`}
+                            >
+                                <i className="fa-solid fa-plus mr-1"></i>{insertMode === 'row' ? '行追加：位置を選択中' : '行追加'}
                             </button>
-                            <button onClick={() => onUpdateGridSize(prev => ({ ...prev, cols: prev.cols + 1 }))} className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 rounded text-[10px] text-white border border-neutral-700">
-                                <i className="fa-solid fa-plus mr-1"></i>列追加
+                            <button
+                                onClick={() => { setInsertMode(insertMode === 'col' ? null : 'col'); setInsertTargetIndex(null); }}
+                                className={`px-2 py-1 rounded text-[10px] font-bold border ${insertMode === 'col' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-700'}`}
+                            >
+                                <i className="fa-solid fa-plus mr-1"></i>{insertMode === 'col' ? '列追加：位置を選択中' : '列追加'}
                             </button>
                         </div>
                         <div className="flex items-center gap-2">
@@ -691,6 +747,11 @@
                             <button onClick={() => { setZoomFactor(1); setPan({ x: 0, y: 0 }); }} className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 rounded text-[10px] text-white border border-neutral-700">リセット</button>
                         </div>
                     </div>
+                    {insertMode && (
+                        <div className="mb-2 px-3 py-2 bg-emerald-900/30 border border-emerald-700/50 rounded text-[10px] text-emerald-300">
+                            描画エリア上を指でドラッグして挿入したい{insertMode === 'row' ? '行' : '列'}の位置を選び、指を離して確定してください。
+                        </div>
+                    )}
                     <div className="flex flex-col" style={{ height: 500 + TRAY_H + 1 }}>
                         {/* 一時置き場：横1行スクロール（上端）、登録順（新しい順）。枠内左上に見出しを重ねて表示する。 */}
                         <div
@@ -714,7 +775,7 @@
                             onTouchStart={handleTouchStart}
                             onTouchMove={handleTouchMove}
                             onTouchEnd={handleTouchEnd}
-                            onMouseDown={lineMode === 'add' ? handleLineStart : lineMode === 'edit' ? handleLineEditStart : undefined}
+                            onMouseDown={lineMode === 'add' ? handleLineStart : lineMode === 'edit' ? handleLineEditStart : insertMode ? handleInsertStart : undefined}
                         >
                             <div style={{ width: svgW, height: svgH, transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`, transformOrigin: 'top left' }}>
                                 <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
@@ -726,6 +787,13 @@
                                     ))}
                                     {/* 描画エリア（グリッド）全体を囲む外周線 */}
                                     <rect x={1} y={1} width={svgW - 2} height={svgH - 2} fill="none" stroke="#34d399" strokeWidth="2" />
+                                    {/* 行・列挿入モード中の挿入位置プレビュー（帯） */}
+                                    {insertMode === 'row' && insertTargetIndex != null && (
+                                        <rect x={0} y={insertTargetIndex * CELL_H + CELL_GAP / 2 - CELL_H / 2} width={svgW} height={CELL_H} fill="#34d399" fillOpacity="0.25" stroke="#34d399" strokeWidth="2" />
+                                    )}
+                                    {insertMode === 'col' && insertTargetIndex != null && (
+                                        <rect x={insertTargetIndex * CELL_W + CELL_GAP / 2 - CELL_W / 2} y={0} width={CELL_W} height={svgH} fill="#34d399" fillOpacity="0.25" stroke="#34d399" strokeWidth="2" />
+                                    )}
                                 </svg>
                                 <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
                                     {pedigreeLines.map(l => (
@@ -766,6 +834,37 @@
                         <div className="font-bold text-[11px] text-white leading-tight truncate mt-0.5">{draggingCreature.name}</div>
                         <div className="text-[9px] text-neutral-400">{draggingCreature.generation}</div>
                         <div className="text-[9px] text-neutral-300">{draggingCreature.stage}</div>
+                    </div>
+                )}
+                {pendingInsert && (
+                    <div style={{ position: 'fixed', inset: 0, zIndex: 2000 }} className="bg-black/60 flex items-center justify-center">
+                        <div className="bg-neutral-800 border border-neutral-700 rounded-lg p-5 max-w-xs w-full mx-4">
+                            <div className="text-sm text-white mb-4">
+                                {pendingInsert.type === 'row'
+                                    ? `行${pendingInsert.index + 1}の位置に新しい行を追加しますか？`
+                                    : `列${pendingInsert.index + 1}の位置に新しい列を追加しますか？`}
+                            </div>
+                            <div className="flex gap-2 justify-end">
+                                <button
+                                    onClick={() => { setPendingInsert(null); setInsertMode(null); setInsertTargetIndex(null); }}
+                                    className="px-3 py-1.5 rounded text-xs text-neutral-300 bg-neutral-700 hover:bg-neutral-600"
+                                >
+                                    キャンセル
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        if (pendingInsert.type === 'row') onInsertRow(pendingInsert.index, CELL_H, CELL_GAP);
+                                        else onInsertCol(pendingInsert.index, CELL_W, CELL_GAP);
+                                        setPendingInsert(null);
+                                        setInsertMode(null);
+                                        setInsertTargetIndex(null);
+                                    }}
+                                    className="px-3 py-1.5 rounded text-xs text-white bg-emerald-600 hover:bg-emerald-500"
+                                >
+                                    OK
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )}
                 </React.Fragment>
@@ -1306,6 +1405,42 @@
                             onUpdateLines={setPedigreeLines}
                             gridSize={gridSize}
                             onUpdateGridSize={setGridSize}
+                            onInsertRow={(index, cellH, cellGap) => {
+                                // index行目の「前」に新しい空行を挿入する。index以降の行に属するカード・線は1行分（下）にずらす。
+                                const shiftY = cellH;
+                                const thresholdY = cellGap / 2 + index * cellH - 0.01;
+                                setCreatures(prev => prev.map(c => {
+                                    if (c.gridPos && c.gridPos.row >= index) {
+                                        return { ...c, gridPos: { ...c.gridPos, row: c.gridPos.row + 1 } };
+                                    }
+                                    return c;
+                                }));
+                                setPedigreeLines(prev => prev.map(l => {
+                                    const newL = { ...l };
+                                    if (l.y1 >= thresholdY) newL.y1 = l.y1 + shiftY;
+                                    if (l.y2 >= thresholdY) newL.y2 = l.y2 + shiftY;
+                                    return newL;
+                                }));
+                                setGridSize(prev => ({ ...prev, rows: prev.rows + 1 }));
+                            }}
+                            onInsertCol={(index, cellW, cellGap) => {
+                                // index列目の「前」に新しい空列を挿入する。index以降の列に属するカード・線は1列分（右）にずらす。
+                                const shiftX = cellW;
+                                const thresholdX = cellGap / 2 + index * cellW - 0.01;
+                                setCreatures(prev => prev.map(c => {
+                                    if (c.gridPos && c.gridPos.col >= index) {
+                                        return { ...c, gridPos: { ...c.gridPos, col: c.gridPos.col + 1 } };
+                                    }
+                                    return c;
+                                }));
+                                setPedigreeLines(prev => prev.map(l => {
+                                    const newL = { ...l };
+                                    if (l.x1 >= thresholdX) newL.x1 = l.x1 + shiftX;
+                                    if (l.x2 >= thresholdX) newL.x2 = l.x2 + shiftX;
+                                    return newL;
+                                }));
+                                setGridSize(prev => ({ ...prev, cols: prev.cols + 1 }));
+                            }}
                         />
                     ) : (
                         <div className="bg-neutral-900 p-6 rounded-lg space-y-6 text-white text-sm">
