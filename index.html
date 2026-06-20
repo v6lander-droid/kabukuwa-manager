@@ -198,7 +198,10 @@
             const CARD_W = 112;
             const CARD_H = 72;
             const CELL_GAP = 24;
-            const CELL_W = CARD_W + CELL_GAP;
+            // X方向のグリッド単位（CELL_W）はカード幅+間隔の半分にする。
+            // カード自体の表示幅（CARD_W）は変えないため、1枚のカードは横方向に2セル分の幅を占めることになり、
+            // セル単位ではより細かく（半セルずつ）カードを配置できる。
+            const CELL_W = (CARD_W + CELL_GAP) / 2;
             const CELL_H = CARD_H + CELL_GAP;
             const TRAY_H = 110; // 一時置き場の高さ（上端配置）
 
@@ -242,9 +245,11 @@
             const baseScale = containerWidth > 0 ? Math.min(1, containerWidth / Math.min(svgW, visibleAreaW)) : 1;
             const scale = baseScale * zoomFactor;
 
+            // カードの中心座標がグリッド線の交点（x = col*CELL_W + CELL_GAP/2, y = row*CELL_H + CELL_GAP/2）に
+            // 一致するように計算する。
             const cellToPx = (row, col) => ({
-                x: CELL_GAP / 2 + col * CELL_W + CARD_W / 2,
-                y: CELL_GAP / 2 + row * CELL_H + CARD_H / 2,
+                x: CELL_GAP / 2 + col * CELL_W,
+                y: CELL_GAP / 2 + row * CELL_H,
             });
 
             // gridPosが現在のグリッドサイズの範囲内にある有効な値かどうかを判定する。
@@ -299,8 +304,8 @@
                     const containerRect = containerRef.current.getBoundingClientRect();
                     const localX = (point.clientX - containerRect.left - pan.x) / scale;
                     const localY = (point.clientY - containerRect.top - pan.y) / scale;
-                    const targetCol = Math.max(0, Math.min(cols - 1, Math.round((localX - CELL_GAP / 2 - CARD_W / 2) / CELL_W)));
-                    const targetRow = Math.max(0, Math.min(rows - 1, Math.round((localY - CELL_GAP / 2 - CARD_H / 2) / CELL_H)));
+                    const targetCol = Math.max(0, Math.min(cols - 1, Math.round((localX - CELL_GAP / 2) / CELL_W)));
+                    const targetRow = Math.max(0, Math.min(rows - 1, Math.round((localY - CELL_GAP / 2) / CELL_H)));
                     const isOverGrid = point.clientX >= containerRect.left && point.clientX <= containerRect.right && point.clientY >= containerRect.top && point.clientY <= containerRect.bottom;
                     ghost.dataset.overGrid = isOverGrid ? '1' : '0';
                     if (isOverGrid) {
@@ -351,19 +356,25 @@
                 const screenY = point.clientY - rect.top - pan.y;
                 return { x: screenX / scale, y: screenY / scale };
             };
+            // 線の座標は常に最も近いグリッド交点（縦横の線が交差する点）にスナップする
+            const snapToGridIntersection = (pt) => {
+                const c = Math.round((pt.x - CELL_GAP / 2) / CELL_W);
+                const r = Math.round((pt.y - CELL_GAP / 2) / CELL_H);
+                return { x: CELL_GAP / 2 + c * CELL_W, y: CELL_GAP / 2 + r * CELL_H };
+            };
 
             // ---- 線追加モード ----
             const handleLineStart = (e) => {
                 if (lineMode !== 'add') return;
                 e.preventDefault();
-                const pt = getSvgPoint(e);
+                const pt = snapToGridIntersection(getSvgPoint(e));
                 lineDragState.current = { startGX: pt.x, startGY: pt.y };
                 setLineDraft({ x1: pt.x, y1: pt.y, x2: pt.x, y2: pt.y });
             };
             const handleLineMove = (e) => {
                 if (lineMode !== 'add' || !lineDraft) return;
                 e.preventDefault();
-                const pt = getSvgPoint(e);
+                const pt = snapToGridIntersection(getSvgPoint(e));
                 setLineDraft(prev => prev ? { ...prev, x2: pt.x, y2: pt.y } : null);
             };
             const handleLineEnd = () => {
@@ -426,10 +437,18 @@
                 const dx = pt.x - startGX, dy = pt.y - startGY;
                 onUpdateLines(pedigreeLines.map(l => {
                     if (l.id !== id) return l;
-                    if (grabType === 'start') return { ...l, x1: startSnapshot.x1 + dx, y1: startSnapshot.y1 + dy };
-                    if (grabType === 'end') return { ...l, x2: startSnapshot.x2 + dx, y2: startSnapshot.y2 + dy };
-                    // whole: 線全体を平行移動（形状は変えない）
-                    return { ...l, x1: startSnapshot.x1 + dx, y1: startSnapshot.y1 + dy, x2: startSnapshot.x2 + dx, y2: startSnapshot.y2 + dy };
+                    if (grabType === 'start') {
+                        const snapped = snapToGridIntersection({ x: startSnapshot.x1 + dx, y: startSnapshot.y1 + dy });
+                        return { ...l, x1: snapped.x, y1: snapped.y };
+                    }
+                    if (grabType === 'end') {
+                        const snapped = snapToGridIntersection({ x: startSnapshot.x2 + dx, y: startSnapshot.y2 + dy });
+                        return { ...l, x2: snapped.x, y2: snapped.y };
+                    }
+                    // whole: 線全体を平行移動（形状は変えない）。両端それぞれをグリッド交点にスナップする。
+                    const snappedStart = snapToGridIntersection({ x: startSnapshot.x1 + dx, y: startSnapshot.y1 + dy });
+                    const snappedEnd = snapToGridIntersection({ x: startSnapshot.x2 + dx, y: startSnapshot.y2 + dy });
+                    return { ...l, x1: snappedStart.x, y1: snappedStart.y, x2: snappedEnd.x, y2: snappedEnd.y };
                 }));
             };
             const handleLineEditEnd = () => {
