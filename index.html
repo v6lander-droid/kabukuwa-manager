@@ -1291,7 +1291,24 @@
                         return true;
                     })
                     .sort((a, b) => {
-                        const av = a[sort.key], bv = b[sort.key];
+                        let av, bv;
+                        if (sort.key === 'size') {
+                            // 体重はcreature自体のプロパティではなく、飼育記録（history）の最新値を見る必要がある。
+                            // 単位付き文字列（例:"15g"）から数値部分だけを抽出して数値として比較する。
+                            const aLatest = a.history.length > 0 ? a.history[a.history.length - 1].size : null;
+                            const bLatest = b.history.length > 0 ? b.history[b.history.length - 1].size : null;
+                            const aNum = aLatest ? parseFloat(String(aLatest).replace(/[^0-9.]/g, '')) : null;
+                            const bNum = bLatest ? parseFloat(String(bLatest).replace(/[^0-9.]/g, '')) : null;
+                            av = isNaN(aNum) ? null : aNum;
+                            bv = isNaN(bNum) ? null : bNum;
+                        } else {
+                            av = a[sort.key];
+                            bv = b[sort.key];
+                        }
+                        // 値が無い（null）ものは常に末尾に回す
+                        if (av == null && bv == null) return 0;
+                        if (av == null) return 1;
+                        if (bv == null) return -1;
                         // 文字列同士の場合は自然順ソート（"1","2",...,"10","11"のように数値部分を正しく比較する）を使う。
                         // それ以外（数値・日付文字列等）は従来通りの比較を行う。
                         let cmp;
