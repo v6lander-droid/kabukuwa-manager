@@ -194,7 +194,7 @@
 
         // =============================================
 
-        function PedigreeView({ creatures, highlightId, onSelect }) {
+        function PedigreeView({ creatures, highlightId, onSelect, onUpdateManualPos }) {
             if (creatures.length === 0) return (
                 <div className="bg-neutral-900 p-8 rounded-lg text-center text-neutral-500 text-sm">個体が登録されていません</div>
             );
@@ -204,6 +204,9 @@
             const [containerWidth, setContainerWidth] = useState(0);
             const [zoomFactor, setZoomFactor] = useState(1);
             const [pan, setPan] = useState({ x: 0, y: 0 });
+            const [editMode, setEditMode] = useState(false);
+            const [draggingId, setDraggingId] = useState(null);
+            const dragState = useRef({ startX: 0, startY: 0, origX: 0, origY: 0 });
             const touchState = useRef({ mode: null, startDist: 0, startZoom: 1, startPan: {x:0,y:0}, startMid: {x:0,y:0}, startSingle: {x:0,y:0} });
 
             useEffect(() => {
@@ -229,9 +232,15 @@
             const getChildren = (c) => creatures.filter(ch => ch.maleParent === c.name || ch.femaleParent === c.name);
 
             // 世代深度（祖先=0、子孫ほど大きい）
+            // 手動位置（manualPos）が設定されている個体は、そのY座標から仮想的なdepthを逆算して使う。
+            // これにより、手動位置の個体が親であっても、その子（自動配置対象）のdepth計算が破綻しない。
             const depthMap = {};
             const getDepth = (c, vis = new Set()) => {
                 if (depthMap[c.id] != null) return depthMap[c.id];
+                if (c.manualPos) {
+                    depthMap[c.id] = Math.max(0, Math.round(c.manualPos.y / (CARD_H + ROW_GAP)));
+                    return depthMap[c.id];
+                }
                 if (vis.has(c.id)) return 0;
                 vis.add(c.id);
                 const parents = [getMale(c), getFemale(c)].filter(Boolean);
@@ -250,7 +259,7 @@
             {
                 const preMaxDepth = Math.max(...Object.values(depthMap));
                 for (let row = 0; row <= preMaxDepth; row++) {
-                    const rowCreatures = creatures.filter(c => depthMap[c.id] === row);
+                    const rowCreatures = creatures.filter(c => depthMap[c.id] === row && !c.manualPos);
                     if (!rowCreatures.length) continue;
                     const consumed = new Set();
                     const blocks = [];
@@ -387,7 +396,8 @@
                 const rowBlocks = []; // 各行のブロック配列（この系統のみ）
 
                 for (let row = 0; row <= maxDepth; row++) {
-                    const rowCreatures = systemCreatures.filter(c => depthMap[c.id] === row);
+                    // 手動位置（manualPos）が設定されている個体は自動配置の計算対象から完全に除外する
+                    const rowCreatures = systemCreatures.filter(c => depthMap[c.id] === row && !c.manualPos);
                     if (!rowCreatures.length) { rowBlocks[row] = []; continue; }
                     const consumed = new Set();
                     const blocks = [];
@@ -786,8 +796,20 @@
                     marriagePairs.forEach(mp => { mp.maleX += shift; mp.femaleX += shift; });
                 }
             }
+
+            // ===== 手動修正機能：手動位置（manualPos）を持つ個体は、自動配置計算を一切経由せず、
+            //       指定された座標をそのままposMapに登録する。 =====
+            creatures.forEach(c => {
+                if (c.manualPos) {
+                    posMap[c.id] = { x: c.manualPos.x, rowIdx: depthMap[c.id] != null ? depthMap[c.id] : 0, manualY: c.manualPos.y };
+                }
+            });
+
             // 両親が揃っている場合：対応するmarriagePairsエントリのmaleX/femaleXの中点から、子のカード上端へ。
             // 片親のみの場合：その親の下端中央から、子のカード上端へ直接1本。
+            // posMapのY座標を取得：手動位置（manualY）があればそれを優先、なければ世代(rowIdx)から計算
+            const getCardY = (pos) => pos.manualY != null ? pos.manualY : pos.rowIdx * (CARD_H + ROW_GAP);
+
             const lines = [];
             creatures.forEach(c => {
                 const cp = posMap[c.id];
@@ -798,7 +820,6 @@
                 if (maleParent && femaleParent && posMap[maleParent.id] && posMap[femaleParent.id]) {
                     const mp = marriagePairs.find(p => p.maleId === maleParent.id && p.femaleId === femaleParent.id);
                     if (mp) {
-                        const parentRowIdx = mp.rowIdx;
                         // 子への接続線の起点：通常は♂の真下。
                         // ただし♂が複数の♀と婚姻関係にある場合（multi）、1頭目の♀との子は♂の真下、
                         // 2頭目以降の♀との子はその♀自身の真下から接続する。
@@ -814,9 +835,9 @@
                             const isFirstWife = sortedWives[0].id === femaleParent.id;
                             originX = isFirstWife ? posMap[maleParent.id].x : posMap[femaleParent.id].x;
                         }
-                        const cy_top = cp.rowIdx * (CARD_H + ROW_GAP);
+                        const cy_top = getCardY(cp);
                         const midY = cy_top - 48 - MARRIAGE_GAP;
-                        const py_bottom = parentRowIdx * (CARD_H + ROW_GAP) + CARD_H;
+                        const py_bottom = Math.max(getCardY(posMap[maleParent.id]), getCardY(posMap[femaleParent.id])) + CARD_H;
                         const pairKey = `pair_${maleParent.id}_${femaleParent.id}`;
                         lines.push({ x1: originX, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: true, pairKey });
                         return;
@@ -826,16 +847,17 @@
                 const singleParent = maleParent && posMap[maleParent.id] ? maleParent : (femaleParent && posMap[femaleParent.id] ? femaleParent : null);
                 if (!singleParent) return;
                 const pPos = posMap[singleParent.id];
-                const cy_top = cp.rowIdx * (CARD_H + ROW_GAP);
+                const cy_top = getCardY(cp);
                 const midY = cy_top - 48 - MARRIAGE_GAP;
-                const py_bottom = pPos.rowIdx * (CARD_H + ROW_GAP) + CARD_H;
+                const py_bottom = getCardY(pPos) + CARD_H;
                 const pairKey = `single_${singleParent.id}`;
                 lines.push({ x1: pPos.x, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: false, pairKey });
             });
 
             const allX = Object.values(posMap).map(p => p.x);
+            const allY = Object.values(posMap).map(p => getCardY(p));
             const svgW = Math.max(...allX) + CARD_W / 2 + 8;
-            const svgH = (maxDepth + 1) * (CARD_H + ROW_GAP);
+            const svgH = Math.max((maxDepth + 1) * (CARD_H + ROW_GAP), Math.max(...allY) + CARD_H + ROW_GAP);
             // 全体が画面に収まる基準スケール（拡大はしない）
             const baseScale = containerWidth > 0 ? Math.min(1, containerWidth / svgW) : 1;
             const scale = baseScale * zoomFactor;
@@ -903,14 +925,66 @@
                 }
             };
 
+            const handleCardPointerDown = (e, creature) => {
+                if (!editMode) return;
+                e.stopPropagation();
+                e.preventDefault();
+                const pos = posMap[creature.id];
+                if (!pos) return;
+                setDraggingId(creature.id);
+                const point = e.touches ? e.touches[0] : e;
+                dragState.current = {
+                    startX: point.clientX,
+                    startY: point.clientY,
+                    origX: pos.x,
+                    origY: getCardY(pos),
+                };
+            };
+
+            useEffect(() => {
+                if (!draggingId) return;
+                const handleMove = (e) => {
+                    const point = e.touches ? e.touches[0] : e;
+                    const dxScreen = point.clientX - dragState.current.startX;
+                    const dyScreen = point.clientY - dragState.current.startY;
+                    // 画面上のドラッグ量をコンテンツ座標系（scale適用前）に変換
+                    const dx = dxScreen / scale;
+                    const dy = dyScreen / scale;
+                    const rawX = dragState.current.origX + dx;
+                    const rawY = dragState.current.origY + dy;
+                    // カード1枚分（STEP / ROW_GAP+CARD_H相当）単位にスナップ
+                    const snappedX = Math.round(rawX / STEP) * STEP;
+                    const snapUnitY = CARD_H + ROW_GAP;
+                    const snappedY = Math.round(rawY / snapUnitY) * snapUnitY;
+                    const creature = creatures.find(c => c.id === draggingId);
+                    if (creature) {
+                        onUpdateManualPos(draggingId, { x: snappedX, y: snappedY });
+                    }
+                };
+                const handleUp = () => { setDraggingId(null); };
+                window.addEventListener('mousemove', handleMove);
+                window.addEventListener('mouseup', handleUp);
+                window.addEventListener('touchmove', handleMove);
+                window.addEventListener('touchend', handleUp);
+                return () => {
+                    window.removeEventListener('mousemove', handleMove);
+                    window.removeEventListener('mouseup', handleUp);
+                    window.removeEventListener('touchmove', handleMove);
+                    window.removeEventListener('touchend', handleUp);
+                };
+            }, [draggingId, scale]);
+
             const Card = ({ creature }) => {
                 const pos = posMap[creature.id];
                 if (!pos) return null;
+                const cardY = getCardY(pos);
                 return (
                     <div
-                        onClick={() => onSelect(creature)}
-                        style={{ position: 'absolute', left: pos.x - CARD_W/2, top: pos.rowIdx*(CARD_H+ROW_GAP), width: CARD_W, height: CARD_H, borderTopWidth: 4, borderTopStyle: 'solid', borderTopColor: isMale(creature.sex) ? '#60a5fa' : '#f472b6' }}
-                        className={`cursor-pointer rounded-lg border px-2 py-1.5 text-center transition-all hover:scale-105 select-none ${highlightId === creature.id ? 'bg-emerald-900 border-emerald-400' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-400'}`}
+                        onClick={() => { if (!editMode) onSelect(creature); }}
+                        onMouseDown={(e) => handleCardPointerDown(e, creature)}
+                        onTouchStart={(e) => handleCardPointerDown(e, creature)}
+                        style={{ position: 'absolute', left: pos.x - CARD_W/2, top: cardY, width: CARD_W, height: CARD_H, borderTopWidth: 4, borderTopStyle: 'solid', borderTopColor: isMale(creature.sex) ? '#60a5fa' : '#f472b6' }}
+                        className={`${editMode ? 'cursor-move' : 'cursor-pointer'} rounded-lg border px-2 py-1.5 text-center transition-all hover:scale-105 select-none ${highlightId === creature.id ? 'bg-emerald-900 border-emerald-400' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-400'} ${creature.manualPos ? 'ring-1 ring-amber-500' : ''}`}
                     >
                         <div style={{color: sexColor(creature.sex)}} className="text-[9px] font-bold">
                             <i className={`fa-solid ${isMale(creature.sex) ? 'fa-mars' : 'fa-venus'}`}></i>
@@ -929,7 +1003,18 @@
                         <span className="text-[10px] text-neutral-500">上が祖先・下が子孫</span>
                         <span className="text-[10px] flex items-center gap-1"><span className="inline-block w-3 h-0.5" style={{backgroundColor:'#60a5fa'}}></span>オス</span>
                         <span className="text-[10px] flex items-center gap-1"><span className="inline-block w-3 h-0.5" style={{backgroundColor:'#f472b6'}}></span>メス</span>
+                        <button
+                            onClick={() => setEditMode(!editMode)}
+                            className={`ml-auto px-2 py-1 rounded text-[10px] font-bold border ${editMode ? 'bg-amber-600 text-white border-amber-500' : 'bg-neutral-800 text-neutral-300 border-neutral-700 hover:border-neutral-500'}`}
+                        >
+                            <i className="fa-solid fa-arrows-up-down-left-right mr-1"></i>{editMode ? '編集モード中' : '編集モード'}
+                        </button>
                     </div>
+                    {editMode && (
+                        <div className="mb-2 px-3 py-2 bg-amber-900/30 border border-amber-700/50 rounded text-[10px] text-amber-300">
+                            カードをドラッグして自由に位置を移動できます（カード1枚分の単位でスナップします）。移動した個体には黄色い枠が付きます。
+                        </div>
+                    )}
                     <div className="flex items-center justify-between gap-2 mb-2">
                         <span className="text-[10px] text-neutral-500">2本指で拡大・縮小、1本指でドラッグして移動できます</span>
                         <div className="flex items-center gap-2">
@@ -990,7 +1075,7 @@
                                     // 複数passを経て陳腐化する場合があるため使用しない）。
                                     const mx1 = mPos.x;
                                     const mx2 = fPos.x;
-                                    const my = m.rowIdx * (CARD_H + ROW_GAP) + CARD_H + 48;
+                                    const my = Math.max(getCardY(mPos), getCardY(fPos)) + CARD_H + 48;
                                     const cardBottom = my - 48;
                                     // 子への接続線の起点に合わせる：対応するpairKeyのlinesエントリのx1（通常は♂の真下、
                                     // multiの2頭目以降の♀の場合はその♀の真下）を使う。見つからなければ婚姻線の中点にフォールバック。
@@ -1507,7 +1592,7 @@
                             </div>
                         </>
                     ) : activeTab === '血統図' ? (
-                        <PedigreeView creatures={creatures} highlightId={highlightId} onSelect={setSelectedCreature} />
+                        <PedigreeView creatures={creatures} highlightId={highlightId} onSelect={setSelectedCreature} onUpdateManualPos={(id, pos) => setCreatures(prev => prev.map(c => c.id === id ? { ...c, manualPos: pos } : c))} />
                     ) : (
                         <div className="bg-neutral-900 p-6 rounded-lg space-y-6 text-white text-sm">
                             <h3 className="font-bold text-emerald-400 text-lg border-b border-neutral-700 pb-2">交配シミュレーション</h3>
