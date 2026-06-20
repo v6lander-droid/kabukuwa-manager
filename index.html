@@ -979,13 +979,21 @@
 
             const clampOffset = (off, scale) => {
                 const w = imgNatural.w * scale, h = imgNatural.h * scale;
-                // 画像が枠からはみ出さない範囲でクランプする（枠を画像が常に覆っているようにする）
-                const minX = FRAME_W - w, maxX = 0;
-                const minY = FRAME_H - h, maxY = 0;
-                return {
-                    x: Math.min(maxX, Math.max(minX, off.x)),
-                    y: Math.min(maxY, Math.max(minY, off.y)),
-                };
+                // 画像が枠より大きい軸は、枠をはみ出さない範囲でドラッグ可能（従来通り）。
+                // 画像を縮小して枠より小さくなった軸は、ドラッグの自由度をなくし常に中央寄せにする
+                // （はみ出していないのでドラッグしても見た目が変わらないため、固定した方が直感的）。
+                let x, y;
+                if (w >= FRAME_W) {
+                    x = Math.min(0, Math.max(FRAME_W - w, off.x));
+                } else {
+                    x = (FRAME_W - w) / 2;
+                }
+                if (h >= FRAME_H) {
+                    y = Math.min(0, Math.max(FRAME_H - h, off.y));
+                } else {
+                    y = (FRAME_H - h) / 2;
+                }
+                return { x, y };
             };
 
             const handlePointerDown = (e) => {
@@ -1006,7 +1014,7 @@
                     e.preventDefault();
                     const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
                     const ratio = dist / pinchRef.current.startDist;
-                    const newZoom = Math.min(4, Math.max(1, pinchRef.current.startZoom * ratio));
+                    const newZoom = Math.min(4, Math.max(0.3, pinchRef.current.startZoom * ratio));
                     setZoom(newZoom);
                     setOffset(prev => clampOffset(prev, baseScale * newZoom));
                     return;
@@ -1027,7 +1035,7 @@
             const handleWheel = (e) => {
                 e.preventDefault();
                 const delta = e.deltaY < 0 ? 0.1 : -0.1;
-                const newZoom = Math.min(4, Math.max(1, zoom + delta));
+                const newZoom = Math.min(4, Math.max(0.3, zoom + delta));
                 setZoom(newZoom);
                 setOffset(prev => clampOffset(prev, baseScale * newZoom));
             };
@@ -1038,6 +1046,9 @@
                 const outH = aspect === 'square' ? outW : Math.round(outW * (FRAME_H / FRAME_W));
                 canvas.width = outW; canvas.height = outH;
                 const ctx = canvas.getContext('2d');
+                // 画像を縮小して枠を覆いきれない場合、その部分は黒で塗りつぶす（プレビューの黒背景と同じ見た目にする）
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(0, 0, outW, outH);
                 const img = imgElRef.current;
                 // 枠座標系(FRAME_W x FRAME_H)での画像描画位置・サイズを、出力解像度(outW x outH)に比例変換する
                 const ratio = outW / FRAME_W;
