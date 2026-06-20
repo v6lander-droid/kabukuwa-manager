@@ -200,7 +200,7 @@
             const CELL_GAP = 24;
             const CELL_W = CARD_W + CELL_GAP;
             const CELL_H = CARD_H + CELL_GAP;
-            const TRAY_W = 140; // 一時置き場の幅
+            const TRAY_H = 110; // 一時置き場の高さ（上端配置）
 
             const containerRef = useRef(null);
             const trayRef = useRef(null);
@@ -278,6 +278,7 @@
             useEffect(() => {
                 if (!draggingId) return;
                 const handleMove = (e) => {
+                    if (e.cancelable) e.preventDefault();
                     const point = e.touches ? e.touches[0] : e;
                     const ghost = ghostRef.current;
                     if (!ghost) return;
@@ -380,9 +381,9 @@
                     touchState.current.startDist = getTouchDist(e.touches);
                     touchState.current.startZoom = zoomFactor;
                     touchState.current.startPan = { ...pan };
-                    const mid = getTouchMid(e.touches);
                     const rect = containerRef.current.getBoundingClientRect();
-                    touchState.current.startMid = { x: mid.x - rect.left, y: mid.y - rect.top };
+                    // ズームの基準は指の位置ではなく、常に「現在表示されているエリアの中心」（コンテナの中心）にする
+                    touchState.current.startMid = { x: rect.width / 2, y: rect.height / 2 };
                 } else if (e.touches.length === 1) {
                     touchState.current.mode = 'pan';
                     touchState.current.startPan = { ...pan };
@@ -452,8 +453,8 @@
                         onClick={() => { if (!editMode && !lineMode) onSelect(creature); }}
                         onMouseDown={(e) => handleCardPointerDown(e, creature, true)}
                         onTouchStart={(e) => handleCardPointerDown(e, creature, true)}
-                        style={{ width: CARD_W, height: CARD_H, borderTopWidth: 4, borderTopStyle: 'solid', borderTopColor: isMale(creature.sex) ? '#60a5fa' : '#f472b6', opacity: isDragging ? 0.3 : 1 }}
-                        className={`${editMode ? 'cursor-move' : 'cursor-pointer'} rounded-lg border px-2 py-1.5 text-center select-none transition-all hover:scale-105 shrink-0 ${highlightId === creature.id ? 'bg-emerald-900 border-emerald-400' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-400'}`}
+                        style={{ width: CARD_W, height: CARD_H, transform: `scale(${scale})`, transformOrigin: 'center center', borderTopWidth: 4, borderTopStyle: 'solid', borderTopColor: isMale(creature.sex) ? '#60a5fa' : '#f472b6', opacity: isDragging ? 0.3 : 1 }}
+                        className={`${editMode ? 'cursor-move' : 'cursor-pointer'} rounded-lg border px-2 py-1.5 text-center select-none shrink-0 ${highlightId === creature.id ? 'bg-emerald-900 border-emerald-400' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-400'}`}
                     >
                         <div style={{ color: sexColor(creature.sex) }} className="text-[9px] font-bold">
                             <i className={`fa-solid ${isMale(creature.sex) ? 'fa-mars' : 'fa-venus'}`}></i>
@@ -517,26 +518,26 @@
                             <button onClick={() => { setZoomFactor(1); setPan({ x: 0, y: 0 }); }} className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 rounded text-[10px] text-white border border-neutral-700">リセット</button>
                         </div>
                     </div>
-                    <div className="flex" style={{ height: 500 }}>
-                        {/* 一時置き場：縦1列スクロール、登録順（新しい順） */}
+                    <div className="flex flex-col" style={{ height: 500 + TRAY_H + 1 }}>
+                        {/* 一時置き場：横1行スクロール（上端）、登録順（新しい順） */}
                         <div
                             ref={trayRef}
-                            style={{ width: TRAY_W, touchAction: editMode ? 'none' : 'pan-y' }}
-                            className="shrink-0 overflow-y-auto overflow-x-hidden border border-neutral-800 rounded-l bg-neutral-950/50 p-2 flex flex-col gap-2 items-center"
+                            style={{ height: TRAY_H, touchAction: 'pan-x' }}
+                            className="shrink-0 overflow-x-auto overflow-y-hidden border border-neutral-800 rounded-t bg-neutral-950/50 p-2 flex flex-row gap-2 items-center"
                         >
-                            <div className="text-[9px] text-neutral-500 sticky top-0 w-full text-center pb-1">一時置き場（{trayCreatures.length}）</div>
+                            <div className="text-[9px] text-neutral-500 shrink-0 sticky left-0 px-1">一時置き場（{trayCreatures.length}）</div>
                             {trayCreatures.map(c => <TrayCard key={c.id} creature={c} />)}
                             {trayCreatures.length === 0 && (
-                                <div className="text-[9px] text-neutral-600 text-center mt-4">未配置の個体はありません</div>
+                                <div className="text-[9px] text-neutral-600 shrink-0 px-2">未配置の個体はありません</div>
                             )}
                         </div>
                         {/* 境界線 */}
-                        <div className="w-px bg-neutral-700 shrink-0"></div>
+                        <div className="h-px bg-neutral-700 shrink-0"></div>
                         {/* 描画エリア：グリッド構造 */}
                         <div
-                            className="border border-neutral-800 rounded-r flex-1"
+                            className="border border-neutral-800 rounded-b flex-1"
                             ref={containerRef}
-                            style={{ height: '100%', overflow: 'hidden', touchAction: 'none', position: 'relative' }}
+                            style={{ height: 500, overflow: 'hidden', touchAction: 'none', position: 'relative' }}
                             onTouchStart={handleTouchStart}
                             onTouchMove={handleTouchMove}
                             onTouchEnd={handleTouchEnd}
