@@ -336,29 +336,15 @@
             // 親が登録されていない個体（祖先扱いでdepth=0）であっても、婚姻関係にある相手がいる場合は
             // その相手と同じ行に表示する。複数組の外部婚姻が連鎖する可能性があるため、
             // 変化がなくなるまで繰り返し伝播させる。
-            // ただし例外として、「両親が両方登録されており、かつその両親が互いに別系統（血縁関係なし）
-            // 出身である個体」は、この移動処理の対象外とする。
-            // 例：父Xと母Yが別系統出身で、その子Zが新規登録された場合、Zはこの段階では「正規の親子関係を
-            // 持つ個体」であり、外部の祖先個体（親未設定）とは性質が異なるため、婚姻相手への強制移動は行わない。
+            // ただし例外として、「両親が両方登録されている個体」は、この移動処理の対象外とする
+            // （系統が同じか別かに関わらず）。両親が揃っている個体は既に正規の世代（depth）を持つため、
+            // 婚姻相手に合わせてdepthを動かすと血統図全体の構造が崩れてしまう。
+            // この場合、カードの位置（depth）はそのままにし、婚姻線・接続線の描画だけで関係を表現する。
+            // 「親未設定」の祖先個体のみが、引き続きこの移動処理の対象となる。
             {
-                // 簡易Union-Find（親子関係のみ）で、各個体の「祖先系統」を仮判定する
-                const preUf = {};
-                creatures.forEach(c => { preUf[c.id] = c.id; });
-                const preUfFind = (id) => { if (preUf[id] !== id) preUf[id] = preUfFind(preUf[id]); return preUf[id]; };
-                const preUfUnion = (a, b) => { preUf[preUfFind(a)] = preUfFind(b); };
-                creatures.forEach(c => {
-                    const mp = getMale(c), fp = getFemale(c);
-                    if (mp) preUfUnion(c.id, mp.id);
-                    if (fp) preUfUnion(c.id, fp.id);
-                });
-
                 const isExemptFromStep5 = (c) => {
                     const mp = getMale(c), fp = getFemale(c);
-                    if (!mp || !fp) return false; // 両親のどちらかが未設定なら対象外条件に該当しない（通常通り手順5の対象）
-                    // 両親それぞれの「自分を含まない」系統ルートを比較する：
-                    // 親同士が同じ系統（preUfFind結果が同じ）なら近親婚なので例外にしない。
-                    // 親同士が別系統なら、この個体（子）は「2つの別系統を結ぶ婚姻の子」なので手順5の対象外とする。
-                    return preUfFind(mp.id) !== preUfFind(fp.id);
+                    return !!(mp && fp); // 両親が両方とも設定されていれば対象外
                 };
 
                 let changed = true;
@@ -367,7 +353,7 @@
                     changed = false;
                     guard++;
                     creatures.forEach(c => {
-                        if (isExemptFromStep5(c)) return; // 両親が別系統出身の個体はこの移動処理をスキップ
+                        if (isExemptFromStep5(c)) return; // 両親が両方設定済みの個体はこの移動処理をスキップ
                         const myChildren = getChildren(c);
                         if (!myChildren.length) return;
                         const partners = creatures.filter(other =>
@@ -847,30 +833,30 @@
                 const femaleParent = getFemale(c);
 
                 if (maleParent && femaleParent && posMap[maleParent.id] && posMap[femaleParent.id]) {
-                    const mp = marriagePairs.find(p => p.maleId === maleParent.id && p.femaleId === femaleParent.id);
-                    if (mp) {
-                        // 子への接続線の起点：通常は♂の真下。
-                        // ただし♂が複数の♀と婚姻関係にある場合（multi）、1頭目の♀との子は♂の真下、
-                        // 2頭目以降の♀との子はその♀自身の真下から接続する。
-                        // 座標はmarriagePairsのスナップショット（maleX/femaleX）ではなく、
-                        // 常に最新のposMapから直接取得する（スナップショットが複数passを経て陳腐化することを防ぐ）。
-                        const allWivesOfMale = creatures.filter(other =>
-                            other.id !== maleParent.id && isFemale(other.sex) &&
-                            getChildren(other).some(ch => ch.maleParent === maleParent.name && getMale(ch) && getMale(ch).id === maleParent.id)
-                        );
-                        let originX = posMap[maleParent.id].x;
-                        if (allWivesOfMale.length > 1) {
-                            const sortedWives = [...allWivesOfMale].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
-                            const isFirstWife = sortedWives[0].id === femaleParent.id;
-                            originX = isFirstWife ? posMap[maleParent.id].x : posMap[femaleParent.id].x;
-                        }
-                        const cy_top = getCardY(cp);
-                        const midY = cy_top - 48 - MARRIAGE_GAP;
-                        const py_bottom = Math.max(getCardY(posMap[maleParent.id]), getCardY(posMap[femaleParent.id])) + CARD_H;
-                        const pairKey = `pair_${maleParent.id}_${femaleParent.id}`;
-                        lines.push({ x1: originX, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: true, pairKey });
-                        return;
+                    // 子への接続線の起点：通常は♂の真下。
+                    // ただし♂が複数の♀と婚姻関係にある場合（multi）、1頭目の♀との子は♂の真下、
+                    // 2頭目以降の♀との子はその♀自身の真下から接続する。
+                    // 座標はmarriagePairsのスナップショット（maleX/femaleX）ではなく、
+                    // 常に最新のposMapから直接取得する（スナップショットが複数passを経て陳腐化することを防ぐ）。
+                    // なお、両親が異なる行（depth）にいる場合（例：両親が既に正規の親を持つ個体同士の婚姻で、
+                    // 手順5の対象外となり同じ行に揃えられなかったケース）でも、両親さえposMap上に存在すれば、
+                    // marriagePairsへの登録の有無に関わらずこのコの字（H字）接続線を描画する。
+                    const allWivesOfMale = creatures.filter(other =>
+                        other.id !== maleParent.id && isFemale(other.sex) &&
+                        getChildren(other).some(ch => ch.maleParent === maleParent.name && getMale(ch) && getMale(ch).id === maleParent.id)
+                    );
+                    let originX = posMap[maleParent.id].x;
+                    if (allWivesOfMale.length > 1) {
+                        const sortedWives = [...allWivesOfMale].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+                        const isFirstWife = sortedWives[0].id === femaleParent.id;
+                        originX = isFirstWife ? posMap[maleParent.id].x : posMap[femaleParent.id].x;
                     }
+                    const cy_top = getCardY(cp);
+                    const midY = cy_top - 48 - MARRIAGE_GAP;
+                    const py_bottom = Math.max(getCardY(posMap[maleParent.id]), getCardY(posMap[femaleParent.id])) + CARD_H;
+                    const pairKey = `pair_${maleParent.id}_${femaleParent.id}`;
+                    lines.push({ x1: originX, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: true, pairKey });
+                    return;
                 }
                 // 片親のみ（または婚姻ペアが見つからない）場合
                 const singleParent = maleParent && posMap[maleParent.id] ? maleParent : (femaleParent && posMap[femaleParent.id] ? femaleParent : null);
@@ -882,6 +868,28 @@
                 const pairKey = `single_${singleParent.id}`;
                 lines.push({ x1: pPos.x, y1: py_bottom, x2: cp.x, y2: cy_top, midY, isPair: false, pairKey });
             });
+
+            // ===== 異なる行（depth）にいる♂♀の婚姻ペアを検出し、直角線（縦→横→縦）で結ぶ =====
+            // 手順2のブロック化は同じ行内でのみ婚姻ペアを検出するため、両親が両方揃っている個体同士
+            // （手順5の対象外＝行が揃えられない）が異なる行で婚姻している場合、marriagePairsには登録されない。
+            // この場合でも、♂と♀を直角線で視覚的に結ぶ。斜め線は使わず、必ず縦→横→縦の直角経路にする。
+            const crossRowMarriages = [];
+            {
+                const registeredPairKeys = new Set(marriagePairs.map(mp => `${mp.maleId}_${mp.femaleId}`));
+                const seenPairs = new Set();
+                creatures.forEach(c => {
+                    const maleParent = getMale(c);
+                    const femaleParent = getFemale(c);
+                    if (!maleParent || !femaleParent) return;
+                    if (!posMap[maleParent.id] || !posMap[femaleParent.id]) return;
+                    const key = `${maleParent.id}_${femaleParent.id}`;
+                    if (registeredPairKeys.has(key) || seenPairs.has(key)) return;
+                    if (posMap[maleParent.id].rowIdx === posMap[femaleParent.id].rowIdx &&
+                        getCardY(posMap[maleParent.id]) === getCardY(posMap[femaleParent.id])) return; // 同じ行ならmarriagePairs側で処理済みのはず
+                    seenPairs.add(key);
+                    crossRowMarriages.push({ maleId: maleParent.id, femaleId: femaleParent.id });
+                });
+            }
 
             const allX = Object.values(posMap).map(p => p.x);
             const allY = Object.values(posMap).map(p => getCardY(p));
@@ -1152,6 +1160,32 @@
                                         <line key={`vfrag${i}`} x1={l.x1} y1={l.y1} x2={l.x1} y2={l.midY} stroke="#525252" strokeWidth="1.5" />
                                     )
                                 ))}
+                                {/* 異なる行にいる♂♀の婚姻ペアを直角線（縦→横→縦）で結ぶ。斜め線は使わない。 */}
+                                {crossRowMarriages.map((cm, i) => {
+                                    const mPos = posMap[cm.maleId];
+                                    const fPos = posMap[cm.femaleId];
+                                    if (!mPos || !fPos) return null;
+                                    const mY = getCardY(mPos);
+                                    const fY = getCardY(fPos);
+                                    // 浅い方（上にいる方）の下端から、深い方（下にいる方）のカード中央の高さまで垂直に下り、
+                                    // そこで水平移動して深い方のカードへ接続する。
+                                    const shallowIsMale = mY <= fY;
+                                    const shallowX = shallowIsMale ? mPos.x : fPos.x;
+                                    const shallowBottomY = (shallowIsMale ? mY : fY) + CARD_H;
+                                    const deepX = shallowIsMale ? fPos.x : mPos.x;
+                                    const deepY = shallowIsMale ? fY : mY;
+                                    const deepMidY = deepY + CARD_H / 2;
+                                    return (
+                                        <React.Fragment key={`cross${i}`}>
+                                            {/* 浅い親の下端から、深い親の高さ（中央）まで垂直に下りる */}
+                                            <line x1={shallowX} y1={shallowBottomY} x2={shallowX} y2={deepMidY} stroke="#525252" strokeWidth="1.5" strokeDasharray="4 3" />
+                                            {/* 深い親の高さで水平移動 */}
+                                            <line x1={shallowX} y1={deepMidY} x2={deepX} y2={deepMidY} stroke="#525252" strokeWidth="1.5" strokeDasharray="4 3" />
+                                            {/* 深い親のカード側面へ接続 */}
+                                            <line x1={deepX} y1={deepMidY} x2={deepX} y2={deepY + CARD_H} stroke="#525252" strokeWidth="1.5" strokeDasharray="4 3" />
+                                        </React.Fragment>
+                                    );
+                                })}
                             </svg>
                         </div>
                     </div>
