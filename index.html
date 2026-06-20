@@ -232,7 +232,11 @@
             const cols = gridSize.cols;
             const svgW = cols * CELL_W + CELL_GAP;
             const svgH = rows * CELL_H + CELL_GAP;
-            const baseScale = containerWidth > 0 ? Math.min(1, containerWidth / svgW) : 1;
+            // 初期表示のスケール：グリッド全体ではなく「VISIBLE_CELLS セル分」が画面に収まる大きさを基準にする。
+            // グリッド全体がそれより小さい（個体数が少ない）場合は、グリッド全体に収まるスケールを使う。
+            const VISIBLE_CELLS = 10;
+            const visibleAreaW = VISIBLE_CELLS * CELL_W + CELL_GAP;
+            const baseScale = containerWidth > 0 ? Math.min(1, containerWidth / Math.min(svgW, visibleAreaW)) : 1;
             const scale = baseScale * zoomFactor;
 
             const cellToPx = (row, col) => ({
@@ -532,7 +536,7 @@
                         <div
                             className="border border-neutral-800 rounded-r flex-1"
                             ref={containerRef}
-                            style={{ overflow: 'hidden', touchAction: 'none', position: 'relative' }}
+                            style={{ height: '100%', overflow: 'hidden', touchAction: 'none', position: 'relative' }}
                             onTouchStart={handleTouchStart}
                             onTouchMove={handleTouchMove}
                             onTouchEnd={handleTouchEnd}
