@@ -242,6 +242,83 @@
             };
             creatures.forEach(c => getDepth(c));
 
+            // ===== 手順2＋3（移動前）：婚姻相手への移動を行う前のdepthMapでブロック化・ソートし、
+            //       各個体の「移動前の行内順位」を記録しておく =====
+            // これにより、後で手順5により行（世代）を移動させられた個体も、
+            // 元々その行で婚姻ペアを優先・単独ブロックを最後尾にする並び順が維持される。
+            const preMoveRank = {}; // creature.id -> 行内での並び順位（0始まり、ブロック単位で連番）
+            {
+                const preMaxDepth = Math.max(...Object.values(depthMap));
+                for (let row = 0; row <= preMaxDepth; row++) {
+                    const rowCreatures = creatures.filter(c => depthMap[c.id] === row);
+                    if (!rowCreatures.length) continue;
+                    const consumed = new Set();
+                    const blocks = [];
+                    rowCreatures.forEach(c => {
+                        if (consumed.has(c.id)) return;
+                        if (isMale(c.sex)) {
+                            const wives = rowCreatures.filter(other =>
+                                !consumed.has(other.id) && other.id !== c.id && isFemale(other.sex) &&
+                                getChildren(other).some(ch => ch.maleParent === c.name && ch.femaleParent === other.name)
+                            );
+                            if (wives.length === 1) {
+                                consumed.add(c.id); consumed.add(wives[0].id);
+                                blocks.push({ type: 'pair', male: c, female: wives[0] });
+                            } else if (wives.length > 1) {
+                                consumed.add(c.id);
+                                wives.forEach(w => consumed.add(w.id));
+                                const sortedWives = [...wives].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+                                blocks.push({ type: 'multi', male: c, females: sortedWives });
+                            } else {
+                                consumed.add(c.id);
+                                blocks.push({ type: 'single', items: [c] });
+                            }
+                        } else if (isFemale(c.sex)) {
+                            const husband = rowCreatures.find(other =>
+                                !consumed.has(other.id) && other.id !== c.id && isMale(other.sex) &&
+                                getChildren(other).some(ch => ch.maleParent === other.name && ch.femaleParent === c.name)
+                            );
+                            if (husband) {
+                                const otherWives = rowCreatures.filter(other =>
+                                    !consumed.has(other.id) && other.id !== c.id && other.id !== husband.id && isFemale(other.sex) &&
+                                    getChildren(other).some(ch => ch.maleParent === husband.name && ch.femaleParent === other.name)
+                                );
+                                consumed.add(husband.id); consumed.add(c.id);
+                                if (otherWives.length > 0) {
+                                    otherWives.forEach(w => consumed.add(w.id));
+                                    const sortedWives = [c, ...otherWives].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+                                    blocks.push({ type: 'multi', male: husband, females: sortedWives });
+                                } else {
+                                    blocks.push({ type: 'pair', male: husband, female: c });
+                                }
+                            } else {
+                                consumed.add(c.id);
+                                blocks.push({ type: 'single', items: [c] });
+                            }
+                        } else {
+                            consumed.add(c.id);
+                            blocks.push({ type: 'single', items: [c] });
+                        }
+                    });
+                    const preBlockKey = (b) => {
+                        if (b.type === 'single') return b.items[0].name;
+                        if (b.type === 'pair') return [b.male.name, b.female.name].sort((x, y) => x.localeCompare(y, 'ja'))[0];
+                        return [b.male.name, ...b.females.map(f => f.name)].sort((x, y) => x.localeCompare(y, 'ja'))[0];
+                    };
+                    // 単独ブロックを最後尾にして、それ以外は名前順
+                    blocks.sort((a, b) => {
+                        const aSingle = a.type === 'single' ? 1 : 0;
+                        const bSingle = b.type === 'single' ? 1 : 0;
+                        if (aSingle !== bSingle) return aSingle - bSingle;
+                        return preBlockKey(a).localeCompare(preBlockKey(b), 'ja');
+                    });
+                    blocks.forEach((b, idx) => {
+                        const members = b.type === 'single' ? b.items : b.type === 'pair' ? [b.male, b.female] : [b.male, ...b.females];
+                        members.forEach(m => { preMoveRank[m.id] = idx; });
+                    });
+                }
+            }
+
             // ===== 手順5：親未登録の個体を、婚姻相手と同じ世代（行）に合わせる =====
             // 親が登録されていない個体（祖先扱いでdepth=0）であっても、婚姻関係にある相手がいる場合は
             // その相手と同じ行に表示する。複数組の外部婚姻が連鎖する可能性があるため、
@@ -423,7 +500,13 @@
                         if (ax != null) return -1; // 位置が分かる方を優先して左に
                         if (bx != null) return 1;
                         // 両方とも親ブロックを持たない祖先ブロック同士の場合：
-                        // 婚姻ペア・multi（複数♀）ブロックを左、単独ブロック（未婚姻の祖先）を右に寄せる
+                        // 「移動前（手順5適用前）の行内順位」が分かればそれを最優先で使う。
+                        // これにより、婚姻相手の行へ移動させられた個体の元の並び順（単独ブロック最後尾化を含む）を維持できる。
+                        const aRep = blockRepresentative(a), bRep = blockRepresentative(b);
+                        const aRank = preMoveRank[aRep.id];
+                        const bRank = preMoveRank[bRep.id];
+                        if (aRank != null && bRank != null && aRank !== bRank) return aRank - bRank;
+                        // 移動前順位が同点、または取得できない場合は従来通り：単独ブロックを最後尾、それ以外は名前順
                         const aSingle = a.type === 'single' ? 1 : 0;
                         const bSingle = b.type === 'single' ? 1 : 0;
                         if (aSingle !== bSingle) return aSingle - bSingle;
