@@ -941,27 +941,154 @@
             );
         }
 
-        // ---- 日付入力コンポーネント（不明対応）----
-        function DateInput({ value, onChange, className }) {
-            const isUnknown = value === '-';
+
+        // ---- 画像トリミングモーダル：画像選択後、保存前にトリミング範囲（位置・拡大率）を調整できる ----
+        // aspect: 'square'（正方形固定）または 'free'（自由なアスペクト比、frameW/frameHで指定した枠形状を使う）
+        function ImageCropperModal({ imageSrc, aspect, frameW, frameH, outputSize, onConfirm, onCancel }) {
+            const containerRef = useRef(null);
+            const imgElRef = useRef(null);
+            const [imgNatural, setImgNatural] = useState({ w: 0, h: 0 });
+            const [offset, setOffset] = useState({ x: 0, y: 0 }); // 画像左上のオフセット（枠基準の座標系、px）
+            const [zoom, setZoom] = useState(1);
+            const [baseScale, setBaseScale] = useState(1); // 画像が枠を覆うために最低限必要な拡大率
+            const dragRef = useRef({ active: false, startX: 0, startY: 0, startOffset: { x: 0, y: 0 } });
+            const pinchRef = useRef({ active: false, startDist: 0, startZoom: 1 });
+
+            // 表示用の枠サイズ（画面上のCSSピクセル）。アイコンは正方形、個体写真は frameW:frameH の比率を保った大きめの枠。
+            const FRAME_W = aspect === 'square' ? 240 : (frameW || 280);
+            const FRAME_H = aspect === 'square' ? 240 : (frameH || 280 * (frameH && frameW ? frameH / frameW : 0.75));
+
+            useEffect(() => {
+                const img = new Image();
+                img.onload = () => {
+                    setImgNatural({ w: img.width, h: img.height });
+                    // 画像が枠全体を覆うために必要な最小スケールを計算し、初期表示はそのスケール・中央配置にする
+                    const scale = Math.max(FRAME_W / img.width, FRAME_H / img.height);
+                    setBaseScale(scale);
+                    setZoom(1);
+                    setOffset({
+                        x: (FRAME_W - img.width * scale) / 2,
+                        y: (FRAME_H - img.height * scale) / 2,
+                    });
+                };
+                img.src = imageSrc;
+                // eslint-disable-next-line
+            }, [imageSrc]);
+
+            const currentScale = baseScale * zoom;
+
+            const clampOffset = (off, scale) => {
+                const w = imgNatural.w * scale, h = imgNatural.h * scale;
+                // 画像が枠からはみ出さない範囲でクランプする（枠を画像が常に覆っているようにする）
+                const minX = FRAME_W - w, maxX = 0;
+                const minY = FRAME_H - h, maxY = 0;
+                return {
+                    x: Math.min(maxX, Math.max(minX, off.x)),
+                    y: Math.min(maxY, Math.max(minY, off.y)),
+                };
+            };
+
+            const handlePointerDown = (e) => {
+                e.preventDefault();
+                if (e.touches && e.touches.length === 2) {
+                    pinchRef.current = {
+                        active: true,
+                        startDist: Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY),
+                        startZoom: zoom,
+                    };
+                    return;
+                }
+                const point = e.touches ? e.touches[0] : e;
+                dragRef.current = { active: true, startX: point.clientX, startY: point.clientY, startOffset: { ...offset } };
+            };
+            const handlePointerMove = (e) => {
+                if (e.touches && e.touches.length === 2 && pinchRef.current.active) {
+                    e.preventDefault();
+                    const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+                    const ratio = dist / pinchRef.current.startDist;
+                    const newZoom = Math.min(4, Math.max(1, pinchRef.current.startZoom * ratio));
+                    setZoom(newZoom);
+                    setOffset(prev => clampOffset(prev, baseScale * newZoom));
+                    return;
+                }
+                if (!dragRef.current.active) return;
+                e.preventDefault();
+                const point = e.touches ? e.touches[0] : e;
+                const dx = point.clientX - dragRef.current.startX;
+                const dy = point.clientY - dragRef.current.startY;
+                const next = { x: dragRef.current.startOffset.x + dx, y: dragRef.current.startOffset.y + dy };
+                setOffset(clampOffset(next, currentScale));
+            };
+            const handlePointerUp = () => {
+                dragRef.current.active = false;
+                pinchRef.current.active = false;
+            };
+
+            const handleWheel = (e) => {
+                e.preventDefault();
+                const delta = e.deltaY < 0 ? 0.1 : -0.1;
+                const newZoom = Math.min(4, Math.max(1, zoom + delta));
+                setZoom(newZoom);
+                setOffset(prev => clampOffset(prev, baseScale * newZoom));
+            };
+
+            const handleConfirm = () => {
+                const canvas = document.createElement('canvas');
+                const outW = outputSize || 512;
+                const outH = aspect === 'square' ? outW : Math.round(outW * (FRAME_H / FRAME_W));
+                canvas.width = outW; canvas.height = outH;
+                const ctx = canvas.getContext('2d');
+                const img = imgElRef.current;
+                // 枠座標系(FRAME_W x FRAME_H)での画像描画位置・サイズを、出力解像度(outW x outH)に比例変換する
+                const ratio = outW / FRAME_W;
+                ctx.drawImage(
+                    img,
+                    offset.x * ratio, offset.y * ratio,
+                    imgNatural.w * currentScale * ratio, imgNatural.h * currentScale * ratio
+                );
+                const mime = aspect === 'square' ? 'image/png' : 'image/jpeg';
+                const quality = aspect === 'square' ? undefined : 0.85;
+                onConfirm(canvas.toDataURL(mime, quality));
+            };
+
             return (
-                <div className="flex items-center gap-2">
-                    <input
-                        type="date"
-                        className={className + (isUnknown ? ' opacity-40' : '')}
-                        value={isUnknown ? '' : (value || '')}
-                        disabled={isUnknown}
-                        onChange={e => onChange(e.target.value || '')}
-                    />
-                    <label className="flex items-center gap-1 text-xs text-neutral-400 whitespace-nowrap cursor-pointer select-none">
-                        <input
-                            type="checkbox"
-                            checked={isUnknown}
-                            onChange={e => onChange(e.target.checked ? '-' : '')}
-                            className="accent-emerald-500"
-                        />
-                        不明
-                    </label>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 3000 }} className="bg-black/80 flex items-center justify-center p-4">
+                    <div className="bg-neutral-900 rounded-xl border border-neutral-700 p-4 max-w-sm w-full space-y-3">
+                        <h3 className="text-sm font-bold text-white">トリミング範囲を調整</h3>
+                        <div
+                            ref={containerRef}
+                            style={{ width: FRAME_W, height: FRAME_H, position: 'relative', overflow: 'hidden', touchAction: 'none', margin: '0 auto' }}
+                            className="bg-neutral-950 rounded-lg border border-neutral-700"
+                            onMouseDown={handlePointerDown}
+                            onMouseMove={handlePointerMove}
+                            onMouseUp={handlePointerUp}
+                            onMouseLeave={handlePointerUp}
+                            onTouchStart={handlePointerDown}
+                            onTouchMove={handlePointerMove}
+                            onTouchEnd={handlePointerUp}
+                            onWheel={handleWheel}
+                        >
+                            {imgNatural.w > 0 && (
+                                <img
+                                    ref={imgElRef}
+                                    src={imageSrc}
+                                    alt="トリミング対象"
+                                    draggable={false}
+                                    style={{
+                                        position: 'absolute',
+                                        left: offset.x, top: offset.y,
+                                        width: imgNatural.w * currentScale, height: imgNatural.h * currentScale,
+                                        userSelect: 'none', pointerEvents: 'none',
+                                    }}
+                                />
+                            )}
+                        </div>
+                        <p className="text-[10px] text-neutral-500 text-center">ドラッグで位置調整、ピンチまたはホイールで拡大縮小できます。</p>
+                        <div className="flex gap-2">
+                            <button onClick={onCancel} className="flex-1 bg-neutral-700 py-2 rounded font-bold text-white text-sm">キャンセル</button>
+                            <button onClick={handleConfirm} className="flex-1 bg-emerald-600 py-2 rounded font-bold text-white text-sm">この範囲で確定</button>
+                        </div>
+                    </div>
                 </div>
             );
         }
@@ -1133,6 +1260,7 @@
             const [termsTab, setTermsTab] = useState('使用方法');
             const [appIcon, setAppIcon] = useState(() => localStorage.getItem('beetle_icon') || '');
             const [showIconModal, setShowIconModal] = useState(false);
+            const [iconCropSrc, setIconCropSrc] = useState(null); // アイコン用：トリミング待ちの選択直後画像
 
             const nameMap = useMemo(() => {
                 const m = {};
@@ -1390,33 +1518,33 @@
                                         if (!file) return;
                                         const reader = new FileReader();
                                         reader.onload = ev => {
-                                            const img = new Image();
-                                            img.onload = () => {
-                                                const SIZE = 512;
-                                                const canvas = document.createElement('canvas');
-                                                canvas.width = SIZE; canvas.height = SIZE;
-                                                const ctx = canvas.getContext('2d');
-                                                const min = Math.min(img.width, img.height);
-                                                const sx = (img.width - min) / 2;
-                                                const sy = (img.height - min) / 2;
-                                                ctx.drawImage(img, sx, sy, min, min, 0, 0, SIZE, SIZE);
-                                                const compressed = canvas.toDataURL('image/png');
-                                                updateAppIcon(compressed);
-                                                setShowIconModal(false);
-                                            };
-                                            img.src = ev.target.result;
+                                            // 即座に保存せず、トリミングモーダルを開いて範囲調整できるようにする
+                                            setIconCropSrc(ev.target.result);
                                         };
                                         reader.readAsDataURL(file);
                                         e.target.value = '';
                                     }} />
                                 </label>
-                                <p className="text-[10px] text-neutral-500">※ 正方形にトリミングされます。iPhoneのホーム画面に追加するとアイコンとして表示されます。</p>
+                                <p className="text-[10px] text-neutral-500">※ 正方形にトリミングできます。iPhoneのホーム画面に追加するとアイコンとして表示されます。</p>
                                 <div className="flex gap-2">
                                     <button onClick={() => setShowIconModal(false)} className="flex-1 bg-neutral-700 py-2 rounded font-bold text-white text-sm">閉じる</button>
                                     {appIcon && <button onClick={() => { removeAppIcon(); setShowIconModal(false); }} className="flex-1 bg-red-800 py-2 rounded font-bold text-white text-sm">削除</button>}
                                 </div>
                             </div>
                         </div>
+                    )}
+                    {iconCropSrc && (
+                        <ImageCropperModal
+                            imageSrc={iconCropSrc}
+                            aspect="square"
+                            outputSize={512}
+                            onConfirm={(dataUrl) => {
+                                updateAppIcon(dataUrl);
+                                setIconCropSrc(null);
+                                setShowIconModal(false);
+                            }}
+                            onCancel={() => setIconCropSrc(null)}
+                        />
                     )}
 
                     {saveError && (
@@ -1749,6 +1877,7 @@
             const [showEditModal, setShowEditModal] = useState(false);
             const [editForm, setEditForm] = useState(creature);
             const [showRecordModal, setShowRecordModal] = useState(null);
+            const [photoCropSrc, setPhotoCropSrc] = useState(null); // 個体写真用：トリミング待ちの選択直後画像
 
             // 詳細表示・編集のフィールド定義（羽化サイズ追加）
             const fields = [
@@ -1853,6 +1982,17 @@
                                     <button onClick={() => { const updated = {...form, photo: null}; setForm(updated); onUpdate(updated); }} className="absolute top-2 right-2 bg-black/70 text-white rounded-full w-7 h-7 flex items-center justify-center text-xs hover:bg-red-700 transition-colors" title="写真を削除">
                                         <i className="fa-solid fa-xmark"></i>
                                     </button>
+                                    <label className="absolute bottom-2 right-2 bg-black/70 text-white rounded-full px-3 py-1.5 text-[10px] font-bold cursor-pointer hover:bg-neutral-700 transition-colors">
+                                        変更
+                                        <input type="file" accept="image/*" className="hidden" onChange={e => {
+                                            const file = e.target.files[0];
+                                            if (!file) return;
+                                            const reader = new FileReader();
+                                            reader.onload = ev => { setPhotoCropSrc(ev.target.result); };
+                                            reader.readAsDataURL(file);
+                                            e.target.value = '';
+                                        }} />
+                                    </label>
                                 </div>
                             ) : (
                                 <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-neutral-600 rounded-lg cursor-pointer hover:border-emerald-500 transition-colors bg-neutral-800/50">
@@ -1863,23 +2003,8 @@
                                         if (!file) return;
                                         const reader = new FileReader();
                                         reader.onload = ev => {
-                                            const img = new Image();
-                                            img.onload = () => {
-                                                const MAX = 800;
-                                                let w = img.width, h = img.height;
-                                                if (w > MAX || h > MAX) {
-                                                    if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
-                                                    else { w = Math.round(w * MAX / h); h = MAX; }
-                                                }
-                                                const canvas = document.createElement('canvas');
-                                                canvas.width = w; canvas.height = h;
-                                                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                                                const compressed = canvas.toDataURL('image/jpeg', 0.75);
-                                                const updated = {...form, photo: compressed};
-                                                setForm(updated);
-                                                onUpdate(updated);
-                                            };
-                                            img.src = ev.target.result;
+                                            // 即座に保存せず、トリミングモーダルを開いて範囲調整できるようにする
+                                            setPhotoCropSrc(ev.target.result);
                                         };
                                         reader.readAsDataURL(file);
                                         e.target.value = '';
@@ -1887,6 +2012,22 @@
                                 </label>
                             )}
                         </div>
+                        {photoCropSrc && (
+                            <ImageCropperModal
+                                imageSrc={photoCropSrc}
+                                aspect="free"
+                                frameW={320}
+                                frameH={240}
+                                outputSize={800}
+                                onConfirm={(dataUrl) => {
+                                    const updated = { ...form, photo: dataUrl };
+                                    setForm(updated);
+                                    onUpdate(updated);
+                                    setPhotoCropSrc(null);
+                                }}
+                                onCancel={() => setPhotoCropSrc(null)}
+                            />
+                        )}
 
                         {/* 詳細フィールド表示 */}
                         <div className="grid grid-cols-[100px,1fr] gap-x-2 gap-y-2 text-sm items-center">
