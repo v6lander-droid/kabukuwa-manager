@@ -1342,6 +1342,22 @@
                     });
             }, [creatures, filters, sort]);
 
+            // 一覧テーブルの各列の幅を、本体テーブルの実測値から複製ヘッダーに反映するための状態。
+            // Reactのフックは条件分岐(早期return)の前で、常に同じ順序で呼び出す必要があるため、
+            // ここ（selectedCreatureによる早期returnより前）で定義する。
+            const [colWidths, setColWidths] = useState([]);
+            const bodyHeaderCellRefs = useRef([]);
+            useEffect(() => {
+                const measure = () => {
+                    const widths = bodyHeaderCellRefs.current.map(el => el ? el.getBoundingClientRect().width : 0);
+                    if (widths.length && widths.some(w => w > 0)) setColWidths(widths);
+                };
+                measure();
+                const timer = setTimeout(measure, 50);
+                window.addEventListener('resize', measure);
+                return () => { window.removeEventListener('resize', measure); clearTimeout(timer); };
+            }, [processedCreatures]);
+
             const sim = useMemo(() => {
                 const m = creatures.find(c => c.id === maleSelection);
                 const f = creatures.find(c => c.id === femaleSelection);
@@ -1500,21 +1516,6 @@
                 {k:'temp',l:'温度'}, {k:'emergenceDate',l:'羽化日'}, {k:'emergenceSize',l:'羽化サイズ'},
                 {k:'maleParent',l:'オス親'}, {k:'femaleParent',l:'メス親'}, {k:'selfF',l:'累積F値'}
             ];
-            // 各列の幅は、以前同様データの長さに応じて自動調整させる（固定幅にしない）。
-            // ただし複製ヘッダー（見た目用）と本体テーブル（実データ）の列幅を一致させる必要があるため、
-            // 本体側の実測幅をJavaScriptで取得し、複製ヘッダー側の対応する列にそのままpx指定で反映する。
-            const [colWidths, setColWidths] = useState([]);
-            const bodyHeaderCellRefs = useRef([]);
-            useEffect(() => {
-                const measure = () => {
-                    const widths = bodyHeaderCellRefs.current.map(el => el ? el.getBoundingClientRect().width : 0);
-                    if (widths.length && widths.some(w => w > 0)) setColWidths(widths);
-                };
-                measure();
-                const timer = setTimeout(measure, 50);
-                window.addEventListener('resize', measure);
-                return () => { window.removeEventListener('resize', measure); clearTimeout(timer); };
-            }, [processedCreatures]);
 
             // 一覧テーブルの横スクロールに合わせて、複製ヘッダー（sticky固定された見た目だけのヘッダー）も
             // 同じ横位置までずらして追従させる。theadをsticky（縦固定）にするとoverflow-x-autoの制約で
