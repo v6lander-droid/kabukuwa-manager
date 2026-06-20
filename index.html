@@ -1519,7 +1519,8 @@
                         <div className="flex gap-2">
                             <button onClick={() => setAgreedToTerms(false)} className="flex-1 bg-neutral-700 py-2 rounded text-xs text-white font-bold hover:bg-neutral-600 transition-colors"><i className="fa-solid fa-file-lines mr-1"></i>規約</button>
                             <button onClick={() => {
-                                const json = JSON.stringify(creatures, null, 2);
+                                const backupData = { creatures, pedigreeLines, gridSize };
+                                const json = JSON.stringify(backupData, null, 2);
                                 const blob = new Blob([json], { type: 'application/json' });
                                 const url = URL.createObjectURL(blob);
                                 const a = document.createElement('a');
@@ -1539,9 +1540,25 @@
                                     reader.onload = ev => {
                                         try {
                                             const data = JSON.parse(ev.target.result);
-                                            if (!Array.isArray(data)) throw new Error('不正な形式');
-                                            if (confirm(`${data.length}件のデータを読み込みます。現在のデータは上書きされます。よろしいですか？`)) {
-                                                setCreatures(dedupeIds(data));
+                                            // 新形式: { creatures: [...], pedigreeLines: [...], gridSize: {...} }
+                                            // 旧形式（後方互換）: creatures配列そのもの（血統図の線・グリッドサイズは含まれない）
+                                            let loadedCreatures, loadedLines, loadedGridSize;
+                                            if (Array.isArray(data)) {
+                                                loadedCreatures = data;
+                                            } else if (data && Array.isArray(data.creatures)) {
+                                                loadedCreatures = data.creatures;
+                                                loadedLines = Array.isArray(data.pedigreeLines) ? data.pedigreeLines : undefined;
+                                                loadedGridSize = (data.gridSize && data.gridSize.rows && data.gridSize.cols) ? data.gridSize : undefined;
+                                            } else {
+                                                throw new Error('不正な形式');
+                                            }
+                                            const confirmMsg = loadedLines
+                                                ? `${loadedCreatures.length}件のデータと血統図の線情報を読み込みます。現在のデータは上書きされます。よろしいですか？`
+                                                : `${loadedCreatures.length}件のデータを読み込みます（血統図の線情報は含まれていません）。現在のデータは上書きされます。よろしいですか？`;
+                                            if (confirm(confirmMsg)) {
+                                                setCreatures(dedupeIds(loadedCreatures));
+                                                if (loadedLines) setPedigreeLines(loadedLines);
+                                                if (loadedGridSize) setGridSize(loadedGridSize);
                                             }
                                         } catch (err) {
                                             alert('ファイルの読み込みに失敗しました。正しいバックアップファイルか確認してください。');
