@@ -564,6 +564,11 @@
                 }
 
                 // ---- 手順4：深い行から浅い行へ向かって、子グループの左端に親ブロックを合わせてスライド ----
+                // 「配偶者の親ブロックの右隣に固定配置すべきブロック」は、通常スライドの対象から除外し、
+                // 全行の通常処理（スライド＋重なり解消）が完了した後に別パスでまとめて配置する
+                // （配偶者側の親ブロックの最終位置が確定してから固定する必要があるため）。
+                const fixedRightOfSpouseBlocks = []; // { row, block, spouseId }
+
                 for (let row = maxDepth - 1; row >= 0; row--) {
                     const blocks = rowBlocks[row];
                     if (!blocks || !blocks.length) continue;
@@ -626,10 +631,33 @@
                     }
 
                     const members = blockMembers(b);
-                    // このブロックの個体（単独 or ♂♀ペア）から生まれた全子供を収集
-                    const allChildren = [];
-                    members.forEach(m => { getChildren(m).forEach(ch => { if (posMap[ch.id]) allChildren.push(ch); }); });
+                    // このブロックの個体（単独 or ♂♀ペア）から生まれた全子供を収集（重複排除）
+                    const allChildrenRaw = [];
+                    members.forEach(m => { getChildren(m).forEach(ch => { if (posMap[ch.id]) allChildrenRaw.push(ch); }); });
+                    const allChildren = Array.from(new Map(allChildrenRaw.map(ch => [ch.id, ch])).values());
                     if (!allChildren.length) return;
+
+                    // 自分の唯一の子が、別の親ブロックの個体と婚姻関係にある♀である場合、
+                    // 通常スライドではなく「配偶者側の親ブロックの右隣」に固定配置する（後続パスで処理）。
+                    // これにより、同じ子ペアブロックを参照する2つの祖父母ブロック同士が同じ位置を取り合う衝突を避ける。
+                    if (allChildren.length === 1 && members.length === 2) {
+                        const onlyChild = allChildren[0];
+                        const isOnlyChildFemale = isFemale(onlyChild.sex);
+                        if (isOnlyChildFemale) {
+                            const onlyChildChildren = getChildren(onlyChild);
+                            const childSpouse = onlyChildChildren.length ? creatures.find(other =>
+                                other.id !== onlyChild.id &&
+                                getChildren(other).some(ch => onlyChildChildren.some(c2 => c2.id === ch.id))
+                            ) : null;
+                            if (childSpouse && isMale(childSpouse.sex)) {
+                                const spouseParentId = idToBlockLeftId[childSpouse.id];
+                                if (spouseParentId != null && !members.some(m => m.id === spouseParentId)) {
+                                    fixedRightOfSpouseBlocks.push({ row, block: b, spouseId: childSpouse.id });
+                                    return; // 通常スライドはスキップ
+                                }
+                            }
+                        }
+                    }
 
                     // 各子について、「子自身の位置」ではなく「子が属するペアブロック全体の左端」を基準値とする。
                     // これにより、子が♀側（ペアの右側）であっても、そのペア全体の左端（通常は♂側）に揃えられる。
@@ -654,25 +682,69 @@
                 // 重なり解消：同じ行のブロックを現在のX座標順（＝手順3の並び順を維持したまま）に並べ、
                 // 隙間がSTEP未満なら後続ブロックを連動して右へ押し出す。
                 // multiブロックは♂・♀の配置がバラバラな可能性があるため、ブロック全体の最小Xを左端、最大Xを右端とする。
+                // 固定配置待ちのブロック（fixedRightOfSpouseBlocksに入れたもの）は、まだ位置が確定していないため、
+                // この時点での重なり解消の対象からは除外する。
+                const pendingIds = new Set(fixedRightOfSpouseBlocks.filter(f => f.row === row).map(f => f.block._leftId));
+                const activeBlocks = blocks.filter(b => !pendingIds.has(b._leftId));
                 const blockLeftX = (b) => Math.min(...blockMembers(b).map(m => posMap[m.id].x));
                 const blockRightX = (b) => {
                     const xs = blockMembers(b).map(m => posMap[m.id].x);
                     return Math.max(...xs);
                 };
                 // blocksは既に手順3の並び順（=配置順）になっているので、その順序のまま左から処理
-                for (let i = 1; i < blocks.length; i++) {
-                    const prevRight = blockRightX(blocks[i - 1]);
-                    const curLeft = blockLeftX(blocks[i]);
+                for (let i = 1; i < activeBlocks.length; i++) {
+                    const prevRight = blockRightX(activeBlocks[i - 1]);
+                    const curLeft = blockLeftX(activeBlocks[i]);
                     if (curLeft - prevRight < STEP) {
                         const dx = STEP - (curLeft - prevRight);
-                        blockMembers(blocks[i]).forEach(m => { posMap[m.id].x += dx; });
+                        blockMembers(activeBlocks[i]).forEach(m => { posMap[m.id].x += dx; });
                         marriagePairs.forEach(mp => {
-                            if (blockMembers(blocks[i]).some(m => m.id === mp.maleId)) mp.maleX += dx;
-                            if (blockMembers(blocks[i]).some(m => m.id === mp.femaleId)) mp.femaleX += dx;
+                            if (blockMembers(activeBlocks[i]).some(m => m.id === mp.maleId)) mp.maleX += dx;
+                            if (blockMembers(activeBlocks[i]).some(m => m.id === mp.femaleId)) mp.femaleX += dx;
                         });
                     }
                 }
             }
+
+            // ---- 固定配置パス：配偶者側親ブロックの右隣に、保留していたブロックを配置する ----
+            // 各行ごとに、配偶者の親ブロックの最終的な右端を求めてから配置する。
+            // 複数のブロックが同じ配偶者親を参照する可能性は低いが、念のため出現順に処理する。
+            fixedRightOfSpouseBlocks.forEach(({ row, block, spouseId }) => {
+                const spouseParentId = idToBlockLeftId[spouseId];
+                if (spouseParentId == null || posMap[spouseParentId] == null) return;
+                // 配偶者側の親ブロックの右端を求める
+                let spouseParentBlockRightX = posMap[spouseParentId].x;
+                for (let rr = 0; rr <= maxDepth; rr++) {
+                    const bb = (rowBlocks[rr] || []).find(blk => blk._leftId === spouseParentId);
+                    if (bb) { spouseParentBlockRightX = Math.max(...blockMembers(bb).map(m => posMap[m.id].x)); break; }
+                }
+                const targetX = spouseParentBlockRightX + STEP;
+                const members = blockMembers(block);
+                const dx2 = targetX - posMap[block._leftId].x;
+                if (dx2 === 0) return;
+                members.forEach(m => { posMap[m.id].x += dx2; });
+                marriagePairs.forEach(mp => {
+                    if (members.some(m => m.id === mp.maleId)) mp.maleX += dx2;
+                    if (members.some(m => m.id === mp.femaleId)) mp.femaleX += dx2;
+                });
+                // 同じ行の他ブロックと重なっていないか最終チェックし、必要なら自分自身を右へずらす
+                const blocks = rowBlocks[row];
+                if (!blocks) return;
+                const myIdx = blocks.indexOf(block);
+                if (myIdx > 0) {
+                    const prevBlock = blocks[myIdx - 1];
+                    const prevRight = Math.max(...blockMembers(prevBlock).map(m => posMap[m.id].x));
+                    const myLeft = Math.min(...members.map(m => posMap[m.id].x));
+                    if (myLeft - prevRight < STEP) {
+                        const dx3 = STEP - (myLeft - prevRight);
+                        members.forEach(m => { posMap[m.id].x += dx3; });
+                        marriagePairs.forEach(mp => {
+                            if (members.some(m => m.id === mp.maleId)) mp.maleX += dx3;
+                            if (members.some(m => m.id === mp.femaleId)) mp.femaleX += dx3;
+                        });
+                    }
+                }
+            });
             } // end of pass loop
 
                 // この系統に属する個体のXを、系統内の最小値が0になるよう正規化してから、
@@ -875,13 +947,16 @@
                                             groups[key].children.push({ x: l.x2, y2: l.y2 });
                                         });
                                         return Object.values(groups).map((g, i) => {
-                                            const xs = g.children.map(c => c.x);
+                                            // 横線の範囲には子カードのX座標群に加え、親からの接続起点（g.x1）も必ず含める。
+                                            // これにより、子が1人だけで親の起点とX座標がずれている場合でも、
+                                            // 親からの縦線と子への縦線の間を結ぶ横線が途切れない。
+                                            const xs = [...g.children.map(c => c.x), g.x1];
                                             const minX = Math.min(...xs);
                                             const maxX = Math.max(...xs);
                                             const branchY = g.isPair ? g.midY + MARRIAGE_GAP : g.midY;
                                             return (
                                                 <g key={i}>
-                                                    {/* 接続横線（子の範囲をカバー） */}
+                                                    {/* 接続横線（子の範囲＋親の接続起点をカバー） */}
                                                     <line x1={minX} y1={branchY} x2={maxX} y2={branchY} stroke="#525252" strokeWidth="1.5" />
                                                     {/* 各子への縦線 */}
                                                     {g.children.map((c, j) => (
