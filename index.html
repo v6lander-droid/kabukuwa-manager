@@ -519,8 +519,9 @@
                     const rect = containerRef.current.getBoundingClientRect();
                     // ズームの基準は指の位置ではなく、常に「現在表示されているエリアの中心」（コンテナの中心）にする
                     touchState.current.startMid = { x: rect.width / 2, y: rect.height / 2 };
-                } else if (e.touches.length === 1 && !editMode) {
-                    // 編集モード中は1本指操作をカードドラッグに譲り、コンテナ自体のパンは行わない
+                } else if (e.touches.length === 1) {
+                    // カード上のタッチはhandleCardPointerDown内でstopPropagationされるため、
+                    // ここに届くのは「何もない余白部分」のタッチのみ。編集モード中もパン操作を許可する。
                     touchState.current.mode = 'pan';
                     touchState.current.startPan = { ...pan };
                     touchState.current.startSingle = { x: e.touches[0].clientX, y: e.touches[0].clientY };
@@ -541,7 +542,7 @@
                     const contentY = (mid.y - startPan.y) / oldScale;
                     setZoomFactor(newZoom);
                     setPan({ x: mid.x - contentX * newScale, y: mid.y - contentY * newScale });
-                } else if (touchState.current.mode === 'pan' && e.touches.length === 1 && !editMode) {
+                } else if (touchState.current.mode === 'pan' && e.touches.length === 1) {
                     const dx = e.touches[0].clientX - touchState.current.startSingle.x;
                     const dy = e.touches[0].clientY - touchState.current.startSingle.y;
                     setPan({ x: touchState.current.startPan.x + dx, y: touchState.current.startPan.y + dy });
@@ -550,7 +551,7 @@
             const handleTouchEnd = (e) => {
                 if (lineMode === 'add' || lineMode === 'edit') return; // useEffect内のwindowリスナーで一元処理する
                 if (e.touches.length === 0) touchState.current.mode = null;
-                else if (e.touches.length === 1 && !editMode) {
+                else if (e.touches.length === 1) {
                     touchState.current.mode = 'pan';
                     touchState.current.startPan = { ...pan };
                     touchState.current.startSingle = { x: e.touches[0].clientX, y: e.touches[0].clientY };
