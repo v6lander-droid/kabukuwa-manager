@@ -200,15 +200,18 @@
             const CELL_GAP = 24;
             const CELL_W = CARD_W + CELL_GAP;
             const CELL_H = CARD_H + CELL_GAP;
+            const TRAY_W = 140; // 一時置き場の幅
 
             const containerRef = useRef(null);
+            const trayRef = useRef(null);
             const [containerWidth, setContainerWidth] = useState(0);
             const [zoomFactor, setZoomFactor] = useState(1);
             const [pan, setPan] = useState({ x: 0, y: 0 });
             const [editMode, setEditMode] = useState(false);
             const [lineMode, setLineMode] = useState(false);
             const [draggingId, setDraggingId] = useState(null);
-            const [lineDraft, setLineDraft] = useState(null); // { x1, y1, x2, y2 } 線描画中のプレビュー（グリッド座標系のpx）
+            const [dragFromTray, setDragFromTray] = useState(false);
+            const [lineDraft, setLineDraft] = useState(null);
             const cardRefs = useRef({});
             const dragState = useRef({ startX: 0, startY: 0, origRow: 0, origCol: 0 });
             const lineDragState = useRef({ startGX: 0, startGY: 0 });
@@ -234,60 +237,85 @@
                 x: CELL_GAP / 2 + col * CELL_W + CARD_W / 2,
                 y: CELL_GAP / 2 + row * CELL_H + CARD_H / 2,
             });
-            const pxToCell = (x, y) => ({
-                col: Math.max(0, Math.min(cols - 1, Math.round((x - CELL_GAP / 2 - CARD_W / 2) / CELL_W))),
-                row: Math.max(0, Math.min(rows - 1, Math.round((y - CELL_GAP / 2 - CARD_H / 2) / CELL_H))),
-            });
 
-            const occupied = {}; // "row_col" -> creature
+            const occupied = {};
             creatures.forEach(c => { if (c.gridPos) occupied[`${c.gridPos.row}_${c.gridPos.col}`] = c; });
 
-            // ---- カードのドラッグ＆ドロップ ----
-            const handleCardPointerDown = (e, creature) => {
+            // 一時置き場に表示する個体：gridPos未設定のもの。登録順（新しい順）はcreatures配列の並び順に依存する
+            // （Appで新規追加時に配列の先頭に追加しているため、creatures配列自体が新しい順）。
+            const trayCreatures = creatures.filter(c => !c.gridPos);
+
+            // ---- カードのドラッグ＆ドロップ（一時置き場からも、描画エリア内でも同じ仕組みで扱う） ----
+            const handleCardPointerDown = (e, creature, fromTray) => {
                 if (!editMode || lineMode) return;
                 e.stopPropagation();
                 e.preventDefault();
-                if (!creature.gridPos) return;
                 setDraggingId(creature.id);
+                setDragFromTray(fromTray);
                 const point = e.touches ? e.touches[0] : e;
-                dragState.current = { startX: point.clientX, startY: point.clientY, origRow: creature.gridPos.row, origCol: creature.gridPos.col };
+                dragState.current = {
+                    startX: point.clientX,
+                    startY: point.clientY,
+                    origRow: creature.gridPos ? creature.gridPos.row : 0,
+                    origCol: creature.gridPos ? creature.gridPos.col : 0,
+                };
             };
 
             useEffect(() => {
                 if (!draggingId) return;
                 const handleMove = (e) => {
                     const point = e.touches ? e.touches[0] : e;
-                    const dxScreen = point.clientX - dragState.current.startX;
-                    const dyScreen = point.clientY - dragState.current.startY;
-                    const dCol = Math.round((dxScreen / scale) / CELL_W);
-                    const dRow = Math.round((dyScreen / scale) / CELL_H);
-                    const newRow = Math.max(0, Math.min(rows - 1, dragState.current.origRow + dRow));
-                    const newCol = Math.max(0, Math.min(cols - 1, dragState.current.origCol + dCol));
                     const el = cardRefs.current[draggingId];
-                    if (el) {
-                        const p = cellToPx(newRow, newCol);
-                        el.style.left = (p.x - CARD_W / 2) + 'px';
-                        el.style.top = (p.y - CARD_H / 2) + 'px';
-                        el.dataset.targetRow = newRow;
-                        el.dataset.targetCol = newCol;
+                    if (!el) return;
+                    // 描画エリアのコンテナを基準に、現在のポインタ位置がどのセルに対応するかを直接計算する
+                    // （一時置き場からのドラッグ開始時はorigRow/origColが無意味なため、絶対位置から計算する）。
+                    const containerRect = containerRef.current.getBoundingClientRect();
+                    const localX = (point.clientX - containerRect.left - pan.x) / scale;
+                    const localY = (point.clientY - containerRect.top - pan.y) / scale;
+                    const targetCol = Math.max(0, Math.min(cols - 1, Math.round((localX - CELL_GAP / 2 - CARD_W / 2) / CELL_W)));
+                    const targetRow = Math.max(0, Math.min(rows - 1, Math.round((localY - CELL_GAP / 2 - CARD_H / 2) / CELL_H)));
+                    const isOverGrid = point.clientX >= containerRect.left && point.clientX <= containerRect.right && point.clientY >= containerRect.top && point.clientY <= containerRect.bottom;
+                    if (isOverGrid) {
+                        const p = cellToPx(targetRow, targetCol);
+                        el.style.position = 'fixed';
+                        el.style.left = (containerRect.left + pan.x + p.x * scale - (CARD_W * scale) / 2) + 'px';
+                        el.style.top = (containerRect.top + pan.y + p.y * scale - (CARD_H * scale) / 2) + 'px';
+                        el.dataset.targetRow = targetRow;
+                        el.dataset.targetCol = targetCol;
+                        el.dataset.overGrid = '1';
+                    } else {
+                        el.style.position = 'fixed';
+                        el.style.left = (point.clientX - CARD_W / 2) + 'px';
+                        el.style.top = (point.clientY - CARD_H / 2) + 'px';
+                        el.dataset.overGrid = '0';
                     }
                 };
                 const handleUp = () => {
                     const el = cardRefs.current[draggingId];
-                    if (el && el.dataset.targetRow != null) {
-                        const newRow = parseInt(el.dataset.targetRow, 10);
-                        const newCol = parseInt(el.dataset.targetCol, 10);
-                        const key = `${newRow}_${newCol}`;
-                        // 移動先に既に別のカードがいる場合は移動をキャンセル（1セル1枚ルール）
-                        if (!occupied[key] || occupied[key].id === draggingId) {
-                            onUpdateGridPos(draggingId, { row: newRow, col: newCol });
+                    if (el) {
+                        const overGrid = el.dataset.overGrid === '1';
+                        if (overGrid && el.dataset.targetRow != null) {
+                            const newRow = parseInt(el.dataset.targetRow, 10);
+                            const newCol = parseInt(el.dataset.targetCol, 10);
+                            const key = `${newRow}_${newCol}`;
+                            if (!occupied[key] || occupied[key].id === draggingId) {
+                                onUpdateGridPos(draggingId, { row: newRow, col: newCol });
+                            }
+                        } else if (!overGrid && !dragFromTray) {
+                            // 描画エリアのカードを一時置き場側（グリッド外）にドロップしたら、一時置き場に戻す
+                            onUpdateGridPos(draggingId, null);
                         }
+                        // スタイルをリセット（次回レンダリングで通常のabsolute位置に戻る）
+                        el.style.position = '';
+                        el.style.left = '';
+                        el.style.top = '';
                     }
                     setDraggingId(null);
+                    setDragFromTray(false);
                 };
                 window.addEventListener('mousemove', handleMove);
                 window.addEventListener('mouseup', handleUp);
-                window.addEventListener('touchmove', handleMove);
+                window.addEventListener('touchmove', handleMove, { passive: false });
                 window.addEventListener('touchend', handleUp);
                 return () => {
                     window.removeEventListener('mousemove', handleMove);
@@ -295,7 +323,7 @@
                     window.removeEventListener('touchmove', handleMove);
                     window.removeEventListener('touchend', handleUp);
                 };
-            }, [draggingId, scale, rows, cols]);
+            }, [draggingId, dragFromTray, scale, rows, cols, pan]);
 
             // ---- 線の追加（タップ＆ドラッグ、直線またはL字のみ） ----
             const getSvgPoint = (e) => {
@@ -305,7 +333,6 @@
                 const screenY = point.clientY - rect.top - pan.y;
                 return { x: screenX / scale, y: screenY / scale };
             };
-
             const handleLineStart = (e) => {
                 if (!lineMode) return;
                 e.preventDefault();
@@ -324,18 +351,17 @@
                 const dx = Math.abs(lineDraft.x2 - lineDraft.x1);
                 const dy = Math.abs(lineDraft.y2 - lineDraft.y1);
                 if (dx > 5 || dy > 5) {
-                    // 縦横どちらの移動が大きいかでL字の折れ方向を決める（直線も自然に含まれる）
                     const newLine = {
                         id: `line_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
                         x1: lineDraft.x1, y1: lineDraft.y1, x2: lineDraft.x2, y2: lineDraft.y2,
-                        bendAfterX: dx >= dy, // true: 先に横移動してから縦移動（横→縦のL字）, false: 縦→横
+                        bendAfterX: dx >= dy,
                     };
                     onUpdateLines([...pedigreeLines, newLine]);
                 }
                 setLineDraft(null);
             };
 
-            // ---- ピンチズーム・パン（線モード・編集モードでないときだけ有効） ----
+            // ---- ピンチズーム・パン ----
             const getTouchDist = (touches) => { const dx = touches[0].clientX - touches[1].clientX; const dy = touches[0].clientY - touches[1].clientY; return Math.sqrt(dx * dx + dy * dy); };
             const getTouchMid = (touches) => ({ x: (touches[0].clientX + touches[1].clientX) / 2, y: (touches[0].clientY + touches[1].clientY) / 2 });
             const handleTouchStart = (e) => {
@@ -387,15 +413,15 @@
                 }
             };
 
-            const Card = ({ creature }) => {
+            const GridCard = ({ creature }) => {
                 if (!creature.gridPos) return null;
                 const p = cellToPx(creature.gridPos.row, creature.gridPos.col);
                 return (
                     <div
                         ref={(el) => { if (el) cardRefs.current[creature.id] = el; else delete cardRefs.current[creature.id]; }}
                         onClick={() => { if (!editMode && !lineMode) onSelect(creature); }}
-                        onMouseDown={(e) => handleCardPointerDown(e, creature)}
-                        onTouchStart={(e) => handleCardPointerDown(e, creature)}
+                        onMouseDown={(e) => handleCardPointerDown(e, creature, false)}
+                        onTouchStart={(e) => handleCardPointerDown(e, creature, false)}
                         style={{ position: 'absolute', left: p.x - CARD_W / 2, top: p.y - CARD_H / 2, width: CARD_W, height: CARD_H, borderTopWidth: 4, borderTopStyle: 'solid', borderTopColor: isMale(creature.sex) ? '#60a5fa' : '#f472b6', zIndex: draggingId === creature.id ? 50 : 1 }}
                         className={`${editMode && !lineMode ? 'cursor-move' : lineMode ? 'cursor-crosshair' : 'cursor-pointer'} rounded-lg border px-2 py-1.5 text-center select-none transition-all hover:scale-105 ${highlightId === creature.id ? 'bg-emerald-900 border-emerald-400' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-400'}`}
                     >
@@ -409,14 +435,28 @@
                 );
             };
 
-            // 線の経路（L字対応）をSVGのpolyline点列に変換
+            const TrayCard = ({ creature }) => (
+                <div
+                    ref={(el) => { if (el) cardRefs.current[creature.id] = el; else delete cardRefs.current[creature.id]; }}
+                    onClick={() => { if (!editMode && !lineMode) onSelect(creature); }}
+                    onMouseDown={(e) => handleCardPointerDown(e, creature, true)}
+                    onTouchStart={(e) => handleCardPointerDown(e, creature, true)}
+                    style={{ width: CARD_W, height: CARD_H, borderTopWidth: 4, borderTopStyle: 'solid', borderTopColor: isMale(creature.sex) ? '#60a5fa' : '#f472b6', zIndex: draggingId === creature.id ? 50 : 1 }}
+                    className={`${editMode ? 'cursor-move' : 'cursor-pointer'} rounded-lg border px-2 py-1.5 text-center select-none transition-all hover:scale-105 shrink-0 ${highlightId === creature.id ? 'bg-emerald-900 border-emerald-400' : 'bg-neutral-800 border-neutral-700 hover:border-neutral-400'}`}
+                >
+                    <div style={{ color: sexColor(creature.sex) }} className="text-[9px] font-bold">
+                        <i className={`fa-solid ${isMale(creature.sex) ? 'fa-mars' : 'fa-venus'}`}></i>
+                    </div>
+                    <div className="font-bold text-[11px] text-white leading-tight truncate mt-0.5">{creature.name}</div>
+                    <div className="text-[9px] text-neutral-400">{creature.generation}</div>
+                    <div className="text-[9px] text-neutral-300">{creature.stage}</div>
+                </div>
+            );
+
             const linePoints = (l) => {
-                if (l.bendAfterX) {
-                    return `${l.x1},${l.y1} ${l.x2},${l.y1} ${l.x2},${l.y2}`;
-                }
+                if (l.bendAfterX) return `${l.x1},${l.y1} ${l.x2},${l.y1} ${l.x2},${l.y2}`;
                 return `${l.x1},${l.y1} ${l.x1},${l.y2} ${l.x2},${l.y2}`;
             };
-
             const deleteLine = (id) => { onUpdateLines(pedigreeLines.filter(l => l.id !== id)); };
 
             return (
@@ -442,7 +482,7 @@
                     </div>
                     {editMode && (
                         <div className="mb-2 px-3 py-2 bg-amber-900/30 border border-amber-700/50 rounded text-[10px] text-amber-300">
-                            カードをドラッグして任意のセルに移動できます（1セルに1枚まで）。
+                            左の一時置き場のカードを右の描画エリアへドラッグして配置できます。描画エリア内のカードを一時置き場側へ戻すこともできます（1セルに1枚まで）。
                         </div>
                     )}
                     {lineMode && (
@@ -464,58 +504,68 @@
                             <button onClick={() => { setZoomFactor(1); setPan({ x: 0, y: 0 }); }} className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 rounded text-[10px] text-white border border-neutral-700">リセット</button>
                         </div>
                     </div>
-                    <div
-                        className="border border-neutral-800 rounded"
-                        ref={containerRef}
-                        style={{ height: 500, overflow: 'hidden', touchAction: 'none' }}
-                        onTouchStart={handleTouchStart}
-                        onTouchMove={handleTouchMove}
-                        onTouchEnd={handleTouchEnd}
-                        onMouseDown={lineMode ? handleLineStart : undefined}
-                        onMouseMove={lineMode ? handleLineMove : undefined}
-                        onMouseUp={lineMode ? handleLineEnd : undefined}
-                    >
-                        <div style={{ width: svgW, height: svgH, transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`, transformOrigin: 'top left' }}>
-                            {/* グリッド枠線（薄く表示） */}
-                            <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
-                                {Array.from({ length: rows + 1 }, (_, r) => (
-                                    <line key={`h${r}`} x1={0} y1={r * CELL_H + CELL_GAP / 2} x2={svgW} y2={r * CELL_H + CELL_GAP / 2} stroke="#262626" strokeWidth="1" />
-                                ))}
-                                {Array.from({ length: cols + 1 }, (_, c) => (
-                                    <line key={`v${c}`} x1={c * CELL_W + CELL_GAP / 2} y1={0} x2={c * CELL_W + CELL_GAP / 2} y2={svgH} stroke="#262626" strokeWidth="1" />
-                                ))}
-                            </svg>
-                            {/* 手動で描画した線 */}
-                            <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: lineMode ? 'auto' : 'none' }}>
-                                {pedigreeLines.map(l => (
-                                    <polyline
-                                        key={l.id}
-                                        points={linePoints(l)}
-                                        fill="none"
-                                        stroke="#525252"
-                                        strokeWidth="2"
-                                        style={{ pointerEvents: lineMode ? 'stroke' : 'none', cursor: lineMode ? 'pointer' : 'default' }}
-                                        onClick={(e) => { if (lineMode) { e.stopPropagation(); deleteLine(l.id); } }}
-                                    />
-                                ))}
-                                {lineDraft && (
-                                    <polyline
-                                        points={linePoints({ ...lineDraft, bendAfterX: Math.abs(lineDraft.x2 - lineDraft.x1) >= Math.abs(lineDraft.y2 - lineDraft.y1) })}
-                                        fill="none"
-                                        stroke="#38bdf8"
-                                        strokeWidth="2"
-                                        strokeDasharray="4 3"
-                                    />
-                                )}
-                            </svg>
-                            {creatures.filter(c => c.gridPos).map(c => <Card key={c.id} creature={c} />)}
+                    <div className="flex" style={{ height: 500 }}>
+                        {/* 一時置き場：縦1列スクロール、登録順（新しい順） */}
+                        <div
+                            ref={trayRef}
+                            style={{ width: TRAY_W }}
+                            className="shrink-0 overflow-y-auto overflow-x-hidden border border-neutral-800 rounded-l bg-neutral-950/50 p-2 flex flex-col gap-2 items-center"
+                        >
+                            <div className="text-[9px] text-neutral-500 sticky top-0 w-full text-center pb-1">一時置き場（{trayCreatures.length}）</div>
+                            {trayCreatures.map(c => <TrayCard key={c.id} creature={c} />)}
+                            {trayCreatures.length === 0 && (
+                                <div className="text-[9px] text-neutral-600 text-center mt-4">未配置の個体はありません</div>
+                            )}
+                        </div>
+                        {/* 境界線 */}
+                        <div className="w-px bg-neutral-700 shrink-0"></div>
+                        {/* 描画エリア：グリッド構造 */}
+                        <div
+                            className="border border-neutral-800 rounded-r flex-1"
+                            ref={containerRef}
+                            style={{ overflow: 'hidden', touchAction: 'none', position: 'relative' }}
+                            onTouchStart={handleTouchStart}
+                            onTouchMove={handleTouchMove}
+                            onTouchEnd={handleTouchEnd}
+                            onMouseDown={lineMode ? handleLineStart : undefined}
+                            onMouseMove={lineMode ? handleLineMove : undefined}
+                            onMouseUp={lineMode ? handleLineEnd : undefined}
+                        >
+                            <div style={{ width: svgW, height: svgH, transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`, transformOrigin: 'top left' }}>
+                                <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: 'none' }}>
+                                    {Array.from({ length: rows + 1 }, (_, r) => (
+                                        <line key={`h${r}`} x1={0} y1={r * CELL_H + CELL_GAP / 2} x2={svgW} y2={r * CELL_H + CELL_GAP / 2} stroke="#262626" strokeWidth="1" />
+                                    ))}
+                                    {Array.from({ length: cols + 1 }, (_, c) => (
+                                        <line key={`v${c}`} x1={c * CELL_W + CELL_GAP / 2} y1={0} x2={c * CELL_W + CELL_GAP / 2} y2={svgH} stroke="#262626" strokeWidth="1" />
+                                    ))}
+                                </svg>
+                                <svg style={{ position: 'absolute', top: 0, left: 0, width: svgW, height: svgH, pointerEvents: lineMode ? 'auto' : 'none' }}>
+                                    {pedigreeLines.map(l => (
+                                        <polyline
+                                            key={l.id}
+                                            points={linePoints(l)}
+                                            fill="none"
+                                            stroke="#525252"
+                                            strokeWidth="2"
+                                            style={{ pointerEvents: lineMode ? 'stroke' : 'none', cursor: lineMode ? 'pointer' : 'default' }}
+                                            onClick={(e) => { if (lineMode) { e.stopPropagation(); deleteLine(l.id); } }}
+                                        />
+                                    ))}
+                                    {lineDraft && (
+                                        <polyline
+                                            points={linePoints({ ...lineDraft, bendAfterX: Math.abs(lineDraft.x2 - lineDraft.x1) >= Math.abs(lineDraft.y2 - lineDraft.y1) })}
+                                            fill="none"
+                                            stroke="#38bdf8"
+                                            strokeWidth="2"
+                                            strokeDasharray="4 3"
+                                        />
+                                    )}
+                                </svg>
+                                {creatures.filter(c => c.gridPos).map(c => <GridCard key={c.id} creature={c} />)}
+                            </div>
                         </div>
                     </div>
-                    {creatures.some(c => !c.gridPos) && (
-                        <div className="mt-3 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded text-[10px] text-neutral-400">
-                            グリッドに未配置の個体が{creatures.filter(c => !c.gridPos).length}件あります。一覧から個体を確認し、編集モードで配置してください。
-                        </div>
-                    )}
                 </div>
             );
         }
@@ -685,16 +735,8 @@
                 setCreatures(creatures.map(c => c.id === id ? { ...c, saleStatus: statuses[(statuses.indexOf(c.saleStatus) + 1) % 3] } : c));
             };
             const confirmAdd = () => {
-                // グリッド左端（col=0）の空いている行を探す。全て埋まっていれば行を1つ追加してそこに配置する。
-                const occupiedRowsAtCol0 = new Set(
-                    creatures.filter(c => c.gridPos && c.gridPos.col === 0).map(c => c.gridPos.row)
-                );
-                let targetRow = 0;
-                while (occupiedRowsAtCol0.has(targetRow)) targetRow++;
-                if (targetRow >= gridSize.rows) {
-                    setGridSize(prev => ({ ...prev, rows: targetRow + 1 }));
-                }
-                const newCreature = { ...newCreatureData, id: `${Date.now().toString()}_${Math.random().toString(36).slice(2, 8)}`, history: [], gridPos: { row: targetRow, col: 0 } };
+                // 新規登録個体は一時置き場（gridPos未設定）に入る。描画エリアへはユーザーが手動でドラッグして配置する。
+                const newCreature = { ...newCreatureData, id: `${Date.now().toString()}_${Math.random().toString(36).slice(2, 8)}`, history: [] };
                 setCreatures([newCreature, ...creatures]);
                 setShowAddModal(false);
                 setNewCreatureData({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '', femaleParent: '', stage: '幼虫', saleStatus: '使用', sex: 'オス', emergenceSize: '' });
