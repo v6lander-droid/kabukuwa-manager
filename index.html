@@ -637,9 +637,13 @@
                     const allChildren = Array.from(new Map(allChildrenRaw.map(ch => [ch.id, ch])).values());
                     if (!allChildren.length) return;
 
-                    // 自分の唯一の子が、別の親ブロックの個体と婚姻関係にある♀である場合、
+                    // 自分の唯一の子が、別の親ブロックの個体と「1対1の婚姻関係」にある♀である場合、
                     // 通常スライドではなく「配偶者側の親ブロックの右隣」に固定配置する（後続パスで処理）。
                     // これにより、同じ子ペアブロックを参照する2つの祖父母ブロック同士が同じ位置を取り合う衝突を避ける。
+                    // ただし配偶者が複数の妻を持つ（multiブロックの夫である）場合は対象外とする。
+                    // multiブロックでは妻ごとの位置が既に手順4の①〜③で確定しているため、
+                    // 「子(妻)自身の位置」に通常通り揃えれば衝突せず、特別な保護は不要かつ有害（配偶者自身の位置を
+                    // 誤って基準にしてしまうため）。
                     if (allChildren.length === 1 && members.length === 2) {
                         const onlyChild = allChildren[0];
                         const isOnlyChildFemale = isFemale(onlyChild.sex);
@@ -650,14 +654,23 @@
                                 getChildren(other).some(ch => onlyChildChildren.some(c2 => c2.id === ch.id))
                             ) : null;
                             if (childSpouse && isMale(childSpouse.sex)) {
-                                const spouseParentId = idToBlockLeftId[childSpouse.id];
-                                if (spouseParentId != null && !members.some(m => m.id === spouseParentId)) {
-                                    fixedRightOfSpouseBlocks.push({ row, block: b, spouseId: childSpouse.id });
-                                    return; // 通常スライドはスキップ
+                                // 配偶者が複数の妻を持つか（multiの夫かどうか）を確認
+                                const spouseWives = creatures.filter(other =>
+                                    other.id !== childSpouse.id && isFemale(other.sex) &&
+                                    getChildren(other).some(ch => ch.maleParent === childSpouse.name && getMale(ch) && getMale(ch).id === childSpouse.id)
+                                );
+                                const spouseIsMultiHusband = spouseWives.length > 1;
+                                if (!spouseIsMultiHusband) {
+                                    const spouseParentId = idToBlockLeftId[childSpouse.id];
+                                    if (spouseParentId != null && !members.some(m => m.id === spouseParentId)) {
+                                        fixedRightOfSpouseBlocks.push({ row, block: b, spouseId: childSpouse.id });
+                                        return; // 通常スライドはスキップ
+                                    }
                                 }
                             }
                         }
                     }
+
 
                     // 各子について、「子自身の位置」ではなく「子が属するペアブロック全体の左端」を基準値とする。
                     // これにより、子が♀側（ペアの右側）であっても、そのペア全体の左端（通常は♂側）に揃えられる。
