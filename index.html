@@ -194,7 +194,7 @@
 
         // =============================================
 
-        function PedigreeView({ creatures, highlightId, onSelect, onUpdateManualPos }) {
+        function PedigreeView({ creatures, highlightId, onSelect, onUpdateManualPos, onResetAllManualPos }) {
             if (creatures.length === 0) return (
                 <div className="bg-neutral-900 p-8 rounded-lg text-center text-neutral-500 text-sm">個体が登録されていません</div>
             );
@@ -1032,8 +1032,14 @@
                         </button>
                     </div>
                     {editMode && (
-                        <div className="mb-2 px-3 py-2 bg-amber-900/30 border border-amber-700/50 rounded text-[10px] text-amber-300">
-                            カードをドラッグして自由に位置を移動できます（カード1枚分の単位でスナップします）。移動した個体には黄色い枠が付きます。
+                        <div className="mb-2 px-3 py-2 bg-amber-900/30 border border-amber-700/50 rounded text-[10px] text-amber-300 flex items-center justify-between gap-2">
+                            <span>カードをドラッグして自由に位置を移動できます（カード1枚分の単位でスナップします）。移動した個体には黄色い枠が付きます。</span>
+                            <button
+                                onClick={() => { if (confirm('手動で移動した全てのカード位置をリセットし、自動配置に戻します。よろしいですか？')) onResetAllManualPos(); }}
+                                className="shrink-0 px-2 py-1 bg-neutral-800 hover:bg-neutral-700 rounded text-[10px] text-white border border-neutral-700"
+                            >
+                                位置リセット
+                            </button>
                         </div>
                     )}
                     <div className="flex items-center justify-between gap-2 mb-2">
@@ -1613,7 +1619,7 @@
                             </div>
                         </>
                     ) : activeTab === '血統図' ? (
-                        <PedigreeView creatures={creatures} highlightId={highlightId} onSelect={setSelectedCreature} onUpdateManualPos={(id, pos) => setCreatures(prev => prev.map(c => c.id === id ? { ...c, manualPos: pos } : c))} />
+                        <PedigreeView creatures={creatures} highlightId={highlightId} onSelect={setSelectedCreature} onUpdateManualPos={(id, pos) => setCreatures(prev => prev.map(c => c.id === id ? { ...c, manualPos: pos } : c))} onResetAllManualPos={() => setCreatures(prev => prev.map(c => c.manualPos ? { ...c, manualPos: undefined } : c))} />
                     ) : (
                         <div className="bg-neutral-900 p-6 rounded-lg space-y-6 text-white text-sm">
                             <h3 className="font-bold text-emerald-400 text-lg border-b border-neutral-700 pb-2">交配シミュレーション</h3>
