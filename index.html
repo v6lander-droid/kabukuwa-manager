@@ -428,7 +428,12 @@
                     setInsertTargetIndex(null);
                     return;
                 }
+                // 確認ダイアログ表示前にinsertModeを解除し、window.addEventListenerで貼っている
+                // touchmove/touchend/mousemove/mouseupのグローバルリスナーを即座に外す。
+                // これを残したままだと、ダイアログのOKボタンへの最初のタップがこの古いリスナーと
+                // 競合し、1回目の操作が反映されない（2回目でようやく反応する）原因になる。
                 setPendingInsert({ type: insertMode, index: insertTargetIndex });
+                setInsertMode(null);
             };
             useEffect(() => {
                 if (!insertMode) return;
