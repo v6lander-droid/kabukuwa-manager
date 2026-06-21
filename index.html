@@ -194,7 +194,68 @@
 
         // =============================================
 
-        // ---- 日付入力コンポーネント（不明対応）----
+        // ---- 年/月/日いずれか1列分のスクロールピッカー ----
+        // 中央（選択位置）に来た項目が選択値になる。スクロールスナップで止まった位置を検出する。
+        function ScrollPickerColumn({ items, value, onChange, formatLabel }) {
+            const containerRef = useRef(null);
+            const ITEM_H = 40;
+            const isProgrammaticScroll = useRef(false);
+
+            useEffect(() => {
+                if (!containerRef.current) return;
+                const idx = items.indexOf(value);
+                if (idx < 0) return;
+                isProgrammaticScroll.current = true;
+                containerRef.current.scrollTop = idx * ITEM_H;
+                const t = setTimeout(() => { isProgrammaticScroll.current = false; }, 50);
+                return () => clearTimeout(t);
+                // eslint-disable-next-line
+            }, []);
+
+            const handleScrollEnd = () => {
+                if (!containerRef.current || isProgrammaticScroll.current) return;
+                const idx = Math.round(containerRef.current.scrollTop / ITEM_H);
+                const clamped = Math.max(0, Math.min(items.length - 1, idx));
+                if (items[clamped] !== value) onChange(items[clamped]);
+                // スナップ位置を正確に合わせる
+                containerRef.current.scrollTop = clamped * ITEM_H;
+            };
+
+            const scrollTimer = useRef(null);
+            const handleScroll = () => {
+                if (isProgrammaticScroll.current) return;
+                if (scrollTimer.current) clearTimeout(scrollTimer.current);
+                scrollTimer.current = setTimeout(handleScrollEnd, 120);
+            };
+
+            return (
+                <div className="relative" style={{ height: ITEM_H * 3, width: '100%' }}>
+                    {/* 中央の選択位置を示す帯 */}
+                    <div className="absolute left-0 right-0 pointer-events-none border-y border-neutral-600 bg-neutral-700/30" style={{ top: ITEM_H, height: ITEM_H }}></div>
+                    <div
+                        ref={containerRef}
+                        onScroll={handleScroll}
+                        className="overflow-y-auto h-full"
+                        style={{ scrollSnapType: 'y mandatory', WebkitOverflowScrolling: 'touch' }}
+                    >
+                        {/* 上下に1項目分ずつ余白（パディング）を入れて、最初/最後の項目も中央に来られるようにする */}
+                        <div style={{ height: ITEM_H }}></div>
+                        {items.map(item => (
+                            <div
+                                key={item}
+                                className={`flex items-center justify-center text-sm select-none ${item === value ? 'text-white font-bold' : 'text-neutral-500'}`}
+                                style={{ height: ITEM_H, scrollSnapAlign: 'center' }}
+                            >
+                                {formatLabel ? formatLabel(item) : item}
+                            </div>
+                        ))}
+                        <div style={{ height: ITEM_H }}></div>
+                    </div>
+                </div>
+            );
+        }
+
+        // ---- 日付入力コンポーネント（不明対応、年/月/日スクロールピッカー方式）----
         // value: 'YYYY-MM-DD'形式の日付文字列、または不明を表す'-'
         // onChange(value): 値が変わった時に呼ばれる
         function DateInput({ value, onChange, className }) {
@@ -203,15 +264,48 @@
             // isUnknownには含めない（含めると、不明チェックを外しても入力欄がdisabledのままになるバグになる）。
             const isUnknown = value === '-';
             const today = new Date().toISOString().slice(0, 10);
+            const [showPicker, setShowPicker] = useState(false);
+            const [draftDate, setDraftDate] = useState(null); // { y, m, d } ピッカー内で編集中の一時値
+
+            const parseYMD = (v) => {
+                const base = (v && v !== '-') ? v : today;
+                const [y, m, d] = base.split('-').map(Number);
+                return { y, m, d };
+            };
+
+            const openPicker = () => {
+                setDraftDate(parseYMD(value));
+                setShowPicker(true);
+            };
+
+            const daysInMonth = (y, m) => new Date(y, m, 0).getDate();
+
+            const confirmPicker = () => {
+                if (!draftDate) return;
+                const maxDay = daysInMonth(draftDate.y, draftDate.m);
+                const d = Math.min(draftDate.d, maxDay);
+                const pad = (n) => String(n).padStart(2, '0');
+                onChange(`${draftDate.y}-${pad(draftDate.m)}-${pad(d)}`);
+                setShowPicker(false);
+            };
+
+            const thisYear = new Date().getFullYear();
+            const years = Array.from({ length: 41 }, (_, i) => thisYear - 30 + i); // 過去30年〜未来10年
+            const months = Array.from({ length: 12 }, (_, i) => i + 1);
+            const days = draftDate ? Array.from({ length: daysInMonth(draftDate.y, draftDate.m) }, (_, i) => i + 1) : [];
+
+            const displayLabel = isUnknown ? '不明' : (value ? value : '日付を選択');
+
             return (
                 <div className="flex items-center gap-2">
-                    <input
-                        type="date"
-                        className={className}
-                        value={isUnknown ? '' : (value || '')}
+                    <button
+                        type="button"
+                        onClick={openPicker}
                         disabled={isUnknown}
-                        onChange={e => onChange(e.target.value || '-')}
-                    />
+                        className={`${className} text-left disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                        {displayLabel}
+                    </button>
                     <label className="flex items-center gap-1 text-[10px] text-neutral-400 whitespace-nowrap shrink-0">
                         <input
                             type="checkbox"
@@ -220,6 +314,32 @@
                         />
                         不明
                     </label>
+
+                    {showPicker && draftDate && (
+                        <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-[3000]" onClick={() => setShowPicker(false)}>
+                            <div className="bg-neutral-900 border border-neutral-700 rounded-t-xl sm:rounded-xl w-full sm:max-w-xs p-4" onClick={e => e.stopPropagation()}>
+                                <div className="text-sm font-bold text-white mb-3 text-center">日付を選択</div>
+                                <div className="flex gap-2">
+                                    <div className="flex-[1.3]">
+                                        <div className="text-[9px] text-neutral-500 text-center mb-1">年</div>
+                                        <ScrollPickerColumn items={years} value={draftDate.y} onChange={y => setDraftDate(prev => ({ ...prev, y }))} formatLabel={y => `${y}年`} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="text-[9px] text-neutral-500 text-center mb-1">月</div>
+                                        <ScrollPickerColumn items={months} value={draftDate.m} onChange={m => setDraftDate(prev => ({ ...prev, m }))} formatLabel={m => `${m}月`} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="text-[9px] text-neutral-500 text-center mb-1">日</div>
+                                        <ScrollPickerColumn items={days} value={Math.min(draftDate.d, days.length)} onChange={d => setDraftDate(prev => ({ ...prev, d }))} formatLabel={d => `${d}日`} />
+                                    </div>
+                                </div>
+                                <div className="flex gap-2 mt-4">
+                                    <button onClick={() => setShowPicker(false)} className="flex-1 bg-neutral-700 hover:bg-neutral-600 py-2 rounded text-xs text-white font-bold">キャンセル</button>
+                                    <button onClick={confirmPicker} className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-2 rounded text-xs text-white font-bold">決定</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         }
