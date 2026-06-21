@@ -2047,11 +2047,63 @@
                     return { ...rest, data: sortedElapsed.map(e => map[e] ?? null) };
                 });
 
+                // 「孵化」「羽化」の縦基準線をグラフ上に描画するためのカスタムプラグイン。
+                // 孵化は常に経過0日（横軸の原点）。羽化はメイン個体の羽化日が分かれば、
+                // 孵化日からの経過日数を計算し、横軸の目盛り範囲内で最も近い位置に線を引く。
+                // 比較表示している他の個体の羽化タイミングはここでは表示しない（メイン個体のみ）。
+                const mainOrigin = parseDateSafe(mainCreature.hatchDate) ||
+                    (mainCreature.history.filter(h => parseDateSafe(h.date)).length > 0
+                        ? mainCreature.history.filter(h => parseDateSafe(h.date)).map(h => parseDateSafe(h.date)).sort((a, b) => a - b)[0]
+                        : null);
+                const mainEmergence = parseDateSafe(mainCreature.emergenceDate);
+                const markers = [];
+                if (mainOrigin && sortedElapsed.length > 0) {
+                    markers.push({ label: '孵化', elapsed: 0, color: '#34d399' });
+                    if (mainEmergence) {
+                        const emergenceElapsed = dayDiff(mainOrigin, mainEmergence);
+                        markers.push({ label: '羽化', elapsed: emergenceElapsed, color: '#f472b6' });
+                    }
+                }
+                const milestonePlugin = {
+                    id: 'milestoneLines',
+                    afterDraw: (chart) => {
+                        if (markers.length === 0) return;
+                        const { ctx, chartArea, scales } = chart;
+                        const xScale = scales.x;
+                        markers.forEach(m => {
+                            // sortedElapsedの中で、目的の経過日数に最も近い目盛り位置（カテゴリ軸のインデックス）を探す
+                            let closestIdx = 0, closestDiff = Infinity;
+                            sortedElapsed.forEach((e, idx) => {
+                                const diff = Math.abs(e - m.elapsed);
+                                if (diff < closestDiff) { closestDiff = diff; closestIdx = idx; }
+                            });
+                            const x = xScale.getPixelForValue(closestIdx);
+                            if (x < chartArea.left || x > chartArea.right) return;
+                            ctx.save();
+                            ctx.beginPath();
+                            ctx.setLineDash([4, 3]);
+                            ctx.strokeStyle = m.color;
+                            ctx.lineWidth = 1.5;
+                            ctx.moveTo(x, chartArea.top);
+                            ctx.lineTo(x, chartArea.bottom);
+                            ctx.stroke();
+                            ctx.setLineDash([]);
+                            ctx.fillStyle = m.color;
+                            ctx.font = 'bold 10px sans-serif';
+                            ctx.textAlign = 'center';
+                            ctx.fillText(m.label, x, chartArea.top - 4);
+                            ctx.restore();
+                        });
+                    }
+                };
+
                 chartInstance.current = new Chart(chartRef.current, {
                     type: 'line',
                     data: { labels: sortedElapsed.map(e => `${e}日`), datasets: mappedDatasets },
+                    plugins: [milestonePlugin],
                     options: {
                         responsive: true, maintainAspectRatio: false, spanGaps: true,
+                        layout: { padding: { top: 16 } },
                         plugins: {
                             legend: { display: true, labels: { color: '#d4d4d4', font: { size: 10 }, boxWidth: 12, padding: 8 } },
                             tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y ?? '-'}g` } }
