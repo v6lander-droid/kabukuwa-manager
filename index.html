@@ -1855,7 +1855,7 @@
                             )}
                             <div className="overflow-x-auto bg-neutral-900 rounded-lg shadow-xl">
                                 <table className="w-full text-sm border-collapse whitespace-nowrap">
-                                    <thead className="bg-neutral-800 sticky" style={{ top: stickyHeaderHeight, zIndex: 25 }}>
+                                    <thead className="bg-neutral-800">
                                         <tr>
                                             {tableHeaders.map((h, i) => (
                                                 <th key={h.k} className={`p-3 cursor-pointer hover:bg-neutral-700 select-none ${h.k === 'name' ? 'sticky-col-1' : ''}`} onClick={() => setSort({key:h.k, direction: sort.key===h.k && sort.direction==='asc'?'desc':'asc'})}>
