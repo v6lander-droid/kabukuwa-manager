@@ -2098,6 +2098,13 @@
             const [showRecordModal, setShowRecordModal] = useState(null);
             const [photoCropSrc, setPhotoCropSrc] = useState(null); // 個体写真用：トリミング待ちの選択直後画像
 
+            // 一覧画面でスクロールした位置のまま詳細画面に遷移すると、詳細画面も同じスクロール位置
+            // （画面の途中・下の方）で表示されてしまうため、詳細画面が開いたら必ず先頭に戻す。
+            useEffect(() => {
+                window.scrollTo(0, 0);
+                // eslint-disable-next-line
+            }, []);
+
             // 詳細表示・編集のフィールド定義（羽化サイズ追加）
             const fields = [
                 {key:'name', label:'個体名'}, {key:'sex', label:'性別'}, {key:'alias', label:'名称'},
