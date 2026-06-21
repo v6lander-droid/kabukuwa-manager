@@ -198,13 +198,17 @@
         // value: 'YYYY-MM-DD'形式の日付文字列、または不明を表す'-'
         // onChange(value): 値が変わった時に呼ばれる
         function DateInput({ value, onChange, className }) {
-            const isUnknown = value === '-' || !value;
+            // isUnknownは「不明（'-'）」の場合のみtrueにする。
+            // 空文字列('')は「まだ日付が選択されていないが不明ではない（=入力可能な状態）」を表すため、
+            // isUnknownには含めない（含めると、不明チェックを外しても入力欄がdisabledのままになるバグになる）。
+            const isUnknown = value === '-';
+            const today = new Date().toISOString().slice(0, 10);
             return (
                 <div className="flex items-center gap-2">
                     <input
                         type="date"
                         className={className}
-                        value={isUnknown ? '' : value}
+                        value={isUnknown ? '' : (value || '')}
                         disabled={isUnknown}
                         onChange={e => onChange(e.target.value || '-')}
                     />
@@ -212,7 +216,7 @@
                         <input
                             type="checkbox"
                             checked={isUnknown}
-                            onChange={e => onChange(e.target.checked ? '-' : '')}
+                            onChange={e => onChange(e.target.checked ? '-' : today)}
                         />
                         不明
                     </label>
