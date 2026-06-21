@@ -2130,9 +2130,18 @@
             const saveEdit = () => { setForm(editForm); onUpdate(editForm); setShowEditModal(false); };
 
             const saveRecord = (record) => {
+                // 入力欄は数値のみを受け付けるため、保存時に単位（g・℃）を自動付与する。
+                // 既に単位が含まれている場合（過去データの編集等）は二重に付与しない。
+                const withUnit = (val, unit) => {
+                    if (val == null || val === '') return '';
+                    const str = String(val);
+                    return str.endsWith(unit) ? str : `${str}${unit}`;
+                };
+                const sizeWithUnit = withUnit(record.size, 'g');
+                const tempWithUnit = withUnit(record.temp, '℃');
                 let h = [...form.history];
-                if (record.index !== null) h[record.index] = {item:record.item, size:record.size, temp:record.temp, date:record.date};
-                else h.push({item:record.item, size:record.size, temp:record.temp, date:record.date || new Date().toISOString().split('T')[0]});
+                if (record.index !== null) h[record.index] = {item:record.item, size:sizeWithUnit, temp:tempWithUnit, date:record.date};
+                else h.push({item:record.item, size:sizeWithUnit, temp:tempWithUnit, date:record.date || new Date().toISOString().split('T')[0]});
                 const updated = {...form, history: h, stage: record.item};
                 setForm(updated);
                 onUpdate(updated);
@@ -2294,7 +2303,7 @@
                             <div className="overflow-hidden rounded border border-neutral-800">
                                 <table className="w-full text-[10px]">
                                     <thead className="bg-neutral-800">
-                                        <tr className="text-white text-left">
+                                        <tr className="text-white text-center">
                                             <th className="p-2">日付</th>
                                             <th className="p-2">ステージ</th>
                                             <th className="p-2">体重</th>
@@ -2304,13 +2313,13 @@
                                     </thead>
                                     <tbody>
                                         {form.history.map((h,i) => (
-                                            <tr key={i} className="border-b border-neutral-800 hover:bg-neutral-800/50 transition-colors">
+                                            <tr key={i} className="border-b border-neutral-800 hover:bg-neutral-800/50 transition-colors text-center">
                                                 <td className="p-2">{h.date}</td>
                                                 <td className="p-2">{h.item}</td>
                                                 <td className="p-2">{h.size}</td>
                                                 <td className="p-2">{h.temp}</td>
                                                 <td className="p-2">
-                                                    <div className="flex gap-1">
+                                                    <div className="flex gap-1 justify-center">
                                                         <button onClick={() => setShowRecordModal({item:h.item, size:h.size, temp:h.temp, date:h.date, index:i})} className="bg-emerald-600 text-white px-2 py-0.5 rounded text-[10px] font-bold">訂正</button>
                                                         <button onClick={() => deleteRecord(i)} className="bg-red-700 text-white px-2 py-0.5 rounded text-[10px] font-bold">削除</button>
                                                     </div>
@@ -2377,9 +2386,13 @@
                                     </div>
                                     <input className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" placeholder="ステージ" value={showRecordModal.item} onChange={e=>setShowRecordModal({...showRecordModal, item:e.target.value})} />
                                     <div className="flex items-center gap-1">
-                                        <input className="flex-1 bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" placeholder="体重（例: 15g）" value={showRecordModal.size} onChange={e=>setShowRecordModal({...showRecordModal, size:e.target.value})} />
+                                        <input type="number" step="0.1" inputMode="decimal" className="flex-1 bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" placeholder="体重（数値のみ）" value={showRecordModal.size != null ? String(showRecordModal.size).replace(/[^0-9.\-]/g, '') : ''} onChange={e=>setShowRecordModal({...showRecordModal, size:e.target.value})} />
+                                        <span className="text-xs text-neutral-400 shrink-0">g</span>
                                     </div>
-                                    <input className="w-full bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" placeholder="温度（例: 23℃）" value={showRecordModal.temp} onChange={e=>setShowRecordModal({...showRecordModal, temp:e.target.value})} />
+                                    <div className="flex items-center gap-1">
+                                        <input type="number" step="0.1" inputMode="decimal" className="flex-1 bg-neutral-800 p-2 rounded text-white text-sm border border-neutral-700" placeholder="温度（数値のみ）" value={showRecordModal.temp != null ? String(showRecordModal.temp).replace(/[^0-9.\-]/g, '') : ''} onChange={e=>setShowRecordModal({...showRecordModal, temp:e.target.value})} />
+                                        <span className="text-xs text-neutral-400 shrink-0">℃</span>
+                                    </div>
                                 </div>
                                 <div className="flex gap-2">
                                     <button onClick={() => setShowRecordModal(null)} className="w-full bg-neutral-700 py-2 rounded font-bold text-white text-sm">キャンセル</button>
