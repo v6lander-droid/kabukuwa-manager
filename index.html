@@ -1790,8 +1790,8 @@
                                     <input type="text" placeholder="個体名で検索..." value={filters.name} onChange={e => setFilters({...filters, name: e.target.value})} className="w-full bg-neutral-700 text-white text-xs rounded px-2 py-1.5 border border-neutral-600 focus:outline-none focus:border-emerald-500" />
                                     <div className="grid grid-cols-2 gap-2">
                                         {[
-                                            { key: 'sex', label: '性別', options: ['オス', 'メス'] },
-                                            { key: 'saleStatus', label: '計画', options: ['使用', '予備', '不要'] },
+                                            { key: 'sex', label: '性別', options: [...new Set(creatures.map(c => c.sex).filter(Boolean))] },
+                                            { key: 'saleStatus', label: '計画', options: [...new Set(creatures.map(c => c.saleStatus).filter(Boolean))] },
                                             { key: 'stage', label: 'ステージ', options: [...new Set(creatures.map(c => c.stage).filter(Boolean))] },
                                             { key: 'alias', label: '名称', options: [...new Set(creatures.map(c => c.alias).filter(Boolean))] },
                                             { key: 'generation', label: '累代', options: [...new Set(creatures.map(c => c.generation).filter(Boolean))].sort() },
