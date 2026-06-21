@@ -498,7 +498,11 @@
             };
 
             // ---- 線編集モード：タップで選択、選択中の線のみ端点ドラッグで長さ変更・中間部ドラッグで移動可能 ----
-            const LINE_GRAB_THRESHOLD = 14; // 端点・線分とみなす許容距離（グリッド座標系のpx）
+            // 端点・線分とみなす許容距離。画面上での見た目のタップしやすさが一定になるよう、
+            // グリッド座標系の値を表示倍率(scale)で割って、ズームアウト時も指で掴みやすくする。
+            // また、全体移動より端点優先で確実に判定できるよう、従来より広めの値にする。
+            const LINE_GRAB_BASE_PX = 28; // 画面上での見た目の許容半径（px）
+            const LINE_GRAB_THRESHOLD = LINE_GRAB_BASE_PX / scale;
             const distToSegment = (px, py, x1, y1, x2, y2) => {
                 const dx = x2 - x1, dy = y2 - y1;
                 if (dx === 0 && dy === 0) return Math.hypot(px - x1, py - y1);
@@ -507,7 +511,8 @@
                 return Math.hypot(px - projX, py - projY);
             };
             const findNearestLineHit = (pt) => {
-                // タップ位置に最も近い線・部位を探す（端点優先、なければ線分上の近さで判定）
+                // タップ位置に最も近い線・部位を探す（端点優先、なければ線分上の近さで判定）。
+                // 端点同士が近い場合は、最も近い端点を優先的に選ぶ。
                 let best = null;
                 pedigreeLines.forEach(l => {
                     const distStart = Math.hypot(pt.x - l.x1, pt.y - l.y1);
@@ -884,6 +889,12 @@
                                             stroke={lineMode === 'edit' && selectedLineId === l.id ? '#a78bfa' : '#525252'}
                                             strokeWidth={lineMode === 'edit' && selectedLineId === l.id ? '3' : '2'}
                                         />
+                                    ))}
+                                    {lineMode === 'edit' && selectedLineId && pedigreeLines.filter(l => l.id === selectedLineId).map(l => (
+                                        <React.Fragment key={`handles-${l.id}`}>
+                                            <circle cx={l.x1} cy={l.y1} r={10} fill="#a78bfa" fillOpacity="0.35" stroke="#a78bfa" strokeWidth="2" />
+                                            <circle cx={l.x2} cy={l.y2} r={10} fill="#a78bfa" fillOpacity="0.35" stroke="#a78bfa" strokeWidth="2" />
+                                        </React.Fragment>
                                     ))}
                                     {lineDraft && (
                                         <polyline
