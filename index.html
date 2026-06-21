@@ -2000,19 +2000,22 @@
                     const color = COMPARE_COLORS[idx + 1];
                     datasets.push({
                         label: c.name, data: [], _history: c.history, _hatchDate: c.hatchDate,
+                        _maleParent: c.maleParent, _femaleParent: c.femaleParent,
                         borderColor: color.border, backgroundColor: color.bg, tension: 0.3, fill: false,
                         pointBackgroundColor: color.border, pointRadius: 4, borderDash: [4, 3], borderWidth: 1.5, _isCompare: true,
                     });
                 });
                 datasets.push({
                     label: mainCreature.name, data: [], _history: mainCreature.history, _hatchDate: mainCreature.hatchDate,
+                    _maleParent: mainCreature.maleParent, _femaleParent: mainCreature.femaleParent,
                     borderColor: COMPARE_COLORS[0].border, backgroundColor: COMPARE_COLORS[0].bg, tension: 0.3, fill: true,
                     pointBackgroundColor: '#fff', pointRadius: 5, borderWidth: 2.5, _isCompare: false,
                 });
 
                 // 横軸を「孵化日からの経過日数」に変換する。
-                // 孵化日が未設定（'-'等、有効な日付でない）の個体は、その個体自身の測定履歴の中で
-                // 最も古い日付を代わりの起点（経過0日）として扱う。
+                // 孵化日が未設定（'-'等、有効な日付でない）の個体は、まずオス親・メス親が両方一致する
+                // 兄弟個体（同腹）の孵化日の平均を代わりに使う。兄弟にも孵化日設定者がいない場合は、
+                // その個体自身の測定履歴の中で最も古い日付を起点（ただし0g点は追加しない）とする。
                 const parseDateSafe = (s) => {
                     if (!s || s === '-') return null;
                     const d = new Date(s);
@@ -2020,11 +2023,28 @@
                 };
                 const dayDiff = (from, to) => Math.round((to.getTime() - from.getTime()) / 86400000);
 
+                const getSiblingAvgHatchDate = (ds) => {
+                    if (!ds._maleParent || ds._maleParent === '-' || !ds._femaleParent || ds._femaleParent === '-') return null;
+                    const siblingDates = allCreatures
+                        .filter(c => c.maleParent === ds._maleParent && c.femaleParent === ds._femaleParent)
+                        .map(c => parseDateSafe(c.hatchDate))
+                        .filter(Boolean);
+                    if (siblingDates.length === 0) return null;
+                    const avgMs = siblingDates.reduce((sum, d) => sum + d.getTime(), 0) / siblingDates.length;
+                    return new Date(avgMs);
+                };
+
                 const elapsedDatasets = datasets.map(ds => {
                     const validHistory = ds._history.filter(h => parseDateSafe(h.date));
                     let origin = parseDateSafe(ds._hatchDate);
+                    let hasReliableOrigin = !!origin; // 孵化日（本人または兄弟平均）が分かっているかどうか
+                    if (!origin) {
+                        origin = getSiblingAvgHatchDate(ds);
+                        if (origin) hasReliableOrigin = true;
+                    }
                     if (!origin && validHistory.length > 0) {
-                        // 孵化日が未設定の場合、測定履歴の中で最も古い日付を起点にする
+                        // 孵化日が（本人にも兄弟にも）まったく分からない場合のみ、測定履歴の最古日をフォールバック起点にする。
+                        // この場合は孵化日自体が不明なので、0g点は追加しない。
                         origin = validHistory.map(h => parseDateSafe(h.date)).sort((a, b) => a - b)[0];
                     }
                     const points = validHistory.map(h => {
@@ -2032,6 +2052,10 @@
                         const elapsed = origin ? dayDiff(origin, parseDateSafe(h.date)) : null;
                         return { elapsed, value: isNaN(val) ? null : val };
                     }).filter(p => p.elapsed != null);
+                    // 孵化日（本人または兄弟平均）が分かっている場合、経過0日・体重0gの点をグラフの起点として追加する。
+                    if (hasReliableOrigin && !points.some(p => p.elapsed === 0)) {
+                        points.unshift({ elapsed: 0, value: 0 });
+                    }
                     return { ds, points };
                 });
 
@@ -2052,6 +2076,7 @@
                 // 孵化日からの経過日数を計算し、横軸の目盛り範囲内で最も近い位置に線を引く。
                 // 比較表示している他の個体の羽化タイミングはここでは表示しない（メイン個体のみ）。
                 const mainOrigin = parseDateSafe(mainCreature.hatchDate) ||
+                    getSiblingAvgHatchDate({ _maleParent: mainCreature.maleParent, _femaleParent: mainCreature.femaleParent }) ||
                     (mainCreature.history.filter(h => parseDateSafe(h.date)).length > 0
                         ? mainCreature.history.filter(h => parseDateSafe(h.date)).map(h => parseDateSafe(h.date)).sort((a, b) => a - b)[0]
                         : null);
