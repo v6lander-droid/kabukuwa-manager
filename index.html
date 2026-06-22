@@ -2059,9 +2059,24 @@
                     return { ds, points };
                 });
 
+                // マーカー用：メイン個体の孵化日・羽化日の経過日数を計算
+                const mainOrigin = parseDateSafe(mainCreature.hatchDate) ||
+                    getSiblingAvgHatchDate({ _maleParent: mainCreature.maleParent, _femaleParent: mainCreature.femaleParent }) ||
+                    (mainCreature.history.filter(h => parseDateSafe(h.date)).length > 0
+                        ? mainCreature.history.filter(h => parseDateSafe(h.date)).map(h => parseDateSafe(h.date)).sort((a, b) => a - b)[0]
+                        : null);
+                const mainEmergence = parseDateSafe(mainCreature.emergenceDate);
+
                 // 全データセットに登場する経過日数の和集合を横軸ラベルとする
                 const allElapsedSet = new Set();
                 elapsedDatasets.forEach(({ points }) => points.forEach(p => allElapsedSet.add(p.elapsed)));
+                // 孵化日・羽化日のマーカー経過日数も軸に強制追加（飼育記録がなくても正しい位置に線を引くため）
+                if (mainOrigin) {
+                    allElapsedSet.add(0);
+                    if (mainEmergence) {
+                        allElapsedSet.add(dayDiff(mainOrigin, mainEmergence));
+                    }
+                }
                 const sortedElapsed = Array.from(allElapsedSet).sort((a, b) => a - b);
 
                 const mappedDatasets = elapsedDatasets.map(({ ds, points }) => {
@@ -2072,15 +2087,6 @@
                 });
 
                 // 「孵化」「羽化」の縦基準線をグラフ上に描画するためのカスタムプラグイン。
-                // 孵化は常に経過0日（横軸の原点）。羽化はメイン個体の羽化日が分かれば、
-                // 孵化日からの経過日数を計算し、横軸の目盛り範囲内で最も近い位置に線を引く。
-                // 比較表示している他の個体の羽化タイミングはここでは表示しない（メイン個体のみ）。
-                const mainOrigin = parseDateSafe(mainCreature.hatchDate) ||
-                    getSiblingAvgHatchDate({ _maleParent: mainCreature.maleParent, _femaleParent: mainCreature.femaleParent }) ||
-                    (mainCreature.history.filter(h => parseDateSafe(h.date)).length > 0
-                        ? mainCreature.history.filter(h => parseDateSafe(h.date)).map(h => parseDateSafe(h.date)).sort((a, b) => a - b)[0]
-                        : null);
-                const mainEmergence = parseDateSafe(mainCreature.emergenceDate);
                 const markers = [];
                 if (mainOrigin && sortedElapsed.length > 0) {
                     markers.push({ label: '孵化', elapsed: 0, color: '#34d399' });
