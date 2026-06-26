@@ -1261,6 +1261,7 @@
             const [maleSelection, setMaleSelection] = useState('');
             const [femaleSelection, setFemaleSelection] = useState('');
             const [saveError, setSaveError] = useState(false);
+            const [autoSaveFailed, setAutoSaveFailed] = useState(false);
             const [loadFailed, setLoadFailed] = useState(false);
             const [pedigreeLines, setPedigreeLines] = useState(() => {
                 try {
@@ -1505,7 +1506,8 @@
                 }
             }, [creatures, loadFailed]);
 
-            // アプリがバックグラウンドに切り替わった瞬間（Safari終了・ホーム画面移動時）に自動でJSONバックアップを保存する
+            // バックグラウンド移行時：①JSONダウンロード ②localStorageへ緊急バックアップ の両方を試みる
+            // 復帰時にいずれも失敗していた場合はポップアップで手動保存を促す
             const creaturesRef = React.useRef(creatures);
             const pedigreeLinesRef = React.useRef(pedigreeLines);
             const gridSizeRef = React.useRef(gridSize);
@@ -1513,11 +1515,15 @@
             useEffect(() => { pedigreeLinesRef.current = pedigreeLines; }, [pedigreeLines]);
             useEffect(() => { gridSizeRef.current = gridSize; }, [gridSize]);
             useEffect(() => {
+                const AUTO_SAVE_KEY = 'beetle_auto_backup';
+                const AUTO_SAVE_STATUS_KEY = 'beetle_auto_backup_status';
                 const handleVisibilityChange = () => {
                     if (document.visibilityState === 'hidden') {
+                        const backupData = { creatures: creaturesRef.current, pedigreeLines: pedigreeLinesRef.current, gridSize: gridSizeRef.current };
+                        const json = JSON.stringify(backupData, null, 2);
+                        let anySucceeded = false;
+                        // ① JSONダウンロード
                         try {
-                            const backupData = { creatures: creaturesRef.current, pedigreeLines: pedigreeLinesRef.current, gridSize: gridSizeRef.current };
-                            const json = JSON.stringify(backupData, null, 2);
                             const blob = new Blob([json], { type: 'application/json' });
                             const url = URL.createObjectURL(blob);
                             const a = document.createElement('a');
@@ -1525,7 +1531,21 @@
                             a.download = `beetle_backup_${new Date().toISOString().slice(0,10)}.json`;
                             a.click();
                             URL.revokeObjectURL(url);
-                        } catch(e) { console.error('自動保存に失敗しました。', e); }
+                            anySucceeded = true;
+                        } catch(e) { console.error('JSONダウンロード失敗:', e); }
+                        // ② localStorageへ緊急バックアップ
+                        try {
+                            localStorage.setItem(AUTO_SAVE_KEY, json);
+                            anySucceeded = true;
+                        } catch(e) { console.error('緊急バックアップ失敗:', e); }
+                        // 結果をlocalStorageに記録（復帰時に参照する）
+                        try { localStorage.setItem(AUTO_SAVE_STATUS_KEY, anySucceeded ? 'ok' : 'fail'); } catch(e) {}
+                    } else if (document.visibilityState === 'visible') {
+                        try {
+                            const status = localStorage.getItem(AUTO_SAVE_STATUS_KEY);
+                            if (status === 'fail') setAutoSaveFailed(true);
+                            localStorage.removeItem(AUTO_SAVE_STATUS_KEY);
+                        } catch(e) {}
                     }
                 };
                 document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -1796,6 +1816,29 @@
                     {saveError && (
                         <div className="mb-3 p-3 bg-red-900/60 border border-red-500 rounded text-red-300 text-xs">
                             ⚠ データの保存に失敗しました。ストレージの空き容量を確認してください。
+                        </div>
+                    )}
+                    {autoSaveFailed && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-6">
+                            <div className="bg-neutral-900 border border-amber-500 rounded-xl p-5 w-full max-w-sm shadow-xl">
+                                <p className="text-amber-300 font-bold text-sm mb-1">⚠ 自動保存ができませんでした</p>
+                                <p className="text-neutral-300 text-xs mb-4">「保存」ボタンからJSONファイルをバックアップしてください。</p>
+                                <div className="flex gap-3">
+                                    <button onClick={() => {
+                                        const backupData = { creatures, pedigreeLines, gridSize };
+                                        const json = JSON.stringify(backupData, null, 2);
+                                        const blob = new Blob([json], { type: 'application/json' });
+                                        const url = URL.createObjectURL(blob);
+                                        const a = document.createElement('a');
+                                        a.href = url;
+                                        a.download = `beetle_backup_${new Date().toISOString().slice(0,10)}.json`;
+                                        a.click();
+                                        URL.revokeObjectURL(url);
+                                        setAutoSaveFailed(false);
+                                    }} className="flex-1 bg-emerald-600 py-2 rounded text-white text-sm font-bold">保存する</button>
+                                    <button onClick={() => setAutoSaveFailed(false)} className="flex-1 bg-neutral-700 py-2 rounded text-neutral-300 text-sm font-bold">閉じる</button>
+                                </div>
+                            </div>
                         </div>
                     )}
 
