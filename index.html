@@ -1505,6 +1505,33 @@
                 }
             }, [creatures, loadFailed]);
 
+            // アプリがバックグラウンドに切り替わった瞬間（Safari終了・ホーム画面移動時）に自動でJSONバックアップを保存する
+            const creaturesRef = React.useRef(creatures);
+            const pedigreeLinesRef = React.useRef(pedigreeLines);
+            const gridSizeRef = React.useRef(gridSize);
+            useEffect(() => { creaturesRef.current = creatures; }, [creatures]);
+            useEffect(() => { pedigreeLinesRef.current = pedigreeLines; }, [pedigreeLines]);
+            useEffect(() => { gridSizeRef.current = gridSize; }, [gridSize]);
+            useEffect(() => {
+                const handleVisibilityChange = () => {
+                    if (document.visibilityState === 'hidden') {
+                        try {
+                            const backupData = { creatures: creaturesRef.current, pedigreeLines: pedigreeLinesRef.current, gridSize: gridSizeRef.current };
+                            const json = JSON.stringify(backupData, null, 2);
+                            const blob = new Blob([json], { type: 'application/json' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `beetle_backup_${new Date().toISOString().slice(0,10)}.json`;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                        } catch(e) { console.error('自動保存に失敗しました。', e); }
+                    }
+                };
+                document.addEventListener('visibilitychange', handleVisibilityChange);
+                return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+            }, []);
+
             const resetFilters = () => setFilters({ name: '', sex: '', saleStatus: '', stage: '', alias: '', generation: '' });
             const activeFilterCount = Object.values(filters).filter(v => v !== '').length;
             useEffect(() => {
