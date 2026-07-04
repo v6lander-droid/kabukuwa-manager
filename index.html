@@ -1695,7 +1695,7 @@
             const tableHeaders = [
                 {k:'name',l:'個体名'}, {k:'saleStatus',l:'計画'}, {k:'sex',l:'性別'}, {k:'alias',l:'名称'}, {k:'origin',l:'産地'},
                 {k:'generation',l:'累代'}, {k:'size',l:'体重'}, {k:'hatchDate',l:'孵化日'}, {k:'stage',l:'ステージ'},
-                {k:'temp',l:'温度'}, {k:'emergenceDate',l:'羽化日'}, {k:'emergenceSize',l:'羽化サイズ'},
+                {k:'growthRate',l:'成長率'}, {k:'temp',l:'温度'}, {k:'emergenceDate',l:'羽化日'}, {k:'emergenceSize',l:'羽化サイズ'},
                 {k:'maleParent',l:'オス親'}, {k:'femaleParent',l:'メス親'}, {k:'selfF',l:'累積F値'}
             ];
 
@@ -1972,6 +1972,12 @@
                                                 <td className="p-3 text-center">{c.history.length > 0 ? c.history[c.history.length - 1].size : '-'}</td>
                                                 <td className="p-3 text-center">{c.hatchDate}</td>
                                                 <td className="p-3 text-center">{c.stage}</td>
+                                                <td className="p-3 text-center">{(() => {
+                                                    const last = c.history.length > 0 ? c.history[c.history.length - 1] : null;
+                                                    if (!last) return <span className="text-neutral-500">-</span>;
+                                                    const r = calcGrowthRate(c.hatchDate, last);
+                                                    return <GrowthRateCell rate={r} />;
+                                                })()}</td>
                                                 <td className="p-3 text-center">{c.history.length > 0 ? c.history[c.history.length - 1].temp : '-'}</td>
                                                 <td className="p-3 text-center">{c.emergenceDate}</td>
                                                 <td className="p-3 text-center">{c.emergenceSize ? `${c.emergenceSize}mm` : '-'}</td>
