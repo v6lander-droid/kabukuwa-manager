@@ -1302,10 +1302,7 @@
             const [showAddModal, setShowAddModal] = useState(false);
             const [showSavePrompt, setShowSavePrompt] = useState(false);
             const [pendingSaveData, setPendingSaveData] = useState(null);
-            const [showGrowthModal, setShowGrowthModal] = useState(false);
 
-            const [growthAlias, setGrowthAlias] = useState("");
-            const [growthTargetSize, setGrowthTargetSize] = useState(80);
             const [newCreatureData, setNewCreatureData] = useState({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '', femaleParent: '', stage: '幼虫', saleStatus: '使用', sex: 'オス', emergenceSize: '' });
             const [maleSelection, setMaleSelection] = useState('');
             const [femaleSelection, setFemaleSelection] = useState('');
@@ -1766,7 +1763,7 @@
                         </div>
                         <div className="flex gap-2">
                             <button onClick={() => setAgreedToTerms(false)} className="flex-1 bg-neutral-700 py-2 rounded text-xs text-white font-bold hover:bg-neutral-600 transition-colors"><i className="fa-solid fa-file-lines mr-1"></i>規約</button>
-                            <button onClick={() => setShowGrowthModal(true)} className="flex-1 bg-neutral-700 py-2 rounded text-xs text-white font-bold hover:bg-neutral-600 transition-colors"><i className="fa-solid fa-chart-line mr-1"></i>成長率設定</button>
+                            <button onClick={() => alert("準備中")} className="flex-1 bg-neutral-700 py-2 rounded text-xs text-white font-bold hover:bg-neutral-600 transition-colors"><i className="fa-solid fa-chart-line mr-1"></i>成長率設定</button>
                             <button onClick={() => {
                                 const backupData = { creatures, pedigreeLines, gridSize };
                                 const json = JSON.stringify(backupData, null, 2);
@@ -1867,63 +1864,6 @@
                             }}
                             onCancel={() => setIconCropSrc(null)}
                         />
-                    )}
-
-                    {showGrowthModal && React.createElement("div",
-                        {style:{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",padding:"16px"}},
-                        React.createElement("div", {style:{background:"#171717",border:"1px solid #10b981",borderRadius:"12px",padding:"20px",width:"100%",maxWidth:"360px",maxHeight:"85vh",overflowY:"auto"}},
-                            React.createElement("p", {style:{color:"#6ee7b7",fontWeight:"bold",fontSize:"14px",marginBottom:"8px"}}, "📈 成長率設定"),
-                            React.createElement("p", {style:{color:"#a3a3a3",fontSize:"11px",marginBottom:"12px"}}, "aliasと目標サイズから理想成長テーブルを自動生成します。"),
-                            React.createElement("div", {style:{marginBottom:"8px"}},
-                                React.createElement("label", {style:{color:"#d4d4d4",fontSize:"11px",display:"block",marginBottom:"4px"}}, "alias（名称）"),
-                                React.createElement("select", {value:growthAlias, onChange:function(e){setGrowthAlias(e.target.value);}, style:{width:"100%",background:"#262626",color:"white",fontSize:"12px",borderRadius:"4px",padding:"6px",border:"1px solid #404040"}},
-                                    React.createElement("option", {value:""}, "-- 選択してください --"),
-                                    ...[...new Set(creatures.filter(function(c){return c.alias;}).map(function(c){return c.alias;}))].map(function(a){ return React.createElement("option",{key:a,value:a},a); })
-                                )
-                            ),
-                            React.createElement("div", {style:{marginBottom:"12px"}},
-                                React.createElement("label", {style:{color:"#d4d4d4",fontSize:"11px",display:"block",marginBottom:"4px"}}, "目標サイズ（mm）"),
-                                React.createElement("input", {type:"number", value:growthTargetSize, onChange:function(e){setGrowthTargetSize(parseFloat(e.target.value)||80);}, min:"40", max:"130", style:{width:"80px",background:"#262626",color:"white",fontSize:"12px",borderRadius:"4px",padding:"6px",border:"1px solid #404040"}})
-                            ),
-                            React.createElement("div", {style:{display:"flex",gap:"8px",marginBottom:"8px"}},
-                                React.createElement("button", {style:{flex:1,background:"#10b981",color:"white",padding:"8px",borderRadius:"6px",fontSize:"12px",fontWeight:"bold",border:"none"}, onClick: function(){
-                                    var alias = growthAlias;
-                                    var targetSize = growthTargetSize;
-                                    if (!alias || isNaN(targetSize) || targetSize <= 0) { alert("aliasと目標サイズを入力してください"); return; }
-                                    var emerged = creatures.filter(function(c){ return c.alias === alias && c.hatchDate && c.hatchDate !== "-" && c.history && c.history.length > 0; });
-                                    if (emerged.length === 0) { alert("該当する羽化済み個体がありません"); return; }
-                                    var points = {};
-                                    emerged.forEach(function(c){
-                                        var size = parseFloat((c.emergenceSize || "").replace(/[^0-9.]/g,""));
-                                        if (isNaN(size) || size <= 0) return;
-                                        var ratio = targetSize / size;
-                                        var origin = new Date(c.hatchDate);
-                                        c.history.forEach(function(h){
-                                            var w = parseFloat((h.size||"").replace(/[^0-9.]/g,""));
-                                            if (isNaN(w) || w <= 0 || !h.date) return;
-                                            var elapsed = Math.round((new Date(h.date) - origin) / 86400000);
-                                            if (elapsed < 0) return;
-                                            if (!points[elapsed]) points[elapsed] = [];
-                                            points[elapsed].push(w * ratio);
-                                        });
-                                    });
-                                    var newTable = Object.keys(points).map(function(d){ return {day:parseInt(d), w:Math.round(points[d].reduce(function(a,b){return a+b;},0)/points[d].length*10)/10}; });
-                                    newTable.sort(function(a,b){return a.day-b.day;});
-                                    if (newTable.length === 0) { alert("データが不足しています"); return; }
-                                    if (newTable[0].day > 0) newTable.unshift({day:0, w:0.1});
-                                    GROWTH_TABLE.length = 0;
-                                    newTable.forEach(function(r){ GROWTH_TABLE.push(r); });
-                                    setShowGrowthModal(false);
-                                    alert("成長テーブルを更新しました（" + emerged.length + "個体のデータを使用）");
-                                }}, "テーブル生成"),
-                                React.createElement("button", {style:{flex:1,background:"#404040",color:"#d4d4d4",padding:"8px",borderRadius:"6px",fontSize:"12px",border:"none"}, onClick: function(){
-                                    GROWTH_TABLE.length = 0;
-                                    [{day:0,w:0.1},{day:30,w:0.5},{day:60,w:1.5},{day:90,w:3.5},{day:120,w:6},{day:150,w:9},{day:180,w:13},{day:210,w:17},{day:240,w:21},{day:270,w:24},{day:300,w:26.5},{day:330,w:28},{day:360,w:29},{day:400,w:29.5},{day:450,w:29},{day:500,w:28}].forEach(function(r){ GROWTH_TABLE.push(r); });
-                                    setShowGrowthModal(false);
-                                }}, "リセット")
-                            ),
-                            React.createElement("button", {style:{width:"100%",background:"#262626",color:"#a3a3a3",padding:"8px",borderRadius:"6px",fontSize:"12px",border:"none"}, onClick: function(){ setShowGrowthModal(false); }}, "閉じる")
-                        )
                     )}
 
                     {showSavePrompt && (
