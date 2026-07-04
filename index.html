@@ -1972,20 +1972,13 @@
                                                 <td className="p-3 text-center">{c.history.length > 0 ? c.history[c.history.length - 1].size : '-'}</td>
                                                 <td className="p-3 text-center">{c.hatchDate}</td>
                                                 <td className="p-3 text-center">{c.stage}</td>
-                                                <td className="p-3 text-center">{(() => {
-                                                    const last = c.history.length > 0 ? c.history[c.history.length - 1] : null;
-                                                    if (!last) return <span className="text-neutral-500">-</span>;
-                                                    const r = calcGrowthRate(c.hatchDate, last);
-                                                    return <GrowthRateCell rate={r} />;
-                                                })()}</td>
+                                                <td className="p-3 text-center"><ListGrowthRate hatchDate={c.hatchDate} history={c.history} /></td>
                                                 <td className="p-3 text-center">{c.history.length > 0 ? c.history[c.history.length - 1].temp : '-'}</td>
                                                 <td className="p-3 text-center">{c.emergenceDate}</td>
                                                 <td className="p-3 text-center">{c.emergenceSize ? `${c.emergenceSize}mm` : '-'}</td>
                                                 <td className="p-3 text-center">{(c.maleParent && c.maleParent !== '-' && nameMap[c.maleParent]) ? c.maleParent : ''}</td>
                                                 <td className="p-3 text-center">{(c.femaleParent && c.femaleParent !== '-' && nameMap[c.femaleParent]) ? c.femaleParent : ''}</td>
-                                                <td className="p-3 text-center">
-                                                    {(() => { const f = calcSelfF(c, nameMap); const col = gradColor(f, 0.25); return <span className="font-bold text-xs" style={{ color: col }}>{(f*100).toFixed(2)}%</span>; })()}
-                                                </td>
+                                                <td className="p-3 text-center"><SelfFCell creature={c} nameMap={nameMap} /></td>
                                                 <td className="p-3 text-center"><button onClick={(e) => { e.stopPropagation(); if(confirm('削除?')) setCreatures(creatures.filter(x=>x.id!==c.id)) }} className="bg-red-700 hover:bg-red-600 px-2 py-1 rounded text-xs text-white">削除</button></td>
                                             </tr>
                                         ))}
@@ -2308,6 +2301,17 @@
             if (!ideal) return null;
             return Math.round((weightG / ideal - 1) * 100);
         };
+        function SelfFCell({ creature, nameMap }) {
+            const f = calcSelfF(creature, nameMap);
+            const col = gradColor(f, 0.25);
+            return React.createElement('span', {className:'font-bold text-xs', style:{color:col}}, (f*100).toFixed(2)+'%');
+        }
+        function ListGrowthRate({ hatchDate, history }) {
+            const last = history && history.length > 0 ? history[history.length - 1] : null;
+            if (!last) return React.createElement('span', {className:'text-neutral-500'}, '-');
+            const rate = calcGrowthRate(hatchDate, last);
+            return React.createElement(GrowthRateCell, {rate});
+        }
         function GrowthRateCell({ rate }) {
             if (rate === null || rate === undefined) return React.createElement('span', {className:'text-neutral-500'}, '-');
             const color = rate >= 10 ? '#34d399' : rate >= 0 ? '#86efac' : rate >= -10 ? '#fbbf24' : '#f87171';
