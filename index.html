@@ -1728,11 +1728,11 @@
                                 {appIcon && <img src={appIcon} alt="icon" className="w-8 h-8 rounded-lg object-cover" />}
                                 <div className="flex flex-col"><span>Beetle Base</span><span className="text-[10px] text-white">made by ＭＨ</span></div>
                             </div>
+                            <button onClick={() => setShowGrowthSettings(s => !s)} className="bg-neutral-600 px-3 py-2 rounded text-xs text-white font-bold"><i className="fa-solid fa-chart-line"></i></button>
                             {activeTab === '一覧' && <button onClick={() => setShowAddModal(true)} className="bg-emerald-600 px-4 py-2 rounded text-sm text-white font-bold">追加</button>}
                         </div>
                         <div className="flex gap-2">
                             <button onClick={() => setAgreedToTerms(false)} className="flex-1 bg-neutral-700 py-2 rounded text-xs text-white font-bold hover:bg-neutral-600 transition-colors"><i className="fa-solid fa-file-lines mr-1"></i>規約</button>
-                            <button onClick={() => setShowGrowthSettings(s => !s)} className="flex-1 bg-neutral-700 py-2 rounded text-xs text-white font-bold hover:bg-neutral-600 transition-colors"><i className="fa-solid fa-chart-line mr-1"></i>成長率設定</button>
                             <button onClick={() => {
                                 const backupData = { creatures, pedigreeLines, gridSize };
                                 const json = JSON.stringify(backupData, null, 2);
