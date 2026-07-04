@@ -1252,11 +1252,53 @@
             );
         }
 
+        const GROWTH_TABLE = [
+            {day:0,w:0.1},{day:30,w:0.5},{day:60,w:1.5},{day:90,w:3.5},
+            {day:120,w:6.0},{day:150,w:9.0},{day:180,w:13.0},{day:210,w:17.0},
+            {day:240,w:21.0},{day:270,w:24.0},{day:300,w:26.5},{day:330,w:28.0},
+            {day:360,w:29.0},{day:400,w:29.5},{day:450,w:29.0},{day:500,w:28.0},
+        ];
+        function getIdealWeight(days) {
+            if (days === null || days < 0) return null;
+            var t = GROWTH_TABLE;
+            if (days <= t[0].day) return t[0].w;
+            if (days >= t[t.length-1].day) return t[t.length-1].w;
+            for (var i = 0; i < t.length-1; i++) {
+                if (days >= t[i].day && days <= t[i+1].day) {
+                    var r = (days - t[i].day) / (t[i+1].day - t[i].day);
+                    return t[i].w + r * (t[i+1].w - t[i].w);
+                }
+            }
+            return null;
+        }
+        function calcGrowthRate(hatchDate, h) {
+            if (!h) return null;
+            var weightG = parseFloat((h.size || '').replace(/[^0-9.]/g, ''));
+            if (isNaN(weightG) || weightG <= 0) return null;
+            if (!hatchDate || hatchDate === '-') return null;
+            var origin = new Date(hatchDate);
+            if (isNaN(origin.getTime())) return null;
+            if (!h.date) return null;
+            var recDate = new Date(h.date);
+            if (isNaN(recDate.getTime())) return null;
+            var elapsed = Math.round((recDate - origin) / 86400000);
+            var ideal = getIdealWeight(elapsed);
+            if (!ideal) return null;
+            return Math.round((weightG / ideal - 1) * 100);
+        }
+        function GrowthRateSpan(props) {
+            var rate = props.rate;
+            if (rate === null || rate === undefined) return React.createElement('span', {style:{color:'#737373'}}, '-');
+            var color = rate >= 10 ? '#34d399' : rate >= 0 ? '#86efac' : rate >= -10 ? '#fbbf24' : '#f87171';
+            return React.createElement('span', {style:{color:color, fontWeight:'bold'}}, (rate > 0 ? '+' : '') + rate + '%');
+        }
         function App() {
             const [selectedCreature, setSelectedCreature] = useState(null);
             const [activeTab, setActiveTab] = useState('一覧');
             const [highlightId, setHighlightId] = useState(null);
             const [showAddModal, setShowAddModal] = useState(false);
+            const [showSavePrompt, setShowSavePrompt] = useState(false);
+            const [pendingSaveData, setPendingSaveData] = useState(null);
             const [newCreatureData, setNewCreatureData] = useState({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '', femaleParent: '', stage: '幼虫', saleStatus: '使用', sex: 'オス', emergenceSize: '' });
             const [maleSelection, setMaleSelection] = useState('');
             const [femaleSelection, setFemaleSelection] = useState('');
@@ -1524,9 +1566,12 @@
             const confirmAdd = () => {
                 // 新規登録個体は一時置き場（gridPos未設定）に入る。描画エリアへはユーザーが手動でドラッグして配置する。
                 const newCreature = { ...newCreatureData, id: `${Date.now().toString()}_${Math.random().toString(36).slice(2, 8)}`, history: [] };
-                setCreatures([newCreature, ...creatures]);
+                const nextCreatures = [newCreature, ...creatures];
+                setCreatures(nextCreatures);
                 setShowAddModal(false);
                 setNewCreatureData({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '', femaleParent: '', stage: '幼虫', saleStatus: '使用', sex: 'オス', emergenceSize: '' });
+                setPendingSaveData({ creatures: nextCreatures, pedigreeLines, gridSize });
+                setShowSavePrompt(true);
             };
             const updateCreature = (updated) => {
                 setCreatures(creatures.map(c => c.id === updated.id ? updated : c));
@@ -1633,6 +1678,11 @@
                     onBack={() => setSelectedCreature(null)}
                     onUpdate={updateCreature}
                     onGoToTree={(id) => { setHighlightId(id); setActiveTab('血統図'); setSelectedCreature(null); }}
+                    onRequestSave={(updated) => {
+                        const nextCreatures = creatures.map(c => c.id === updated.id ? updated : c);
+                        setPendingSaveData({ creatures: nextCreatures, pedigreeLines, gridSize });
+                        setShowSavePrompt(true);
+                    }}
                 />
             );
 
@@ -1640,7 +1690,7 @@
             const tableHeaders = [
                 {k:'name',l:'個体名'}, {k:'saleStatus',l:'計画'}, {k:'sex',l:'性別'}, {k:'alias',l:'名称'}, {k:'origin',l:'産地'},
                 {k:'generation',l:'累代'}, {k:'size',l:'体重'}, {k:'hatchDate',l:'孵化日'}, {k:'stage',l:'ステージ'},
-                {k:'temp',l:'温度'}, {k:'emergenceDate',l:'羽化日'}, {k:'emergenceSize',l:'羽化サイズ'},
+                {k:'growthRate',l:'成長率'}, {k:'temp',l:'温度'}, {k:'emergenceDate',l:'羽化日'}, {k:'emergenceSize',l:'羽化サイズ'},
                 {k:'maleParent',l:'オス親'}, {k:'femaleParent',l:'メス親'}, {k:'selfF',l:'累積F値'}
             ];
 
@@ -1766,6 +1816,30 @@
                         />
                     )}
 
+                    {showSavePrompt && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-6">
+                            <div className="bg-neutral-900 border border-emerald-500 rounded-xl p-5 w-full max-w-sm shadow-xl">
+                                <p className="text-emerald-300 font-bold text-sm mb-1">💾 保存しますか？</p>
+                                <p className="text-neutral-400 text-xs mb-4">JSONファイルとしてバックアップを保存します。</p>
+                                <div className="flex gap-3">
+                                    <button onClick={() => {
+                                        const data = pendingSaveData || { creatures, pedigreeLines, gridSize };
+                                        const json = JSON.stringify(data, null, 2);
+                                        const blob = new Blob([json], { type: 'application/json' });
+                                        const url = URL.createObjectURL(blob);
+                                        const a = document.createElement('a');
+                                        a.href = url;
+                                        a.download = `beetle_backup_${new Date().toISOString().slice(0,10)}.json`;
+                                        a.click();
+                                        URL.revokeObjectURL(url);
+                                        setShowSavePrompt(false);
+                                        setPendingSaveData(null);
+                                    }} className="flex-1 bg-emerald-600 py-2 rounded text-white text-sm font-bold">保存する</button>
+                                    <button onClick={() => { setShowSavePrompt(false); setPendingSaveData(null); }} className="flex-1 bg-neutral-700 py-2 rounded text-neutral-300 text-sm font-bold">あとで</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                     {saveError && (
                         <div className="mb-3 p-3 bg-red-900/60 border border-red-500 rounded text-red-300 text-xs">
                             ⚠ データの保存に失敗しました。ストレージの空き容量を確認してください。
@@ -1892,6 +1966,7 @@
                                                 <td className="p-3 text-center">{c.history.length > 0 ? c.history[c.history.length - 1].size : '-'}</td>
                                                 <td className="p-3 text-center">{c.hatchDate}</td>
                                                 <td className="p-3 text-center">{c.stage}</td>
+                                                <td className="p-3 text-center"><GrowthRateSpan rate={calcGrowthRate(c.hatchDate, c.history.length > 0 ? c.history[c.history.length-1] : null)} /></td>
                                                 <td className="p-3 text-center">{c.history.length > 0 ? c.history[c.history.length - 1].temp : '-'}</td>
                                                 <td className="p-3 text-center">{c.emergenceDate}</td>
                                                 <td className="p-3 text-center">{c.emergenceSize ? `${c.emergenceSize}mm` : '-'}</td>
@@ -2180,7 +2255,7 @@
         }
 
         // ---- 詳細画面 ----
-        function DetailView({ creature, allCreatures, nameMap, onBack, onUpdate, onGoToTree }) {
+        function DetailView({ creature, allCreatures, nameMap, onBack, onUpdate, onGoToTree, onRequestSave }) {
             const [form, setForm] = useState(creature);
             const [showEditModal, setShowEditModal] = useState(false);
             const [editForm, setEditForm] = useState(creature);
@@ -2223,6 +2298,7 @@
                 setForm(updated);
                 onUpdate(updated);
                 setShowRecordModal(null);
+                if (record.index === null && typeof onRequestSave === 'function') onRequestSave(updated);
             };
 
             const deleteRecord = (index) => {
@@ -2384,6 +2460,7 @@
                                             <th className="p-2">日付</th>
                                             <th className="p-2">ステージ</th>
                                             <th className="p-2">体重</th>
+                                            <th className="p-2">成長率</th>
                                             <th className="p-2">温度</th>
                                             <th className="p-2">操作</th>
                                         </tr>
@@ -2394,6 +2471,7 @@
                                                 <td className="p-2">{h.date}</td>
                                                 <td className="p-2">{h.item}</td>
                                                 <td className="p-2">{h.size}</td>
+                                                <td className="p-2"><GrowthRateSpan rate={calcGrowthRate(form.hatchDate, h)} /></td>
                                                 <td className="p-2">{h.temp}</td>
                                                 <td className="p-2">
                                                     <div className="flex gap-1 justify-center">
