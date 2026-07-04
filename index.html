@@ -1252,6 +1252,49 @@
             );
         }
 
+
+        // 成長率計算（80mm基準）
+        const GROWTH_TABLE = [
+            {day:0,w:0.1},{day:30,w:0.5},{day:60,w:1.5},{day:90,w:3.5},
+            {day:120,w:6.0},{day:150,w:9.0},{day:180,w:13.0},{day:210,w:17.0},
+            {day:240,w:21.0},{day:270,w:24.0},{day:300,w:26.5},{day:330,w:28.0},
+            {day:360,w:29.0},{day:400,w:29.5},{day:450,w:29.0},{day:500,w:28.0},
+        ];
+        function getIdealWeight(days) {
+            if (days === null || days < 0) return null;
+            var t = GROWTH_TABLE;
+            if (days <= t[0].day) return t[0].w;
+            if (days >= t[t.length-1].day) return t[t.length-1].w;
+            for (var i = 0; i < t.length-1; i++) {
+                if (days >= t[i].day && days <= t[i+1].day) {
+                    var r = (days - t[i].day) / (t[i+1].day - t[i].day);
+                    return t[i].w + r * (t[i+1].w - t[i].w);
+                }
+            }
+            return null;
+        }
+        function calcGrowthRate(hatchDate, h) {
+            var weightG = parseFloat((h.size || '').replace(/[^0-9.]/g, ''));
+            if (isNaN(weightG) || weightG <= 0) return null;
+            if (!hatchDate || hatchDate === '-') return null;
+            var origin = new Date(hatchDate);
+            if (isNaN(origin.getTime())) return null;
+            if (!h.date) return null;
+            var recDate = new Date(h.date);
+            if (isNaN(recDate.getTime())) return null;
+            var elapsed = Math.round((recDate - origin) / 86400000);
+            var ideal = getIdealWeight(elapsed);
+            if (!ideal) return null;
+            return Math.round((weightG / ideal - 1) * 100);
+        }
+        function GrowthRateSpan(props) {
+            var rate = props.rate;
+            if (rate === null || rate === undefined) return React.createElement('span', {style:{color:'#737373'}}, '-');
+            var color = rate >= 10 ? '#34d399' : rate >= 0 ? '#86efac' : rate >= -10 ? '#fbbf24' : '#f87171';
+            var sign = rate > 0 ? '+' : '';
+            return React.createElement('span', {style:{color:color, fontWeight:'bold'}}, sign + rate + '%');
+        }
+
         function App() {
             const [selectedCreature, setSelectedCreature] = useState(null);
             const [activeTab, setActiveTab] = useState('一覧');
@@ -1259,6 +1302,7 @@
             const [showAddModal, setShowAddModal] = useState(false);
             const [showSavePrompt, setShowSavePrompt] = useState(false);
             const [pendingSaveData, setPendingSaveData] = useState(null);
+
             const [newCreatureData, setNewCreatureData] = useState({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '', femaleParent: '', stage: '幼虫', saleStatus: '使用', sex: 'オス', emergenceSize: '' });
             const [maleSelection, setMaleSelection] = useState('');
             const [femaleSelection, setFemaleSelection] = useState('');
@@ -1695,7 +1739,7 @@
             const tableHeaders = [
                 {k:'name',l:'個体名'}, {k:'saleStatus',l:'計画'}, {k:'sex',l:'性別'}, {k:'alias',l:'名称'}, {k:'origin',l:'産地'},
                 {k:'generation',l:'累代'}, {k:'size',l:'体重'}, {k:'hatchDate',l:'孵化日'}, {k:'stage',l:'ステージ'},
-                {k:'growthRate',l:'成長率'}, {k:'temp',l:'温度'}, {k:'emergenceDate',l:'羽化日'}, {k:'emergenceSize',l:'羽化サイズ'},
+                {k:'temp',l:'温度'}, {k:'emergenceDate',l:'羽化日'}, {k:'emergenceSize',l:'羽化サイズ'},
                 {k:'maleParent',l:'オス親'}, {k:'femaleParent',l:'メス親'}, {k:'selfF',l:'累積F値'}
             ];
 
@@ -1972,13 +2016,12 @@
                                                 <td className="p-3 text-center">{c.history.length > 0 ? c.history[c.history.length - 1].size : '-'}</td>
                                                 <td className="p-3 text-center">{c.hatchDate}</td>
                                                 <td className="p-3 text-center">{c.stage}</td>
-                                                <td className="p-3 text-center"><ListGrowthRate hatchDate={c.hatchDate} history={c.history} /></td>
                                                 <td className="p-3 text-center">{c.history.length > 0 ? c.history[c.history.length - 1].temp : '-'}</td>
                                                 <td className="p-3 text-center">{c.emergenceDate}</td>
                                                 <td className="p-3 text-center">{c.emergenceSize ? `${c.emergenceSize}mm` : '-'}</td>
                                                 <td className="p-3 text-center">{(c.maleParent && c.maleParent !== '-' && nameMap[c.maleParent]) ? c.maleParent : ''}</td>
                                                 <td className="p-3 text-center">{(c.femaleParent && c.femaleParent !== '-' && nameMap[c.femaleParent]) ? c.femaleParent : ''}</td>
-                                                <td className="p-3 text-center"><SelfFCell creature={c} nameMap={nameMap} /></td>
+                                                <td className="p-3 text-center"><span className="font-bold text-xs" style={{color: gradColor(calcSelfF(c, nameMap), 0.25)}}>{(calcSelfF(c, nameMap)*100).toFixed(2)}%</span></td>
                                                 <td className="p-3 text-center"><button onClick={(e) => { e.stopPropagation(); if(confirm('削除?')) setCreatures(creatures.filter(x=>x.id!==c.id)) }} className="bg-red-700 hover:bg-red-600 px-2 py-1 rounded text-xs text-white">削除</button></td>
                                             </tr>
                                         ))}
@@ -2264,59 +2307,7 @@
             );
         }
 
-        // 80mm個体の理想体重テーブル（グローバル定数）
-        const IDEAL_WEIGHT_TABLE = [
-            {day:0,w:0.1},{day:30,w:0.5},{day:60,w:1.5},{day:90,w:3.5},
-            {day:120,w:6.0},{day:150,w:9.0},{day:180,w:13.0},{day:210,w:17.0},
-            {day:240,w:21.0},{day:270,w:24.0},{day:300,w:26.5},{day:330,w:28.0},
-            {day:360,w:29.0},{day:400,w:29.5},{day:450,w:29.0},{day:500,w:28.0},
-        ];
-        const getIdealWeight = (days) => {
-            if (days === null || days < 0) return null;
-            const t = IDEAL_WEIGHT_TABLE;
-            if (days <= t[0].day) return t[0].w;
-            if (days >= t[t.length-1].day) return t[t.length-1].w;
-            for (let i = 0; i < t.length-1; i++) {
-                if (days >= t[i].day && days <= t[i+1].day) {
-                    const r = (days - t[i].day) / (t[i+1].day - t[i].day);
-                    return t[i].w + r * (t[i+1].w - t[i].w);
-                }
-            }
-            return null;
-        };
-        const parseLocalDate = (s) => {
-            if (!s || s === '-') return null;
-            const d = new Date(s);
-            return isNaN(d.getTime()) ? null : d;
-        };
-        const calcGrowthRate = (hatchDate, h) => {
-            const weightG = parseFloat((h.size || '').replace(/[^0-9.]/g, ''));
-            if (isNaN(weightG) || weightG <= 0) return null;
-            const origin = parseLocalDate(hatchDate);
-            if (!origin) return null;
-            const recDate = parseLocalDate(h.date);
-            if (!recDate) return null;
-            const elapsed = Math.round((recDate - origin) / 86400000);
-            const ideal = getIdealWeight(elapsed);
-            if (!ideal) return null;
-            return Math.round((weightG / ideal - 1) * 100);
-        };
-        function SelfFCell({ creature, nameMap }) {
-            const f = calcSelfF(creature, nameMap);
-            const col = gradColor(f, 0.25);
-            return React.createElement('span', {className:'font-bold text-xs', style:{color:col}}, (f*100).toFixed(2)+'%');
-        }
-        function ListGrowthRate({ hatchDate, history }) {
-            const last = history && history.length > 0 ? history[history.length - 1] : null;
-            if (!last) return React.createElement('span', {className:'text-neutral-500'}, '-');
-            const rate = calcGrowthRate(hatchDate, last);
-            return React.createElement(GrowthRateCell, {rate});
-        }
-        function GrowthRateCell({ rate }) {
-            if (rate === null || rate === undefined) return React.createElement('span', {className:'text-neutral-500'}, '-');
-            const color = rate >= 10 ? '#34d399' : rate >= 0 ? '#86efac' : rate >= -10 ? '#fbbf24' : '#f87171';
-            return React.createElement('span', {style:{color}, className:'font-bold'}, (rate > 0 ? '+' : '') + rate + '%');
-        }
+
         // ---- 詳細画面 ----
         function DetailView({ creature, allCreatures, nameMap, onBack, onUpdate, onGoToTree, onRequestSave }) {
             const [form, setForm] = useState(creature);
@@ -2525,7 +2516,6 @@
                                             <th className="p-2">日付</th>
                                             <th className="p-2">ステージ</th>
                                             <th className="p-2">体重</th>
-                                            <th className="p-2">成長率</th>
                                             <th className="p-2">温度</th>
                                             <th className="p-2">操作</th>
                                         </tr>
@@ -2536,7 +2526,6 @@
                                                 <td className="p-2">{h.date}</td>
                                                 <td className="p-2">{h.item}</td>
                                                 <td className="p-2">{h.size}</td>
-                                                <td className="p-2"><GrowthRateCell rate={calcGrowthRate(form.hatchDate, h)} /></td>
                                                 <td className="p-2">{h.temp}</td>
                                                 <td className="p-2">
                                                     <div className="flex gap-1 justify-center">
