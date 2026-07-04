@@ -1190,7 +1190,7 @@
 
             const handleConfirm = () => {
                 const canvas = document.createElement('canvas');
-                const outW = outputSize || 512;
+                const outW = outputSize || 200;
                 const outH = aspect === 'square' ? outW : Math.round(outW * (FRAME_H / FRAME_W));
                 canvas.width = outW; canvas.height = outH;
                 const ctx = canvas.getContext('2d');
@@ -1205,8 +1205,8 @@
                     offset.x * ratio, offset.y * ratio,
                     imgNatural.w * currentScale * ratio, imgNatural.h * currentScale * ratio
                 );
-                const mime = aspect === 'square' ? 'image/png' : 'image/jpeg';
-                const quality = aspect === 'square' ? undefined : 0.85;
+                const mime = 'image/jpeg';
+                const quality = 0.5;
                 onConfirm(canvas.toDataURL(mime, quality));
             };
 
