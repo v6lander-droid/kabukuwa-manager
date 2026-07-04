@@ -1252,8 +1252,6 @@
             );
         }
 
-
-        // 成長率計算（80mm基準）
         const GROWTH_TABLE = [
             {day:0,w:0.1},{day:30,w:0.5},{day:60,w:1.5},{day:90,w:3.5},
             {day:120,w:6.0},{day:150,w:9.0},{day:180,w:13.0},{day:210,w:17.0},
@@ -1295,14 +1293,13 @@
             return React.createElement('span', {style:{color:color, fontWeight:'bold'}}, sign + rate + '%');
         }
 
-        function App() {
+                function App() {
             const [selectedCreature, setSelectedCreature] = useState(null);
             const [activeTab, setActiveTab] = useState('一覧');
             const [highlightId, setHighlightId] = useState(null);
             const [showAddModal, setShowAddModal] = useState(false);
             const [showSavePrompt, setShowSavePrompt] = useState(false);
             const [pendingSaveData, setPendingSaveData] = useState(null);
-
             const [newCreatureData, setNewCreatureData] = useState({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '', femaleParent: '', stage: '幼虫', saleStatus: '使用', sex: 'オス', emergenceSize: '' });
             const [maleSelection, setMaleSelection] = useState('');
             const [femaleSelection, setFemaleSelection] = useState('');
@@ -1551,25 +1548,6 @@
                 }
             }, [creatures, loadFailed]);
 
-            // ストレージの空き容量を定期チェックし、保存できるようになったら警告を自動解除する
-            useEffect(() => {
-                if (!saveError) return;
-                const check = () => {
-                    try {
-                        const testKey = '_beetle_space_check_';
-                        localStorage.setItem(testKey, '1');
-                        localStorage.removeItem(testKey);
-                        // 書き込めた＝空きがある → 再保存を試みる
-                        localStorage.setItem('beetle_data', JSON.stringify(creatures));
-                        setSaveError(false);
-                    } catch(e) { /* まだ容量不足 */ }
-                };
-                const timer = setInterval(check, 3000);
-                return () => clearInterval(timer);
-            }, [saveError, creatures]);
-
-
-
             const resetFilters = () => setFilters({ name: '', sex: '', saleStatus: '', stage: '', alias: '', generation: '' });
             const activeFilterCount = Object.values(filters).filter(v => v !== '').length;
             useEffect(() => {
@@ -1720,18 +1698,18 @@
                         </div>
                     )}
                     <DetailView
-                        creature={selectedCreature}
-                        allCreatures={creatures}
-                        nameMap={nameMap}
-                        onBack={() => setSelectedCreature(null)}
-                        onUpdate={updateCreature}
-                        onGoToTree={(id) => { setHighlightId(id); setActiveTab('血統図'); setSelectedCreature(null); }}
-                        onRequestSave={(updated) => {
-                            const nextCreatures = creatures.map(c => c.id === updated.id ? updated : c);
-                            setPendingSaveData({ creatures: nextCreatures, pedigreeLines, gridSize });
-                            setShowSavePrompt(true);
-                        }}
-                    />
+                    creature={selectedCreature}
+                    allCreatures={creatures}
+                    nameMap={nameMap}
+                    onBack={() => setSelectedCreature(null)}
+                    onUpdate={updateCreature}
+                    onGoToTree={(id) => { setHighlightId(id); setActiveTab('血統図'); setSelectedCreature(null); }}
+                    onRequestSave={(updated) => {
+                        const nextCreatures = creatures.map(c => c.id === updated.id ? updated : c);
+                        setPendingSaveData({ creatures: nextCreatures, pedigreeLines, gridSize });
+                        setShowSavePrompt(true);
+                    }}
+                />
                 </React.Fragment>
             );
 
@@ -1739,7 +1717,7 @@
             const tableHeaders = [
                 {k:'name',l:'個体名'}, {k:'saleStatus',l:'計画'}, {k:'sex',l:'性別'}, {k:'alias',l:'名称'}, {k:'origin',l:'産地'},
                 {k:'generation',l:'累代'}, {k:'size',l:'体重'}, {k:'hatchDate',l:'孵化日'}, {k:'stage',l:'ステージ'},
-                 {k:'growthRate',l:'成長率'}, {k:'temp',l:'温度'}, {k:'emergenceDate',l:'羽化日'}, {k:'emergenceSize',l:'羽化サイズ'},
+                {k:'growthRate',l:'成長率'}, {k:'temp',l:'温度'}, {k:'emergenceDate',l:'羽化日'}, {k:'emergenceSize',l:'羽化サイズ'},
                 {k:'maleParent',l:'オス親'}, {k:'femaleParent',l:'メス親'}, {k:'selfF',l:'累積F値'}
             ];
 
@@ -1763,7 +1741,6 @@
                         </div>
                         <div className="flex gap-2">
                             <button onClick={() => setAgreedToTerms(false)} className="flex-1 bg-neutral-700 py-2 rounded text-xs text-white font-bold hover:bg-neutral-600 transition-colors"><i className="fa-solid fa-file-lines mr-1"></i>規約</button>
-                            <button onClick={() => alert("準備中")} className="flex-1 bg-neutral-700 py-2 rounded text-xs text-white font-bold hover:bg-neutral-600 transition-colors"><i className="fa-solid fa-chart-line mr-1"></i>成長率設定</button>
                             <button onClick={() => {
                                 const backupData = { creatures, pedigreeLines, gridSize };
                                 const json = JSON.stringify(backupData, null, 2);
@@ -1821,7 +1798,7 @@
                     </nav>
 
                     {showIconModal && (
-                        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+                        <div className="fixed inset-0 bg-black/80 flex items-start justify-center p-4 z-50" style={{paddingTop:'30vh'}}>
                             <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4">
                                 <h3 className="font-bold text-white">アイコン設定</h3>
                                 {appIcon && (
@@ -1895,7 +1872,6 @@
                             ⚠ データの保存に失敗しました。ストレージの空き容量を確認してください。
                         </div>
                     )}
-
 
                     <div className="flex border-b border-neutral-800 mb-4">
                         {['一覧', '血統図', '交配'].map(tab => (
@@ -2017,7 +1993,7 @@
                                                 <td className="p-3 text-center">{c.history.length > 0 ? c.history[c.history.length - 1].size : '-'}</td>
                                                 <td className="p-3 text-center">{c.hatchDate}</td>
                                                 <td className="p-3 text-center">{c.stage}</td>
-                                                 <td className="p-3 text-center"><GrowthRateSpan rate={calcGrowthRate(c.hatchDate, c.history.length > 0 ? c.history[c.history.length-1] : null)} /></td>
+                                                <td className="p-3 text-center"><GrowthRateSpan rate={calcGrowthRate(c.hatchDate, c.history.length > 0 ? c.history[c.history.length-1] : null)} /></td>
                                                 <td className="p-3 text-center">{c.history.length > 0 ? c.history[c.history.length - 1].temp : '-'}</td>
                                                 <td className="p-3 text-center">{c.emergenceDate}</td>
                                                 <td className="p-3 text-center">{c.emergenceSize ? `${c.emergenceSize}mm` : '-'}</td>
@@ -2194,12 +2170,10 @@
                 // 全データセットに登場する経過日数の和集合を横軸ラベルとする
                 const allElapsedSet = new Set();
                 elapsedDatasets.forEach(({ points }) => points.forEach(p => allElapsedSet.add(p.elapsed)));
-                // 孵化日・羽化日のマーカー経過日数も軸に強制追加（飼育記録がなくても正しい位置に線を引くため）
+                // 孵化日・羽化日のマーカー経過日数も軸に強制追加
                 if (mainOrigin) {
                     allElapsedSet.add(0);
-                    if (mainEmergence) {
-                        allElapsedSet.add(dayDiff(mainOrigin, mainEmergence));
-                    }
+                    if (mainEmergence) allElapsedSet.add(dayDiff(mainOrigin, mainEmergence));
                 }
                 const sortedElapsed = Array.from(allElapsedSet).sort((a, b) => a - b);
 
@@ -2309,7 +2283,6 @@
             );
         }
 
-
         // ---- 詳細画面 ----
         function DetailView({ creature, allCreatures, nameMap, onBack, onUpdate, onGoToTree, onRequestSave }) {
             const [form, setForm] = useState(creature);
@@ -2336,8 +2309,6 @@
             ];
 
             const saveEdit = () => { setForm(editForm); onUpdate(editForm); setShowEditModal(false); };
-
-
 
             const saveRecord = (record) => {
                 // 入力欄は数値のみを受け付けるため、保存時に単位（g・℃）を自動付与する。
@@ -2518,7 +2489,7 @@
                                             <th className="p-2">日付</th>
                                             <th className="p-2">ステージ</th>
                                             <th className="p-2">体重</th>
-                                             <th className="p-2">成長率</th>
+                                            <th className="p-2">成長率</th>
                                             <th className="p-2">温度</th>
                                             <th className="p-2">操作</th>
                                         </tr>
@@ -2529,7 +2500,7 @@
                                                 <td className="p-2">{h.date}</td>
                                                 <td className="p-2">{h.item}</td>
                                                 <td className="p-2">{h.size}</td>
-                                                 <td className="p-2"><GrowthRateSpan rate={calcGrowthRate(form.hatchDate, h)} /></td>
+                                                <td className="p-2"><GrowthRateSpan rate={calcGrowthRate(form.hatchDate, h)} /></td>
                                                 <td className="p-2">{h.temp}</td>
                                                 <td className="p-2">
                                                     <div className="flex gap-1 justify-center">
@@ -2585,7 +2556,7 @@
 
                     {/* 飼育記録編集モーダル（「サイズ」→「体重」、日付不明チェックボックス対応） */}
                     {showRecordModal && (
-                        <div className="fixed inset-0 bg-black/80 flex items-start justify-center p-4 z-50" style={{paddingTop:'30vh'}}>
+                        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
                             <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4 shadow-2xl">
                                 <h3 className="font-bold text-white">飼育記録の編集</h3>
                                 <div className="space-y-3">
