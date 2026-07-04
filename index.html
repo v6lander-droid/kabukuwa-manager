@@ -2265,6 +2265,48 @@
             );
         }
 
+        // 80mm個体の理想体重テーブル（グローバル定数）
+        const IDEAL_WEIGHT_TABLE = [
+            {day:0,w:0.1},{day:30,w:0.5},{day:60,w:1.5},{day:90,w:3.5},
+            {day:120,w:6.0},{day:150,w:9.0},{day:180,w:13.0},{day:210,w:17.0},
+            {day:240,w:21.0},{day:270,w:24.0},{day:300,w:26.5},{day:330,w:28.0},
+            {day:360,w:29.0},{day:400,w:29.5},{day:450,w:29.0},{day:500,w:28.0},
+        ];
+        const getIdealWeight = (days) => {
+            if (days === null || days < 0) return null;
+            const t = IDEAL_WEIGHT_TABLE;
+            if (days <= t[0].day) return t[0].w;
+            if (days >= t[t.length-1].day) return t[t.length-1].w;
+            for (let i = 0; i < t.length-1; i++) {
+                if (days >= t[i].day && days <= t[i+1].day) {
+                    const r = (days - t[i].day) / (t[i+1].day - t[i].day);
+                    return t[i].w + r * (t[i+1].w - t[i].w);
+                }
+            }
+            return null;
+        };
+        const parseLocalDate = (s) => {
+            if (!s || s === '-') return null;
+            const d = new Date(s);
+            return isNaN(d.getTime()) ? null : d;
+        };
+        const calcGrowthRate = (hatchDate, h) => {
+            const weightG = parseFloat((h.size || '').replace(/[^0-9.]/g, ''));
+            if (isNaN(weightG) || weightG <= 0) return null;
+            const origin = parseLocalDate(hatchDate);
+            if (!origin) return null;
+            const recDate = parseLocalDate(h.date);
+            if (!recDate) return null;
+            const elapsed = Math.round((recDate - origin) / 86400000);
+            const ideal = getIdealWeight(elapsed);
+            if (!ideal) return null;
+            return Math.round((weightG / ideal - 1) * 100);
+        };
+        function GrowthRateCell({ rate }) {
+            if (rate === null || rate === undefined) return React.createElement('span', {className:'text-neutral-500'}, '-');
+            const color = rate >= 10 ? '#34d399' : rate >= 0 ? '#86efac' : rate >= -10 ? '#fbbf24' : '#f87171';
+            return React.createElement('span', {style:{color}, className:'font-bold'}, (rate > 0 ? '+' : '') + rate + '%');
+        }
         // ---- 詳細画面 ----
         function DetailView({ creature, allCreatures, nameMap, onBack, onUpdate, onGoToTree, onRequestSave }) {
             const [form, setForm] = useState(creature);
@@ -2292,51 +2334,7 @@
 
             const saveEdit = () => { setForm(editForm); onUpdate(editForm); setShowEditModal(false); };
 
-            // 80mm個体の理想体重テーブル（孵化からの経過日数 → 理想体重g）
-            // ドルクスの一般的な成長曲線を基に設定（80mm羽化個体の実績ベース）
-            const IDEAL_WEIGHT_TABLE = [
-                {day:0,   w:0.1},
-                {day:30,  w:0.5},
-                {day:60,  w:1.5},
-                {day:90,  w:3.5},
-                {day:120, w:6.0},
-                {day:150, w:9.0},
-                {day:180, w:13.0},
-                {day:210, w:17.0},
-                {day:240, w:21.0},
-                {day:270, w:24.0},
-                {day:300, w:26.5},
-                {day:330, w:28.0},
-                {day:360, w:29.0},
-                {day:400, w:29.5},
-                {day:450, w:29.0},
-                {day:500, w:28.0},
-            ];
-            const getIdealWeight = (elapsedDays) => {
-                if (elapsedDays === null || elapsedDays < 0) return null;
-                const tbl = IDEAL_WEIGHT_TABLE;
-                if (elapsedDays <= tbl[0].day) return tbl[0].w;
-                if (elapsedDays >= tbl[tbl.length-1].day) return tbl[tbl.length-1].w;
-                for (let i = 0; i < tbl.length-1; i++) {
-                    if (elapsedDays >= tbl[i].day && elapsedDays <= tbl[i+1].day) {
-                        const t = (elapsedDays - tbl[i].day) / (tbl[i+1].day - tbl[i].day);
-                        return tbl[i].w + t * (tbl[i+1].w - tbl[i].w);
-                    }
-                }
-                return null;
-            };
-            const getGrowthRate = (h) => {
-                const weightG = parseFloat((h.size || '').replace(/[^0-9.]/g, ''));
-                if (isNaN(weightG) || weightG <= 0) return null;
-                const origin = parseDateSafe(form.hatchDate);
-                if (!origin) return null;
-                const recDate = parseDateSafe(h.date);
-                if (!recDate) return null;
-                const elapsed = Math.round((recDate - origin) / 86400000);
-                const ideal = getIdealWeight(elapsed);
-                if (!ideal) return null;
-                return Math.round((weightG / ideal - 1) * 100);
-            };
+
 
             const saveRecord = (record) => {
                 // 入力欄は数値のみを受け付けるため、保存時に単位（g・℃）を自動付与する。
@@ -2528,12 +2526,7 @@
                                                 <td className="p-2">{h.date}</td>
                                                 <td className="p-2">{h.item}</td>
                                                 <td className="p-2">{h.size}</td>
-                                                <td className="p-2">{(() => {
-                                                    const r = getGrowthRate(h);
-                                                    if (r === null) return <span className="text-neutral-500">-</span>;
-                                                    const color = r >= 10 ? '#34d399' : r >= 0 ? '#86efac' : r >= -10 ? '#fbbf24' : '#f87171';
-                                                    return <span style={{color}} className="font-bold">{r > 0 ? '+' : ''}{r}%</span>;
-                                                })()}</td>
+                                                <td className="p-2"><GrowthRateCell rate={calcGrowthRate(form.hatchDate, h)} /></td>
                                                 <td className="p-2">{h.temp}</td>
                                                 <td className="p-2">
                                                     <div className="flex gap-1 justify-center">
