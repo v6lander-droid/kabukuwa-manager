@@ -1547,6 +1547,21 @@
                 }
             }, [creatures, loadFailed]);
 
+            useEffect(() => {
+                if (!saveError) return;
+                const check = () => {
+                    try {
+                        const testKey = '_beetle_space_check_';
+                        localStorage.setItem(testKey, '1');
+                        localStorage.removeItem(testKey);
+                        localStorage.setItem('beetle_data', JSON.stringify(creatures));
+                        setSaveError(false);
+                    } catch(e) {}
+                };
+                const timer = setInterval(check, 3000);
+                return () => clearInterval(timer);
+            }, [saveError, creatures]);
+
             const resetFilters = () => setFilters({ name: '', sex: '', saleStatus: '', stage: '', alias: '', generation: '' });
             const activeFilterCount = Object.values(filters).filter(v => v !== '').length;
             useEffect(() => {
