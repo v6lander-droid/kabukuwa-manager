@@ -1493,7 +1493,12 @@
                     })
                     .sort((a, b) => {
                         let av, bv;
-                        if (sort.key === 'size' || sort.key === 'temp') {
+                        if (sort.key === 'growthRate') {
+                            const aLast = a.history.length > 0 ? a.history[a.history.length-1] : null;
+                            const bLast = b.history.length > 0 ? b.history[b.history.length-1] : null;
+                            av = calcGrowthRate(a.hatchDate, aLast);
+                            bv = calcGrowthRate(b.hatchDate, bLast);
+                        } else if (sort.key === 'size' || sort.key === 'temp') {
                             // 体重・温度はcreature自体のプロパティではなく、飼育記録（history）の最新値を見る必要がある。
                             // 単位付き文字列（例:"15g","26℃"）から数値部分だけを抽出して数値として比較する。
                             const aLatest = a.history.length > 0 ? a.history[a.history.length - 1][sort.key] : null;
