@@ -1297,6 +1297,24 @@
             var color = rate >= 10 ? '#34d399' : rate >= 0 ? '#86efac' : rate >= -10 ? '#fbbf24' : '#f87171';
             return React.createElement('span', {style:{color:color, fontWeight:'bold'}}, (rate > 0 ? '+' : '') + rate + '%');
         }
+        function AliasSelect(props) {
+            var allCreatures = props.allCreatures;
+            var value = props.value;
+            var onChange = props.onChange;
+            var seen = {};
+            var opts = [React.createElement('option', {key:'', value:''}, '-- なし（デフォルト） --')];
+            allCreatures.forEach(function(c) {
+                if (c.alias && !seen[c.alias]) {
+                    seen[c.alias] = true;
+                    opts.push(React.createElement('option', {key:c.alias, value:c.alias}, c.alias));
+                }
+            });
+            return React.createElement('select', {
+                value: value,
+                onChange: function(e){ onChange(e.target.value); },
+                className: 'w-full bg-neutral-700 text-white text-xs rounded px-2 py-1 border border-neutral-600'
+            }, opts);
+        }
         function App() {
             const [selectedCreature, setSelectedCreature] = useState(null);
             const [activeTab, setActiveTab] = useState('一覧');
@@ -1304,6 +1322,7 @@
             const [showAddModal, setShowAddModal] = useState(false);
             const [showGrowthSettings, setShowGrowthSettings] = useState(false);
             const [growthTargetApp, setGrowthTargetApp] = useState(80);
+            const [growthAliasApp, setGrowthAliasApp] = useState('');
             const [showSavePrompt, setShowSavePrompt] = useState(false);
             const [pendingSaveData, setPendingSaveData] = useState(null);
             const [newCreatureData, setNewCreatureData] = useState({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '', femaleParent: '', stage: '幼虫', saleStatus: '使用', sex: 'オス', emergenceSize: '' });
@@ -1837,6 +1856,10 @@
                     {showGrowthSettings && (
                         <div className="mb-4 p-4 bg-neutral-800 rounded-xl border border-emerald-700">
                             <p className="text-emerald-400 font-bold text-sm mb-3">📈 成長率設定</p>
+                            <div className="mb-3">
+                                <p className="text-xs text-white mb-1">名称（alias）</p>
+                                <AliasSelect allCreatures={creatures} value={growthAliasApp} onChange={setGrowthAliasApp} />
+                            </div>
                             <div className="mb-3">
                                 <p className="text-xs text-white mb-1">目標サイズ（mm）</p>
                                 <input type="number" value={growthTargetApp} onChange={e => setGrowthTargetApp(Number(e.target.value))} min="40" max="130" className="w-24 bg-neutral-700 text-white text-xs rounded px-2 py-2 border border-neutral-600" />
@@ -2574,9 +2597,7 @@
                                     <p className="text-emerald-400 font-bold text-sm mb-3">📈 成長率設定</p>
                                     <div className="mb-3">
                                         <p className="text-xs text-white mb-1">名称（alias）</p>
-                                        {React.createElement.apply(React, ["select", {value:growthAlias, onChange:function(e){setGrowthAlias(e.target.value);}, className:"w-full bg-neutral-700 text-white text-xs rounded px-2 py-1 border border-neutral-600"},
-                                            React.createElement("option",{value:""},"-- なし（デフォルト） --")
-                                        ].concat(allCreatures.filter(function(c,i,a){ return c.alias && a.findIndex(function(x){return x.alias===c.alias;})=== i; }).map(function(c){ return React.createElement("option",{key:c.alias,value:c.alias},c.alias); })))}
+                                        <AliasSelect allCreatures={allCreatures} value={growthAlias} onChange={setGrowthAlias} />
                                     </div>
                                     <div className="mb-3">
                                         <p className="text-xs text-white mb-1">目標サイズ（mm）</p>
