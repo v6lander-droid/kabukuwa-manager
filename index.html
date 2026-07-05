@@ -1309,6 +1309,8 @@
             const [activeTab, setActiveTab] = useState('一覧');
             const [highlightId, setHighlightId] = useState(null);
             const [showAddModal, setShowAddModal] = useState(false);
+            const [showGrowthSettings, setShowGrowthSettings] = useState(false);
+            const [growthTargetApp, setGrowthTargetApp] = useState(80);
             const [newCreatureData, setNewCreatureData] = useState({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '', femaleParent: '', stage: '幼虫', saleStatus: '使用', sex: 'オス', emergenceSize: '' });
             const [maleSelection, setMaleSelection] = useState('');
             const [femaleSelection, setFemaleSelection] = useState('');
@@ -1715,6 +1717,7 @@
                                 {appIcon && <img src={appIcon} alt="icon" className="w-8 h-8 rounded-lg object-cover" />}
                                 <div className="flex flex-col"><span>Beetle Base</span><span className="text-[10px] text-white">made by ＭＨ</span></div>
                             </div>
+                            <button onClick={() => setShowGrowthSettings(s => !s)} className="bg-emerald-600 px-3 py-2 rounded text-xs text-white font-bold"><i className="fa-solid fa-chart-line mr-1"></i>成長率設定</button>
                             {activeTab === '一覧' && <button onClick={() => setShowAddModal(true)} className="bg-emerald-600 px-4 py-2 rounded text-sm text-white font-bold">追加</button>}
                         </div>
                         <div className="flex gap-2">
@@ -1827,6 +1830,29 @@
                         </div>
                     )}
 
+                    {showGrowthSettings && (
+                        <div className="mb-4 p-4 bg-neutral-800 rounded-xl border border-emerald-700">
+                            <p className="text-emerald-400 font-bold text-sm mb-3">📈 成長率設定</p>
+                            <p className="text-neutral-400 text-xs mb-3">同名称の実績から理想成長テーブルを生成します。</p>
+                            <div className="mb-3">
+                                <p className="text-xs text-white mb-1">目標サイズ（mm）</p>
+                                <input type="number" value={growthTargetApp} onChange={e => setGrowthTargetApp(Number(e.target.value))} min="40" max="130" className="w-24 bg-neutral-700 text-white text-xs rounded px-2 py-2 border border-neutral-600" />
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={() => {
+                                    const newTable = buildGrowthTableForSize(growthTargetApp);
+                                    GROWTH_TABLE.length = 0;
+                                    newTable.forEach(r => GROWTH_TABLE.push(r));
+                                    setShowGrowthSettings(false);
+                                }} className="flex-1 bg-emerald-600 py-2 rounded text-white text-xs font-bold">適用</button>
+                                <button onClick={() => {
+                                    GROWTH_TABLE.length = 0;
+                                    buildGrowthTableForSize(80).forEach(r => GROWTH_TABLE.push(r));
+                                    setShowGrowthSettings(false);
+                                }} className="flex-1 bg-neutral-600 py-2 rounded text-neutral-300 text-xs">リセット</button>
+                            </div>
+                        </div>
+                    )}
                     <div className="flex border-b border-neutral-800 mb-4">
                         {['一覧', '血統図', '交配'].map(tab => (
                             <button key={tab} onClick={() => { setActiveTab(tab); setHighlightId(null); }} className={`px-4 py-2 text-sm font-bold ${activeTab === tab ? 'text-emerald-400 border-b-2 border-emerald-400' : 'text-neutral-200'}`}>{tab}</button>
