@@ -2217,8 +2217,6 @@
                 const allElapsedSet = new Set();
                 elapsedDatasets.forEach(({ points }) => points.forEach(p => allElapsedSet.add(p.elapsed)));
                 allElapsedSet.add(0);
-                // 理想曲線用にGROWTH_TABLEの全日数点も追加
-                GROWTH_TABLE.forEach(function(r) { allElapsedSet.add(r.day); });
                 const sortedElapsed = Array.from(allElapsedSet).sort((a, b) => a - b);
 
                 const mappedDatasets = elapsedDatasets.map(({ ds, points }) => {
