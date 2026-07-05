@@ -2639,7 +2639,7 @@
                         {/* 飼育記録テーブル（「サイズ」→「体重」、削除ボタン追加） */}
                         <div className="border-t border-neutral-700 pt-4">
                             <div className="flex justify-between items-center mb-3">
-                                <h3 className="font-bold text-sm">飼育記録</h3>
+                                <h3 className="font-bold text-sm">飼育記録 <span className="text-neutral-500 text-xs">tbl:{growthTable.length}件 300日:{growthTable.find(r=>r.day===300) ? growthTable.find(r=>r.day===300).w : "?"} target:{growthTarget}</span></h3>
                                 {showGrowthPanel && (
                                     <div className="mb-4 p-4 bg-neutral-800 rounded-xl border border-emerald-700">
                                         <p className="text-emerald-400 font-bold text-sm mb-3">📈 成長率設定</p>
