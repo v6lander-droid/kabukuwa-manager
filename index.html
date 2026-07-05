@@ -2222,6 +2222,12 @@
                 const allElapsedSet = new Set();
                 elapsedDatasets.forEach(({ points }) => points.forEach(p => allElapsedSet.add(p.elapsed)));
                 allElapsedSet.add(0);
+                // 羽化日の経過日数も追加して正確な位置にマーカーを表示
+                const mainOriginForSet = parseDateSafe(mainCreature.hatchDate);
+                const mainEmergenceForSet = parseDateSafe(mainCreature.emergenceDate);
+                if (mainOriginForSet && mainEmergenceForSet) {
+                    allElapsedSet.add(dayDiff(mainOriginForSet, mainEmergenceForSet));
+                }
                 const sortedElapsed = Array.from(allElapsedSet).sort((a, b) => a - b);
 
                 const mappedDatasets = elapsedDatasets.map(({ ds, points }) => {
