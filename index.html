@@ -2316,6 +2316,7 @@
             const [showIdealCurve, setShowIdealCurve] = React.useState(false);
             const [showGrowthPanel, setShowGrowthPanel] = React.useState(false);
             const [growthTarget, setGrowthTarget] = React.useState(80);
+            const [growthAlias, setGrowthAlias] = React.useState(creature.alias || '');
             const [growthTable, setGrowthTable] = React.useState(function() {
                 var alias = creature.alias;
                 var sameAlias = alias ? allCreatures.filter(function(c) {
@@ -2348,7 +2349,7 @@
                 return buildGrowthTableForSize(80);
             });
             React.useEffect(function() {
-                var alias = form.alias;
+                var alias = growthAlias;
                 var sameAlias = alias ? allCreatures.filter(function(c) {
                     return c.id !== form.id && c.alias === alias && c.hatchDate && c.hatchDate !== '-' && c.history && c.history.length > 0;
                 }) : [];
@@ -2388,7 +2389,7 @@
                 }
                 if (!newTable) newTable = buildGrowthTableForSize(growthTarget);
                 setGrowthTable(newTable.slice());
-            }, [form.alias, growthTarget]);
+            }, [growthAlias, growthTarget]);
             const currentGrowthTable = growthTable;
             const currentHatchDate = form.hatchDate;
             const calcRate = function(h) { return calcGrowthRate(currentHatchDate, h, currentGrowthTable); };
@@ -2571,6 +2572,12 @@
                             {showGrowthPanel && (
                                 <div className="mb-3 p-4 bg-neutral-800 rounded-xl border border-emerald-700">
                                     <p className="text-emerald-400 font-bold text-sm mb-3">📈 成長率設定</p>
+                                    <div className="mb-3">
+                                        <p className="text-xs text-white mb-1">名称（alias）</p>
+                                        {React.createElement.apply(React, ["select", {value:growthAlias, onChange:function(e){setGrowthAlias(e.target.value);}, className:"w-full bg-neutral-700 text-white text-xs rounded px-2 py-1 border border-neutral-600"},
+                                            React.createElement("option",{value:""},"-- なし（デフォルト） --")
+                                        ].concat(allCreatures.filter(function(c,i,a){ return c.alias && a.findIndex(function(x){return x.alias===c.alias;})=== i; }).map(function(c){ return React.createElement("option",{key:c.alias,value:c.alias},c.alias); })))}
+                                    </div>
                                     <div className="mb-3">
                                         <p className="text-xs text-white mb-1">目標サイズ（mm）</p>
                                         <input type="number" value={growthTarget} onChange={e => setGrowthTarget(Number(e.target.value))} min="40" max="130" className="w-20 bg-neutral-700 text-white text-xs rounded px-2 py-1 border border-neutral-600" />
