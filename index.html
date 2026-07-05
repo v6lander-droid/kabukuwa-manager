@@ -1271,7 +1271,7 @@
             }
             return null;
         }
-        function calcGrowthRate(hatchDate, h) {
+        function calcGrowthRate(hatchDate, h, tbl) {
             if (!h) return null;
             var weightG = parseFloat((h.size || '').replace(/[^0-9.]/g, ''));
             if (isNaN(weightG) || weightG <= 0) return null;
@@ -1282,9 +1282,21 @@
             var recDate = new Date(h.date);
             if (isNaN(recDate.getTime())) return null;
             var elapsed = Math.round((recDate - origin) / 86400000);
-            var ideal = getIdealWeight(elapsed);
+            var ideal = getIdealWeightFromTable(elapsed, tbl || GROWTH_TABLE);
             if (!ideal) return null;
             return Math.round((weightG / ideal - 1) * 100);
+        }
+        function getIdealWeightFromTable(days, tbl) {
+            if (!tbl || tbl.length === 0 || days === null || days < 0) return null;
+            if (days <= tbl[0].day) return tbl[0].w || null;
+            if (days >= tbl[tbl.length-1].day) return tbl[tbl.length-1].w || null;
+            for (var i = 0; i < tbl.length-1; i++) {
+                if (days >= tbl[i].day && days <= tbl[i+1].day) {
+                    var r = (days - tbl[i].day) / (tbl[i+1].day - tbl[i].day);
+                    return tbl[i].w + r * (tbl[i+1].w - tbl[i].w);
+                }
+            }
+            return null;
         }
         function GrowthRateSpan(props) {
             var rate = props.rate;
@@ -2126,7 +2138,7 @@
         }
 
         // ---- 比較グラフ ----
-        function CompareGrowthChart({ mainCreature, allCreatures, showIdealCurve, idealCurve, onToggleIdealCurve }) {
+        function CompareGrowthChart({ mainCreature, allCreatures, showIdealCurve, idealCurve, onToggleIdealCurve, growthTable }) {
             const chartRef = useRef(null);
             const chartInstance = useRef(null);
             const [compareIds, setCompareIds] = useState([]);
@@ -2246,10 +2258,11 @@
                 }
                 // 理想曲線データセットを追加
                 const _showIdeal = idealCurve !== undefined ? idealCurve : showIdealCurve;
-                if (_showIdeal && GROWTH_TABLE.length > 0) {
+                var _idealTable = growthTable || GROWTH_TABLE;
+                if (_showIdeal && _idealTable.length > 0) {
                     const idealDataMapped = sortedElapsed.map((e, idx) => {
-                        if (idx === 0) return 0; // 必ず0gスタート
-                        const w = getIdealWeight(e);
+                        if (idx === 0) return 0;
+                        const w = getIdealWeightFromTable(e, _idealTable);
                         return w !== null ? Math.round(w * 10) / 10 : null;
                     });
                     mappedDatasets.push({
@@ -2315,7 +2328,7 @@
                     }
                 });
                 return () => { if (chartInstance.current) chartInstance.current.destroy(); };
-            }, [mainCreature, compareIds, allCreatures, showIdealCurve, idealCurve]);
+            }, [mainCreature, compareIds, allCreatures, showIdealCurve, idealCurve, growthTable]);
 
             return (
                  <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 mt-4 text-white shadow-2xl">
@@ -2382,6 +2395,10 @@
 
             const saveEdit = () => { setForm(editForm); onUpdate(editForm); setShowEditModal(false); };
             const [showIdealCurve, setShowIdealCurve] = React.useState(false);
+            const [showGrowthPanel, setShowGrowthPanel] = React.useState(false);
+            const [growthAlias, setGrowthAlias] = React.useState('');
+            const [growthTarget, setGrowthTarget] = React.useState(80);
+            const [growthTable, setGrowthTable] = React.useState(GROWTH_TABLE.slice());
              // alias が同じ全個体の飼育記録からGROWTH_TABLEを自動生成
              React.useEffect(function() {
                  var alias = form.alias;
@@ -2393,7 +2410,7 @@
                  var points = {};
                  sameAlias.forEach(function(c) {
                      var size = parseFloat((c.emergenceSize || '').replace(/[^0-9.]/g, ''));
-                     if (isNaN(size) || size <= 0) return;
+                     var ratio = (!isNaN(size) && size > 0) ? growthTarget / size : 1;
                      var origin = new Date(c.hatchDate);
                      c.history.forEach(function(h) {
                          var w = parseFloat((h.size || '').replace(/[^0-9.]/g, ''));
@@ -2401,7 +2418,7 @@
                          var elapsed = Math.round((new Date(h.date) - origin) / 86400000);
                          if (elapsed < 0) return;
                          if (!points[elapsed]) points[elapsed] = [];
-                         points[elapsed].push(w);
+                         points[elapsed].push(w * ratio);
                      });
                  });
                  var newTable = Object.keys(points).map(function(d) {
@@ -2412,10 +2429,8 @@
                  if (newTable[0].day > 0) newTable.unshift({day:0, w:0});
                  GROWTH_TABLE.length = 0;
                  newTable.forEach(function(r){ GROWTH_TABLE.push(r); });
-             }, [form.alias]);
-            const [showGrowthPanel, setShowGrowthPanel] = React.useState(false);
-            const [growthAlias, setGrowthAlias] = React.useState('');
-            const [growthTarget, setGrowthTarget] = React.useState(80);
+                 setGrowthTable(newTable.slice());
+             }, [form.alias, growthTarget]);
 
             const saveRecord = (record) => {
                 // 入力欄は数値のみを受け付けるため、保存時に単位（g・℃）を自動付与する。
@@ -2589,7 +2604,7 @@
                                 <h3 className="font-bold text-sm">飼育記録</h3>
                                 {showGrowthPanel && (
                                     <div className="mb-4 p-4 bg-neutral-800 rounded-xl border border-emerald-700">
-                                        <p className="text-emerald-400 font-bold text-sm mb-3">📈 成長率設定</p>
+                                        <p className="text-emerald-400 font-bold text-sm mb-3">📈 成長率設定 <span className="text-neutral-400 text-xs">[30日理想:{growthTable.length > 1 ? growthTable[1].w : "?"}g]</span></p>
                                         <p className="text-neutral-400 text-xs mb-3">羽化済み個体の実績から理想成長テーブルを生成します。</p>
                                         <div className="flex flex-col gap-2 mb-3">
                                             <div>
@@ -2662,7 +2677,7 @@
                                                 <td className="p-2">{h.date}</td>
                                                 <td className="p-2">{h.item}</td>
                                                 <td className="p-2">{h.size}</td>
-                                                <td className="p-2"><GrowthRateSpan rate={calcGrowthRate(form.hatchDate, h)} /></td>
+                                                <td className="p-2"><GrowthRateSpan rate={calcGrowthRate(form.hatchDate, h, growthTable)} /></td>
                                                 <td className="p-2">{h.temp}</td>
                                                 <td className="p-2">
                                                     <div className="flex gap-1 justify-center">
@@ -2678,7 +2693,7 @@
                         </div>
                     </div>
 
-                    <CompareGrowthChart mainCreature={form} allCreatures={allForChart} showIdealCurve={showIdealCurve} idealCurve={showIdealCurve} onToggleIdealCurve={() => setShowIdealCurve(v => !v)} />
+                    <CompareGrowthChart mainCreature={form} allCreatures={allForChart} showIdealCurve={showIdealCurve} idealCurve={showIdealCurve} onToggleIdealCurve={() => setShowIdealCurve(v => !v)} growthTable={growthTable} />
 
                     {/* 累積F値 */}
                     <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 mt-4 text-white shadow-2xl space-y-3">
