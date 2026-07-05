@@ -2255,15 +2255,13 @@
                          <h3 className="font-bold text-sm">成長グラフ <span className="text-[10px] text-neutral-400 font-normal">（他の個体と比較できます）</span></h3>
                          <button onClick={onToggleIdealCurve} className={idealCurve ? "px-2 py-1 rounded text-xs font-bold bg-emerald-600 text-white" : "px-2 py-1 rounded text-xs font-bold bg-neutral-700 text-neutral-300"}>理想曲線</button>
                      </div>
-                     {otherCreatures.length > 0 && (
-                         <div className="mb-3 space-y-2">
+                    {otherCreatures.length > 0 && (
+                        <div className="mb-3 space-y-2">
                             <select value="" onChange={e => { addCompare(e.target.value); }} disabled={!canAddMore}
                                 className="w-full bg-neutral-800 border border-neutral-600 text-white text-xs rounded px-2 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:border-emerald-500">
                                 <option value="">{canAddMore ? (availableToAdd.length > 0 ? '比較個体を選択...' : '（追加できる個体なし）') : `最大${COMPARE_COLORS.length - 1}個体まで`}</option>
-                                {availableToAdd.map(c => (<option key={c.id} value={c.id}>{c.name}（{c.generation} / {c.alias || '—'}）</option>))}
+                                {availableToAdd.map(c => (<option key={c.id} value={c.id}>{c.name}（{c.generation} / {c.alias || "—"}）</option>))}
                             </select>
-                         </div>
-                     )}
                             {compareIds.length > 0 && (
                                 <div className="flex flex-wrap gap-1.5">
                                     {compareIds.map((cid, idx) => {
@@ -2272,7 +2270,7 @@
                                         const color = COMPARE_COLORS[idx + 1];
                                         return (
                                             <span key={cid} className="compare-tag" style={{ borderColor: color.border, color: color.text, backgroundColor: color.bg }}>
-                                                <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: color.border, display: 'inline-block', flexShrink: 0 }}></span>
+                                                <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: color.border, display: "inline-block", flexShrink: 0 }}></span>
                                                 {c.name}
                                                 <button onClick={() => removeCompare(cid)} style={{ marginLeft: 2, lineHeight: 1 }} title="削除"><i className="fa-solid fa-xmark" style={{ fontSize: 8 }}></i></button>
                                             </span>
@@ -2284,6 +2282,7 @@
                     )}
                     <div className="h-52 w-full"><canvas ref={chartRef}></canvas></div>
                     {compareIds.length > 0 && <p className="text-[10px] text-neutral-500 mt-2">⚠ 比較個体は記録日が異なる場合、グラフが途切れることがあります</p>}
+                </div>
                 </div>
             );
         }
