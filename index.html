@@ -1253,7 +1253,7 @@
         }
 
         const GROWTH_TABLE = [
-            {day:0,w:0.1},{day:30,w:0.5},{day:60,w:1.5},{day:90,w:3.5},
+            {day:0,w:0},{day:30,w:0.5},{day:60,w:1.5},{day:90,w:3.5},
             {day:120,w:6.0},{day:150,w:9.0},{day:180,w:13.0},{day:210,w:17.0},
             {day:240,w:21.0},{day:270,w:24.0},{day:300,w:26.5},{day:330,w:28.0},
             {day:360,w:29.0},{day:400,w:29.5},{day:450,w:29.0},{day:500,w:28.0},
@@ -1919,7 +1919,7 @@
                                 }} className="flex-1 bg-emerald-600 py-2 rounded text-white text-xs font-bold">テーブル生成</button>
                                 <button onClick={() => {
                                     GROWTH_TABLE.length = 0;
-                                    [{day:0,w:0.1},{day:30,w:0.5},{day:60,w:1.5},{day:90,w:3.5},{day:120,w:6},{day:150,w:9},{day:180,w:13},{day:210,w:17},{day:240,w:21},{day:270,w:24},{day:300,w:26.5},{day:330,w:28},{day:360,w:29},{day:400,w:29.5},{day:450,w:29},{day:500,w:28}].forEach(r => GROWTH_TABLE.push(r));
+                                    [{day:0,w:0},{day:30,w:0.5},{day:60,w:1.5},{day:90,w:3.5},{day:120,w:6},{day:150,w:9},{day:180,w:13},{day:210,w:17},{day:240,w:21},{day:270,w:24},{day:300,w:26.5},{day:330,w:28},{day:360,w:29},{day:400,w:29.5},{day:450,w:29},{day:500,w:28}].forEach(r => GROWTH_TABLE.push(r));
                                     setShowGrowthSettings(false);
                                 }} className="flex-1 bg-neutral-600 py-2 rounded text-neutral-300 text-xs">リセット</button>
                             </div>
@@ -2216,6 +2216,7 @@
                 // 全データセットに登場する経過日数の和集合を横軸ラベルとする
                 const allElapsedSet = new Set();
                 elapsedDatasets.forEach(({ points }) => points.forEach(p => allElapsedSet.add(p.elapsed)));
+                allElapsedSet.add(0);
                 const sortedElapsed = Array.from(allElapsedSet).sort((a, b) => a - b);
 
                 const mappedDatasets = elapsedDatasets.map(({ ds, points }) => {
@@ -2600,7 +2601,7 @@
                                             }} className="flex-1 bg-emerald-600 py-2 rounded text-white text-xs font-bold">テーブル生成</button>
                                             <button onClick={() => {
                                                 GROWTH_TABLE.length = 0;
-                                                [{day:0,w:0.1},{day:30,w:0.5},{day:60,w:1.5},{day:90,w:3.5},{day:120,w:6},{day:150,w:9},{day:180,w:13},{day:210,w:17},{day:240,w:21},{day:270,w:24},{day:300,w:26.5},{day:330,w:28},{day:360,w:29},{day:400,w:29.5},{day:450,w:29},{day:500,w:28}].forEach(r => GROWTH_TABLE.push(r));
+                                                [{day:0,w:0},{day:30,w:0.5},{day:60,w:1.5},{day:90,w:3.5},{day:120,w:6},{day:150,w:9},{day:180,w:13},{day:210,w:17},{day:240,w:21},{day:270,w:24},{day:300,w:26.5},{day:330,w:28},{day:360,w:29},{day:400,w:29.5},{day:450,w:29},{day:500,w:28}].forEach(r => GROWTH_TABLE.push(r));
                                                 setShowGrowthPanel(false);
                                             }} className="flex-1 bg-neutral-600 py-2 rounded text-neutral-300 text-xs">リセット</button>
                                         </div>
