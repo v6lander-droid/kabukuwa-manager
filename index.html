@@ -2397,7 +2397,37 @@
             const [showGrowthPanel, setShowGrowthPanel] = React.useState(false);
             const [growthAlias, setGrowthAlias] = React.useState('');
             const [growthTarget, setGrowthTarget] = React.useState(80);
-            const [growthTable, setGrowthTable] = React.useState(GROWTH_TABLE.slice());
+            const [growthTable, setGrowthTable] = React.useState(function() {
+                 var alias = creature.alias;
+                 var sameAlias = alias ? allCreatures.filter(function(c) {
+                     return c.alias === alias && c.hatchDate && c.hatchDate !== '-' && c.history && c.history.length > 0;
+                 }) : [];
+                 if (sameAlias.length > 0) {
+                     var points = {};
+                     sameAlias.forEach(function(c) {
+                         var emergSize = parseFloat((c.emergenceSize || '').replace(/[^0-9.]/g, ''));
+                         var ratio = (!isNaN(emergSize) && emergSize > 0) ? 80 / emergSize : 1;
+                         var origin = new Date(c.hatchDate);
+                         c.history.forEach(function(h) {
+                             var w = parseFloat((h.size || '').replace(/[^0-9.]/g, ''));
+                             if (isNaN(w) || w <= 0 || !h.date) return;
+                             var elapsed = Math.round((new Date(h.date) - origin) / 86400000);
+                             if (elapsed < 0) return;
+                             if (!points[elapsed]) points[elapsed] = [];
+                             points[elapsed].push(w * ratio);
+                         });
+                     });
+                     var pts = Object.keys(points).map(function(d) {
+                         var vals = points[d];
+                         return { day: parseInt(d), w: Math.round(vals.reduce(function(a,b){return a+b;},0)/vals.length * 10)/10 };
+                     }).sort(function(a,b){return a.day-b.day;});
+                     if (pts.length > 0) {
+                         if (pts[0].day > 0) pts.unshift({day:0, w:0});
+                         return pts;
+                     }
+                 }
+                 return buildGrowthTableForSize(80);
+             });
              // alias平均データを目標サイズ比率でスケールしてGROWTH_TABLEを生成
              React.useEffect(function() {
                  var alias = form.alias;
