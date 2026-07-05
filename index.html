@@ -2324,8 +2324,6 @@
                 if (sameAlias.length > 0) {
                     var pts2 = {};
                     sameAlias.forEach(function(c) {
-                        var es = parseFloat((c.emergenceSize || '').replace(/[^0-9.]/g, ''));
-                        var ratio = (!isNaN(es) && es > 0) ? 80 / es : 1;
                         var origin = new Date(c.hatchDate);
                         c.history.forEach(function(h) {
                             var w = parseFloat((h.size || '').replace(/[^0-9.]/g, ''));
@@ -2333,14 +2331,19 @@
                             var elapsed = Math.round((new Date(h.date) - origin) / 86400000);
                             if (elapsed < 0) return;
                             if (!pts2[elapsed]) pts2[elapsed] = [];
-                            pts2[elapsed].push(w * ratio);
+                            pts2[elapsed].push(w);
                         });
                     });
                     var arr = Object.keys(pts2).map(function(d) {
                         var vals = pts2[d];
-                        return { day: parseInt(d), w: Math.round(vals.reduce(function(a,b){return a+b;},0)/vals.length*10)/10 };
+                        return { day: parseInt(d), w: vals.reduce(function(a,b){return a+b;},0)/vals.length };
                     }).sort(function(a,b){return a.day-b.day;});
-                    if (arr.length > 0) { if (arr[0].day > 0) arr.unshift({day:0,w:0}); return arr; }
+                    if (arr.length > 0) {
+                        if (arr[0].day > 0) arr.unshift({day:0, w:0});
+                        var avgPeak2 = Math.max.apply(null, arr.map(function(r){return r.w;}));
+                        var scale2 = avgPeak2 > 0 ? 22 / avgPeak2 : 1;
+                        return arr.map(function(r){ return { day: r.day, w: Math.round(r.w * scale2 * 10) / 10 }; });
+                    }
                 }
                 return buildGrowthTableForSize(80);
             });
@@ -2351,10 +2354,9 @@
                 }) : [];
                 var newTable;
                 if (sameAlias.length > 0) {
+                    // 各個体の飼育記録から経過日数ごとの平均体重を計算（スケールなし）
                     var pts3 = {};
                     sameAlias.forEach(function(c) {
-                        var es = parseFloat((c.emergenceSize || '').replace(/[^0-9.]/g, ''));
-                        var ratio = (!isNaN(es) && es > 0) ? growthTarget / es : 1;
                         var origin = new Date(c.hatchDate);
                         c.history.forEach(function(h) {
                             var w = parseFloat((h.size || '').replace(/[^0-9.]/g, ''));
@@ -2362,14 +2364,27 @@
                             var elapsed = Math.round((new Date(h.date) - origin) / 86400000);
                             if (elapsed < 0) return;
                             if (!pts3[elapsed]) pts3[elapsed] = [];
-                            pts3[elapsed].push(w * ratio);
+                            pts3[elapsed].push(w);
                         });
                     });
                     var arr2 = Object.keys(pts3).map(function(d) {
                         var vals = pts3[d];
-                        return { day: parseInt(d), w: Math.round(vals.reduce(function(a,b){return a+b;},0)/vals.length*10)/10 };
+                        return { day: parseInt(d), w: vals.reduce(function(a,b){return a+b;},0)/vals.length };
                     }).sort(function(a,b){return a.day-b.day;});
-                    if (arr2.length > 0) { if (arr2[0].day > 0) arr2.unshift({day:0,w:0}); newTable = arr2; }
+                    if (arr2.length > 0) {
+                        if (arr2[0].day > 0) arr2.unshift({day:0, w:0});
+                        // 平均曲線のピーク体重を求める
+                        var avgPeak = Math.max.apply(null, arr2.map(function(r){return r.w;}));
+                        // 目標サイズのピーク体重を計算（80mm=22g、90mm=30g基準）
+                        var targetPeak = growthTarget <= 80
+                            ? 22 * (growthTarget / 80)
+                            : 22 + (30 - 22) * (growthTarget - 80) / 10;
+                        // 平均曲線をターゲットピークにスケール
+                        var scale = avgPeak > 0 ? targetPeak / avgPeak : 1;
+                        newTable = arr2.map(function(r) {
+                            return { day: r.day, w: Math.round(r.w * scale * 10) / 10 };
+                        });
+                    }
                 }
                 if (!newTable) newTable = buildGrowthTableForSize(growthTarget);
                 setGrowthTable(newTable.slice());
