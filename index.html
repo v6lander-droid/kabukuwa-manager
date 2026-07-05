@@ -2249,13 +2249,13 @@
                 // 理想曲線データセットを追加
                 const _showIdeal = idealCurve !== undefined ? idealCurve : showIdealCurve;
                 if (_showIdeal && GROWTH_TABLE.length > 0) {
-                    const idealData = sortedElapsed.map(e => {
+                    const idealDataMapped = sortedElapsed.map(e => {
                         const w = getIdealWeight(e);
                         return w !== null ? Math.round(w * 10) / 10 : null;
                     });
                     mappedDatasets.push({
                         label: '理想曲線',
-                        data: idealData,
+                        data: idealDataMapped,
                         borderColor: '#fbbf24',
                         backgroundColor: 'transparent',
                         borderDash: [6, 3],
@@ -2303,6 +2303,7 @@
                     data: { labels: sortedElapsed.map(e => `${e}日`), datasets: mappedDatasets },
                     plugins: [milestonePlugin],
                     options: {
+                        elements: { line: { tension: 0 } },
                         responsive: true, maintainAspectRatio: false, spanGaps: true,
                         layout: { padding: { top: 16 } },
                         plugins: {
