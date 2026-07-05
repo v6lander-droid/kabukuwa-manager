@@ -1283,13 +1283,13 @@
             if (isNaN(recDate.getTime())) return null;
             var elapsed = Math.round((recDate - origin) / 86400000);
             var ideal = getIdealWeightFromTable(elapsed, tbl || GROWTH_TABLE);
-            if (!ideal) return null;
+            if (ideal === null || ideal === undefined || ideal <= 0) return null;
             return Math.round((weightG / ideal - 1) * 100);
         }
         function getIdealWeightFromTable(days, tbl) {
             if (!tbl || tbl.length === 0 || days === null || days < 0) return null;
-            if (days <= tbl[0].day) return tbl[0].w || null;
-            if (days >= tbl[tbl.length-1].day) return tbl[tbl.length-1].w || null;
+            if (days <= tbl[0].day) return tbl[0].w !== undefined ? tbl[0].w : null;
+            if (days >= tbl[tbl.length-1].day) return tbl[tbl.length-1].w !== undefined ? tbl[tbl.length-1].w : null;
             for (var i = 0; i < tbl.length-1; i++) {
                 if (days >= tbl[i].day && days <= tbl[i+1].day) {
                     var r = (days - tbl[i].day) / (tbl[i+1].day - tbl[i].day);
