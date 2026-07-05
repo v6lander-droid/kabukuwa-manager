@@ -2343,7 +2343,7 @@
             const [growthTable, setGrowthTable] = React.useState(function() {
                 var alias = creature.alias;
                 var sameAlias = alias ? allCreatures.filter(function(c) {
-                    return c.id !== creature.id && c.alias === alias && c.hatchDate && c.hatchDate !== '-' && c.history && c.history.length > 0;
+                    return c.alias === alias && c.hatchDate && c.hatchDate !== '-' && c.history && c.history.length > 0;
                 }) : [];
                 if (sameAlias.length > 0) {
                     var pts2 = {};
@@ -2374,7 +2374,7 @@
             React.useEffect(function() {
                 var alias = growthAlias;
                 var sameAlias = alias ? allCreatures.filter(function(c) {
-                    return c.id !== form.id && c.alias === alias && c.hatchDate && c.hatchDate !== '-' && c.history && c.history.length > 0;
+                    return c.alias === alias && c.hatchDate && c.hatchDate !== '-' && c.history && c.history.length > 0;
                 }) : [];
                 var newTable;
                 if (sameAlias.length > 0) {
