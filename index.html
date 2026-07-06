@@ -2329,11 +2329,11 @@
 
             return (
                 <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 mt-4 text-white shadow-2xl">
-                    <h3 className="font-bold border-b border-neutral-700 pb-2 mb-4 text-sm flex items-center gap-2">
-                        成長グラフ
-                        <span className="text-[10px] text-neutral-400 font-normal">（他の個体と比較できます）</span>
-                    </h3>
-                    {otherCreatures.length > 0 && (
+                 <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 mt-4 text-white shadow-2xl">
+                     <div className="flex items-center justify-between border-b border-neutral-700 pb-2 mb-4">
+                         <h3 className="font-bold text-sm">成長グラフ <span className="text-[10px] text-neutral-400 font-normal">（他の個体と比較できます）</span></h3>
+                         <button onClick={onToggleIdealCurve} className={idealCurve ? "px-2 py-1 rounded text-xs font-bold bg-emerald-600 text-white" : "px-2 py-1 rounded text-xs font-bold bg-neutral-700 text-neutral-300"}>理想曲線</button>
+                     </div>
                         <div className="mb-3 space-y-2">
                             <select value="" onChange={e => { addCompare(e.target.value); }} disabled={!canAddMore}
                                 className="w-full bg-neutral-800 border border-neutral-600 text-white text-xs rounded px-2 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:border-emerald-500">
@@ -2360,6 +2360,7 @@
                     )}
                     <div className="h-52 w-full"><canvas ref={chartRef}></canvas></div>
                     {compareIds.length > 0 && <p className="text-[10px] text-neutral-500 mt-2">⚠ 比較個体は記録日が異なる場合、グラフが途切れることがあります</p>}
+                </div>
                 </div>
             );
         }
