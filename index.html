@@ -2365,8 +2365,10 @@
                     if (arr.length > 0) {
                         if (arr[0].day > 0) arr.unshift({day:0, w:0});
                         var avgPeak2 = Math.max.apply(null, arr.map(function(r){return r.w;}));
-                        var scale2 = avgPeak2 > 0 ? 22 / avgPeak2 : 1;
-                        return arr.map(function(r){ return { day: r.day, w: Math.round(r.w * scale2 * 10) / 10 }; });
+                        return arr.map(function(r){
+                            var normalized = avgPeak2 > 0 ? r.w / avgPeak2 : 0;
+                            return { day: r.day, w: Math.round(normalized * 22 * 10) / 10 };
+                        });
                     }
                 }
                 return buildGrowthTableForSize(80);
@@ -2397,15 +2399,14 @@
                     }).sort(function(a,b){return a.day-b.day;});
                     if (arr2.length > 0) {
                         if (arr2[0].day > 0) arr2.unshift({day:0, w:0});
-                        // 平均曲線のピーク体重を求める
+                        // 平均曲線を正規化（ピーク=1）してから目標ピーク体重でスケール
                         var avgPeak = Math.max.apply(null, arr2.map(function(r){return r.w;}));
-                        // 目標サイズのピーク体重（80mm=22g、90mm=30g基準）で直接スケール
                         var targetPeak = growthTarget <= 80
                             ? 22 * (growthTarget / 80)
                             : 22 + (30 - 22) * (growthTarget - 80) / 10;
-                        var scale = avgPeak > 0 ? targetPeak / avgPeak : 1;
                         newTable = arr2.map(function(r) {
-                            return { day: r.day, w: Math.round(Math.min(r.w * scale, targetPeak) * 10) / 10 };
+                            var normalized = avgPeak > 0 ? r.w / avgPeak : 0;
+                            return { day: r.day, w: Math.round(normalized * targetPeak * 10) / 10 };
                         });
                     }
                 }
