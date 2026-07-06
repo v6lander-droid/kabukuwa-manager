@@ -2310,7 +2310,35 @@
             const [showGrowthPanel, setShowGrowthPanel] = React.useState(false);
             const [growthTarget, setGrowthTarget] = React.useState(80);
             const [growthAlias, setGrowthAlias] = React.useState(creature.alias||'');
-            const [growthTable, setGrowthTable] = React.useState(buildGrowthTableForSize(80));
+            const [growthTable, setGrowthTable] = React.useState(function() {
+                var alias = creature.alias || '';
+                var same = alias ? allCreatures.filter(function(c){
+                    return c.id!==creature.id&&c.alias===alias&&c.hatchDate&&c.hatchDate!=='-'&&c.history&&c.history.length>0;
+                }) : [];
+                if (same.length > 0) {
+                    var pts={};
+                    same.forEach(function(c){
+                        var origin=new Date(c.hatchDate);
+                        c.history.forEach(function(h){
+                            var w=parseFloat((h.size||'').replace(/[^0-9.]/g,''));
+                            if (isNaN(w)||w<=0||!h.date) return;
+                            var el=Math.round((new Date(h.date)-origin)/86400000);
+                            if (el<0) return;
+                            if (!pts[el]) pts[el]=[];
+                            pts[el].push(w);
+                        });
+                    });
+                    var arr=Object.keys(pts).map(function(d){var v=pts[d];return{day:parseInt(d),w:v.reduce(function(a,b){return a+b;},0)/v.length};}).sort(function(a,b){return a.day-b.day;});
+                    if (arr.length>0) {
+                        if (arr[0].day>0) arr.unshift({day:0,w:0});
+                        var peak=Math.max.apply(null,arr.map(function(r){return r.w;}));
+                        var tp=22;
+                        var sc=peak>0?tp/peak:1;
+                        return arr.map(function(r){return{day:r.day,w:Math.round(r.w*sc*10)/10};});
+                    }
+                }
+                return buildGrowthTableForSize(80);
+            });
             React.useEffect(function() {
                 var alias=growthAlias;
                 var same=alias?allCreatures.filter(function(c){return c.id!==form.id&&c.alias===alias&&c.hatchDate&&c.hatchDate!=='-'&&c.history&&c.history.length>0;
