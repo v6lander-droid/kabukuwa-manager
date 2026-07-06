@@ -2364,14 +2364,17 @@
                     }).sort(function(a,b){return a.day-b.day;});
                     if (arr.length > 0) {
                         if (arr[0].day > 0) arr.unshift({day:0, w:0});
-                        var emergedPeaks2 = sameAlias.filter(function(c){
-                            return c.emergenceSize && parseFloat((c.emergenceSize||'').replace(/[^0-9.]/g,'')) > 0;
+                        function sizeToIdealPeak2(mm) {
+                            return mm <= 80 ? 22 * (mm / 80) : 22 + (30 - 22) * (mm - 80) / 10;
+                        }
+                        var emergedIdealPeaks2 = sameAlias.filter(function(c){
+                            var mm = parseFloat((c.emergenceSize||'').replace(/[^0-9.]/g,''));
+                            return !isNaN(mm) && mm > 0;
                         }).map(function(c){
-                            var sizes = c.history.map(function(h){ return parseFloat((h.size||'').replace(/[^0-9.]/g,'')); }).filter(function(w){ return !isNaN(w) && w > 0; });
-                            return sizes.length > 0 ? Math.max.apply(null, sizes) : 0;
-                        }).filter(function(p){ return p > 0; });
-                        var basePeak2 = emergedPeaks2.length > 0
-                            ? emergedPeaks2.reduce(function(a,b){return a+b;},0) / emergedPeaks2.length
+                            return sizeToIdealPeak2(parseFloat(c.emergenceSize.replace(/[^0-9.]/g,'')));
+                        });
+                        var basePeak2 = emergedIdealPeaks2.length > 0
+                            ? emergedIdealPeaks2.reduce(function(a,b){return a+b;},0) / emergedIdealPeaks2.length
                             : Math.max.apply(null, arr.map(function(r){return r.w;}));
                         var scale2 = basePeak2 > 0 ? 22 / basePeak2 : 1;
                         return arr.map(function(r){ return { day: r.day, w: Math.round(r.w * scale2 * 10) / 10 }; });
@@ -2405,20 +2408,21 @@
                     }).sort(function(a,b){return a.day-b.day;});
                     if (arr2.length > 0) {
                         if (arr2[0].day > 0) arr2.unshift({day:0, w:0});
-                        // 羽化済み個体の実績ピーク体重の平均を基準にスケール
-                        var emergedPeaks = sameAlias.filter(function(c){
-                            return c.emergenceSize && parseFloat((c.emergenceSize||'').replace(/[^0-9.]/g,'')) > 0;
+                        // 羽化済み個体の羽化サイズから理想ピーク体重を計算してその平均を基準にする
+                        function sizeToIdealPeak(mm) {
+                            return mm <= 80 ? 22 * (mm / 80) : 22 + (30 - 22) * (mm - 80) / 10;
+                        }
+                        var emergedIdealPeaks = sameAlias.filter(function(c){
+                            var mm = parseFloat((c.emergenceSize||'').replace(/[^0-9.]/g,''));
+                            return !isNaN(mm) && mm > 0;
                         }).map(function(c){
-                            var sizes = c.history.map(function(h){ return parseFloat((h.size||'').replace(/[^0-9.]/g,'')); }).filter(function(w){ return !isNaN(w) && w > 0; });
-                            return sizes.length > 0 ? Math.max.apply(null, sizes) : 0;
-                        }).filter(function(p){ return p > 0; });
-                        var basePeak = emergedPeaks.length > 0
-                            ? emergedPeaks.reduce(function(a,b){return a+b;},0) / emergedPeaks.length
+                            return sizeToIdealPeak(parseFloat(c.emergenceSize.replace(/[^0-9.]/g,'')));
+                        });
+                        var basePeak = emergedIdealPeaks.length > 0
+                            ? emergedIdealPeaks.reduce(function(a,b){return a+b;},0) / emergedIdealPeaks.length
                             : Math.max.apply(null, arr2.map(function(r){return r.w;}));
                         // 目標サイズのピーク体重を計算（80mm=22g、90mm=30g基準）
-                        var targetPeak = growthTarget <= 80
-                            ? 22 * (growthTarget / 80)
-                            : 22 + (30 - 22) * (growthTarget - 80) / 10;
+                        var targetPeak = sizeToIdealPeak(growthTarget);
                         var scale = basePeak > 0 ? targetPeak / basePeak : 1;
                         newTable = arr2.map(function(r) {
                             return { day: r.day, w: Math.round(r.w * scale * 10) / 10 };
