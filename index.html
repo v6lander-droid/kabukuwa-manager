@@ -1252,6 +1252,69 @@
             );
         }
 
+        // 羽化サイズ→最大体重の線形回帰（最小二乗法）
+        function linearRegress(xs, ys) {
+            var n=xs.length;
+            if (n<2) return null;
+            var sx=0,sy=0,sxy=0,sx2=0;
+            for (var i=0;i<n;i++){sx+=xs[i];sy+=ys[i];sxy+=xs[i]*ys[i];sx2+=xs[i]*xs[i];}
+            var denom=n*sx2-sx*sx;
+            if (Math.abs(denom)<1e-10) return null;
+            var a=(n*sxy-sx*sy)/denom;
+            var b=(sy-a*sx)/n;
+            return {a:a,b:b};
+        }
+        function buildGrowthTableFromStats(sameAlias, targetMm, excludeId) {
+            var validAlias = sameAlias.filter(function(c){
+                return c.id!==excludeId && c.hatchDate && c.hatchDate!=='-' && c.history && c.history.length>0;
+            });
+            if (validAlias.length===0) return null;
+            // 経過日数ごとの体重平均（形状）
+            var pts={};
+            validAlias.forEach(function(c){
+                var origin=new Date(c.hatchDate);
+                c.history.forEach(function(h){
+                    var w=parseFloat((h.size||'').replace(/[^0-9.]/g,''));
+                    if (isNaN(w)||w<=0||!h.date) return;
+                    var el=Math.round((new Date(h.date)-origin)/86400000);
+                    if (el<0) return;
+                    if (!pts[el]) pts[el]=[];
+                    pts[el].push(w);
+                });
+            });
+            var arr=Object.keys(pts).map(function(d){
+                var v=pts[d];
+                return{day:parseInt(d),w:v.reduce(function(a,b){return a+b;},0)/v.length};
+            }).sort(function(a,b){return a.day-b.day;});
+            if (arr.length===0) return null;
+            if (arr[0].day>0) arr.unshift({day:0,w:0});
+            // 羽化済み個体の羽化サイズ→最大体重の相関
+            var xs=[],ys=[];
+            validAlias.forEach(function(c){
+                var mm=parseFloat((c.emergenceSize||'').replace(/[^0-9.]/g,''));
+                if (isNaN(mm)||mm<=0) return;
+                var maxW=Math.max.apply(null,c.history.map(function(h){return parseFloat((h.size||'').replace(/[^0-9.]/g,''))||0;}));
+                if (maxW>0){xs.push(mm);ys.push(maxW);}
+            });
+            // 目標サイズの理想最大体重を推定
+            var targetPeak;
+            if (xs.length>=2) {
+                var reg=linearRegress(xs,ys);
+                if (reg) {
+                    targetPeak=reg.a*targetMm+reg.b;
+                    // 80mm=22g、90mm=30gの基準値で下限補正
+                    var basePeak=targetMm<=80?22*(targetMm/80):22+(30-22)*(targetMm-80)/10;
+                    if (targetPeak<basePeak*0.5) targetPeak=basePeak;
+                }
+            }
+            if (!targetPeak||targetPeak<=0) {
+                targetPeak=targetMm<=80?22*(targetMm/80):22+(30-22)*(targetMm-80)/10;
+            }
+            // 平均曲線のピークを目標最大体重にスケール
+            var peak=Math.max.apply(null,arr.map(function(r){return r.w;}));
+            var scale=peak>0?targetPeak/peak:1;
+            return arr.map(function(r){return{day:r.day,w:Math.round(r.w*scale*10)/10};});
+        }
         const GROWTH_TABLE = [{day:0,w:0},{day:30,w:0.3},{day:60,w:1.0},{day:90,w:2.5},
             {day:120,w:4.5},{day:150,w:7.0},{day:180,w:10.0},{day:210,w:13.5},
             {day:240,w:17.0},{day:270,w:19.5},{day:300,w:21.0},{day:330,w:22.0},
@@ -2312,61 +2375,18 @@
             const [growthAlias, setGrowthAlias] = React.useState(creature.alias||'');
             const [growthTable, setGrowthTable] = React.useState(function() {
                 var alias = creature.alias || '';
-                var same = alias ? allCreatures.filter(function(c){
-                    return c.id!==creature.id&&c.alias===alias&&c.hatchDate&&c.hatchDate!=='-'&&c.history&&c.history.length>0;
-                }) : [];
-                if (same.length > 0) {
-                    var pts={};
-                    same.forEach(function(c){
-                        var origin=new Date(c.hatchDate);
-                        c.history.forEach(function(h){
-                            var w=parseFloat((h.size||'').replace(/[^0-9.]/g,''));
-                            if (isNaN(w)||w<=0||!h.date) return;
-                            var el=Math.round((new Date(h.date)-origin)/86400000);
-                            if (el<0) return;
-                            if (!pts[el]) pts[el]=[];
-                            pts[el].push(w);
-                        });
-                    });
-                    var arr=Object.keys(pts).map(function(d){var v=pts[d];return{day:parseInt(d),w:v.reduce(function(a,b){return a+b;},0)/v.length};}).sort(function(a,b){return a.day-b.day;});
-                    if (arr.length>0) {
-                        if (arr[0].day>0) arr.unshift({day:0,w:0});
-                        var peak=Math.max.apply(null,arr.map(function(r){return r.w;}));
-                        var tp=22;
-                        var sc=peak>0?tp/peak:1;
-                        return arr.map(function(r){return{day:r.day,w:Math.round(r.w*sc*10)/10};});
-                    }
-                }
-                return buildGrowthTableForSize(80);
+                var same = allCreatures.filter(function(c){
+                    return c.alias===alias && c.hatchDate && c.hatchDate!=='-' && c.history && c.history.length>0;
+                });
+                return buildGrowthTableFromStats(same, 80, creature.id) || buildGrowthTableForSize(80);
             });
             React.useEffect(function() {
-                var alias=growthAlias;
-                var same=alias?allCreatures.filter(function(c){return c.id!==form.id&&c.alias===alias&&c.hatchDate&&c.hatchDate!=='-'&&c.history&&c.history.length>0;
-                }):[];
-                if (same.length>0) {
-                    var pts={};
-                    same.forEach(function(c){
-                        var origin=new Date(c.hatchDate);
-                        c.history.forEach(function(h){
-                            var w=parseFloat((h.size||'').replace(/[^0-9.]/g,''));
-                            if (isNaN(w)||w<=0||!h.date) return;
-                            var el=Math.round((new Date(h.date)-origin)/86400000);
-                            if (el<0) return;
-                            if (!pts[el]) pts[el]=[];
-                            pts[el].push(w);
-                        });
-                    });
-                    var arr=Object.keys(pts).map(function(d){var v=pts[d];return{day:parseInt(d),w:v.reduce(function(a,b){return a+b;},0)/v.length};}).sort(function(a,b){return a.day-b.day;});
-                    if (arr.length>0) {
-                        if (arr[0].day>0) arr.unshift({day:0,w:0});
-                        var peak=Math.max.apply(null,arr.map(function(r){return r.w;}));
-                        var tp=growthTarget<=80?22*(growthTarget/80):22+(30-22)*(growthTarget-80)/10;
-                        var sc=peak>0?tp/peak:1;
-                        setGrowthTable(arr.map(function(r){return{day:r.day,w:Math.round(r.w*sc*10)/10};}));
-                        return;
-                    }
-                }
-                setGrowthTable(buildGrowthTableForSize(growthTarget));
+                var alias = growthAlias;
+                var same = allCreatures.filter(function(c){
+                    return c.alias===alias && c.hatchDate && c.hatchDate!=='-' && c.history && c.history.length>0;
+                });
+                var tbl = buildGrowthTableFromStats(same, growthTarget, form.id);
+                setGrowthTable(tbl || buildGrowthTableForSize(growthTarget));
             }, [growthAlias, growthTarget]);
             const calcRate=function(h){return calcGrowthRate(form.hatchDate,h,growthTable);};
 
