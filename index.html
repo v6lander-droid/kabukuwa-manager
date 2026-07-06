@@ -1252,68 +1252,70 @@
             );
         }
 
-        // 羽化サイズ→最大体重の線形回帰（最小二乗法）
-        function linearRegress(xs, ys) {
-            var n=xs.length;
-            if (n<2) return null;
-            var sx=0,sy=0,sxy=0,sx2=0;
-            for (var i=0;i<n;i++){sx+=xs[i];sy+=ys[i];sxy+=xs[i]*ys[i];sx2+=xs[i]*xs[i];}
-            var denom=n*sx2-sx*sx;
-            if (Math.abs(denom)<1e-10) return null;
-            var a=(n*sxy-sx*sy)/denom;
-            var b=(sy-a*sx)/n;
-            return {a:a,b:b};
-        }
         function buildGrowthTableFromStats(sameAlias, targetMm, excludeId) {
-            var validAlias = sameAlias.filter(function(c){
+            var valid = sameAlias.filter(function(c){
                 return c.id!==excludeId && c.hatchDate && c.hatchDate!=='-' && c.history && c.history.length>0;
             });
-            if (validAlias.length===0) return null;
-            // 経過日数ごとの体重平均（形状）
-            var pts={};
-            validAlias.forEach(function(c){
+            if (valid.length===0) return null;
+            // 全飼育記録から経過日数・体重ペアを収集
+            var xs=[], ys=[];
+            valid.forEach(function(c){
                 var origin=new Date(c.hatchDate);
                 c.history.forEach(function(h){
                     var w=parseFloat((h.size||'').replace(/[^0-9.]/g,''));
                     if (isNaN(w)||w<=0||!h.date) return;
                     var el=Math.round((new Date(h.date)-origin)/86400000);
                     if (el<0) return;
-                    if (!pts[el]) pts[el]=[];
-                    pts[el].push(w);
+                    xs.push(el); ys.push(w);
                 });
             });
-            var arr=Object.keys(pts).map(function(d){
-                var v=pts[d];
-                return{day:parseInt(d),w:v.reduce(function(a,b){return a+b;},0)/v.length};
-            }).sort(function(a,b){return a.day-b.day;});
-            if (arr.length===0) return null;
-            if (arr[0].day>0) arr.unshift({day:0,w:0});
-            // 羽化済み個体の羽化サイズ→最大体重の相関
-            var xs=[],ys=[];
-            validAlias.forEach(function(c){
-                var mm=parseFloat((c.emergenceSize||'').replace(/[^0-9.]/g,''));
-                if (isNaN(mm)||mm<=0) return;
-                var maxW=Math.max.apply(null,c.history.map(function(h){return parseFloat((h.size||'').replace(/[^0-9.]/g,''))||0;}));
-                if (maxW>0){xs.push(mm);ys.push(maxW);}
-            });
-            // 目標サイズの理想最大体重を推定
-            var targetPeak;
-            if (xs.length>=2) {
-                var reg=linearRegress(xs,ys);
-                if (reg) {
-                    targetPeak=reg.a*targetMm+reg.b;
-                    // 80mm=22g、90mm=30gの基準値で下限補正
-                    var basePeak=targetMm<=80?22*(targetMm/80):22+(30-22)*(targetMm-80)/10;
-                    if (targetPeak<basePeak*0.5) targetPeak=basePeak;
+            if (xs.length<3) return null;
+            // 2次多項式回帰（最小二乗法）
+            var n=xs.length,sx=0,sx2=0,sx3=0,sx4=0,sy=0,sxy=0,sx2y=0;
+            for (var k=0;k<n;k++){
+                var xk=xs[k],yk=ys[k];
+                sx+=xk;sx2+=xk*xk;sx3+=xk*xk*xk;sx4+=xk*xk*xk*xk;
+                sy+=yk;sxy+=xk*yk;sx2y+=xk*xk*yk;
+            }
+            var A=[[n,sx,sx2],[sx,sx2,sx3],[sx2,sx3,sx4]];
+            var B=[sy,sxy,sx2y];
+            for (var col=0;col<3;col++){
+                var pivot=col;
+                for (var row=col+1;row<3;row++) if (Math.abs(A[row][col])>Math.abs(A[pivot][col])) pivot=row;
+                var tmp=A[col];A[col]=A[pivot];A[pivot]=tmp;
+                var tb=B[col];B[col]=B[pivot];B[pivot]=tb;
+                if (Math.abs(A[col][col])<1e-10) return null;
+                for (var r=col+1;r<3;r++){
+                    var f=A[r][col]/A[col][col];
+                    B[r]-=f*B[col];
+                    for (var c2=col;c2<3;c2++) A[r][c2]-=f*A[col][c2];
                 }
             }
-            if (!targetPeak||targetPeak<=0) {
-                targetPeak=targetMm<=80?22*(targetMm/80):22+(30-22)*(targetMm-80)/10;
+            var coef=[0,0,0];
+            for (var i=2;i>=0;i--){
+                coef[i]=B[i];
+                for (var j=i+1;j<3;j++) coef[i]-=A[i][j]*coef[j];
+                coef[i]/=A[i][i];
             }
-            // 平均曲線のピークを目標最大体重にスケール
-            var peak=Math.max.apply(null,arr.map(function(r){return r.w;}));
-            var scale=peak>0?targetPeak/peak:1;
-            return arr.map(function(r){return{day:r.day,w:Math.round(r.w*scale*10)/10};});
+            var ca=coef[2], cb=coef[1], cc=coef[0];
+            // 回帰曲線のピーク日数（頂点 x=-b/2a）
+            var maxDay=Math.max.apply(null,xs);
+            var peakDay = ca<0 ? Math.min(-cb/(2*ca), maxDay) : maxDay*0.7;
+            peakDay=Math.max(30,Math.min(peakDay,maxDay));
+            var peakW=ca*peakDay*peakDay+cb*peakDay+cc;
+            if (peakW<=0) return null;
+            // 目標サイズのピーク体重（80mm=22g、90mm=30g）
+            var targetPeak=targetMm<=80?22*(targetMm/80):22+(30-22)*(targetMm-80)/10;
+            var scale=targetPeak/peakW;
+            // 等間隔でテーブル生成
+            var step=Math.max(15,Math.round(maxDay/20));
+            var table=[];
+            for (var d=0;d<=maxDay+step;d+=step){
+                var w=(ca*d*d+cb*d+cc)*scale;
+                table.push({day:d,w:Math.max(0,Math.round(w*10)/10)});
+            }
+            if (table[0].day>0) table.unshift({day:0,w:0});
+            return table;
         }
         const GROWTH_TABLE = [{day:0,w:0},{day:30,w:0.3},{day:60,w:1.0},{day:90,w:2.5},
             {day:120,w:4.5},{day:150,w:7.0},{day:180,w:10.0},{day:210,w:13.5},
