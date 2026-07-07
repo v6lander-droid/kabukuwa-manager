@@ -1926,7 +1926,7 @@
                             </div>
                             <div className="mb-3">
                                 <p className="text-xs text-white mb-1">目標サイズ（mm）</p>
-                                <input type="number" value={growthTargetApp} onChange={e => { const v=e.target.value===''?'':Math.max(40,Number(e.target.value)||40); setGrowthTargetApp(v); }} onBlur={e => setGrowthTargetApp(Number(e.target.value)||80)} min="40" max="130" className="w-24 bg-neutral-700 text-white text-xs rounded px-2 py-2 border border-neutral-600" />
+                                <input type="number" value={growthTargetApp} onChange={e => setGrowthTargetApp(e.target.value)} onBlur={e => setGrowthTargetApp(Number(e.target.value)||80)} min="40" max="130" className="w-24 bg-neutral-700 text-white text-xs rounded px-2 py-2 border border-neutral-600" />
                             </div>
                             <div className="flex gap-2">
                                 <button onClick={() => { const same=creatures.filter(function(c){return c.alias===growthAliasApp&&c.hatchDate&&c.hatchDate!=='-'&&c.history&&c.history.length>0;}); const t=buildGrowthTableFromStats(same,growthTargetApp,null)||buildGrowthTableForSize(growthTargetApp); GROWTH_TABLE.length=0; t.forEach(r=>GROWTH_TABLE.push(r)); setShowGrowthSettings(false); }} className="flex-1 bg-emerald-600 py-2 rounded text-white text-xs font-bold">適用</button>
