@@ -1926,7 +1926,7 @@
                             </div>
                             <div className="mb-3">
                                 <p className="text-xs text-white mb-1">目標サイズ（mm）</p>
-                                <input type="number" value={growthTargetApp} onChange={e => setGrowthTargetApp(e.target.value)} onBlur={e => setGrowthTargetApp(Number(e.target.value)||80)} min="40" max="130" className="w-24 bg-neutral-700 text-white text-xs rounded px-2 py-2 border border-neutral-600" />
+                                <input type="text" inputMode="numeric" pattern="[0-9]*" value={growthTargetApp} onChange={e => setGrowthTargetApp(e.target.value)} onBlur={e => setGrowthTargetApp(Number(e.target.value)||80)} min="40" max="130" className="w-24 bg-neutral-700 text-white text-xs rounded px-2 py-2 border border-neutral-600" />
                             </div>
                             <div className="flex gap-2">
                                 <button onClick={() => { const same=creatures.filter(function(c){return c.alias===growthAliasApp&&c.hatchDate&&c.hatchDate!=='-'&&c.history&&c.history.length>0;}); const t=buildGrowthTableFromStats(same,growthTargetApp,null)||buildGrowthTableForSize(growthTargetApp); GROWTH_TABLE.length=0; t.forEach(r=>GROWTH_TABLE.push(r)); setShowGrowthSettings(false); }} className="flex-1 bg-emerald-600 py-2 rounded text-white text-xs font-bold">適用</button>
@@ -2572,7 +2572,7 @@
                                 <div className="mb-3 p-4 bg-neutral-800 rounded-xl border border-emerald-700">
                                     <p className="text-emerald-400 font-bold text-sm mb-3">成長率設定</p>
                                     <div className="mb-3"><p className="text-xs text-white mb-1">名称</p><AliasSelect allCreatures={allCreatures} value={growthAlias} onChange={setGrowthAlias} /></div>
-                                    <div className="mb-3"><p className="text-xs text-white mb-1">目標サイズ（mm）</p><input type="number" value={growthTarget} onChange={e => { setGrowthTarget(e.target.value); if(typeof onGrowthSettingChange==='function') onGrowthSettingChange(Number(e.target.value)||80,growthAlias); }} onBlur={e => setGrowthTarget(Number(e.target.value)||80)} min="40" max="130" className="w-20 bg-neutral-700 text-white text-xs rounded px-2 py-1 border border-neutral-600" onChange={e => { const v=Number(e.target.value)||80; setGrowthTarget(v); if(typeof onGrowthSettingChange==='function') onGrowthSettingChange(v,growthAlias); }} /></div>
+                                    <div className="mb-3"><p className="text-xs text-white mb-1">目標サイズ（mm）</p><input type="text" inputMode="numeric" pattern="[0-9]*" value={growthTarget} onChange={e => { setGrowthTarget(e.target.value); if(typeof onGrowthSettingChange==='function') onGrowthSettingChange(Number(e.target.value)||80,growthAlias); }} onBlur={e => setGrowthTarget(Number(e.target.value)||80)} min="40" max="130" className="w-20 bg-neutral-700 text-white text-xs rounded px-2 py-1 border border-neutral-600" /></div>
                                     <button onClick={() => setShowGrowthPanel(false)} className="w-full bg-emerald-600 py-2 rounded text-white text-xs font-bold">閉じる</button>
                                 </div>
                             )}
