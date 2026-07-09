@@ -1591,7 +1591,15 @@
                         if (sort.key==='growthRate') {
                             const aL=a.history.length>0?a.history[a.history.length-1]:null;
                             const bL=b.history.length>0?b.history[b.history.length-1]:null;
-                            av=calcGrowthRate(a.hatchDate,aL);bv=calcGrowthRate(b.hatchDate,bL);
+                            const tgt=Number(growthTargetApp)||80;
+                            const calcForC=function(c,h){
+                                if (!h) return null;
+                                var alias=c.alias||'';
+                                var same=alias?creatures.filter(function(x){return x.id!==c.id&&x.alias===alias&&x.hatchDate&&x.hatchDate!=='-'&&x.history&&x.history.length>0;}):[];
+                                var tbl=buildGrowthTableFromStats(same,tgt,c.id)||buildGrowthTableForSize(tgt);
+                                return calcGrowthRate(c.hatchDate,h,tbl);
+                            };
+                            av=calcForC(a,aL);bv=calcForC(b,bL);
                         } else if (sort.key === 'size' || sort.key === 'temp') {
                             // 体重・温度はcreature自体のプロパティではなく、飼育記録（history）の最新値を見る必要がある。
                             // 単位付き文字列（例:"15g","26℃"）から数値部分だけを抽出して数値として比較する。
