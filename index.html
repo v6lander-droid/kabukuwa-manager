@@ -1375,6 +1375,16 @@
             const [showGrowthSettings, setShowGrowthSettings] = useState(false);
             const [growthTargetApp, setGrowthTargetApp] = useState(80);
             const [growthAliasApp, setGrowthAliasApp] = useState('');
+            const [growthTableApp, setGrowthTableApp] = React.useState(function(){
+                return buildGrowthTableForSize(80);
+            });
+            React.useEffect(function(){
+                var same = growthAliasApp ? creatures.filter(function(c){
+                    return c.alias===growthAliasApp&&c.hatchDate&&c.hatchDate!=='-'&&c.history&&c.history.length>0;
+                }) : [];
+                var tbl = buildGrowthTableFromStats(same, Number(growthTargetApp)||80, null);
+                setGrowthTableApp(tbl||buildGrowthTableForSize(Number(growthTargetApp)||80));
+            }, [growthAliasApp, growthTargetApp, creatures]);
             const [showSavePrompt, setShowSavePrompt] = useState(false);
             const [pendingSaveData, setPendingSaveData] = useState(null);
             const [newCreatureData, setNewCreatureData] = useState({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '', femaleParent: '', stage: '幼虫', saleStatus: '使用', sex: 'オス', emergenceSize: '' });
@@ -1599,7 +1609,7 @@
                         }
                         return cmp * (sort.direction === 'asc' ? 1 : -1);
                     });
-            }, [creatures, filters, sort]);
+            }, [creatures, filters, sort, growthTableApp]);
 
             const sim = useMemo(() => {
                 const m = creatures.find(c => c.id === maleSelection);
@@ -2052,7 +2062,7 @@
                                                 <td className="p-3 text-center">{c.origin}</td>
                                                 <td className="p-3 text-center">{c.generation}</td>
                                                 <td className="p-3 text-center">{c.history.length > 0 ? c.history[c.history.length - 1].size : '-'}</td>
-                                                <td className="p-3 text-center"><GrowthRateSpan rate={calcGrowthRate(c.hatchDate,c.history.length>0?c.history[c.history.length-1]:null)} /></td>
+                                                <td className="p-3 text-center"><GrowthRateSpan rate={calcGrowthRate(c.hatchDate,c.history.length>0?c.history[c.history.length-1]:null,growthTableApp)} /></td>
                                                 <td className="p-3 text-center">{c.hatchDate}</td>
                                                 <td className="p-3 text-center">{c.stage}</td>
                                                 <td className="p-3 text-center">{c.history.length > 0 ? c.history[c.history.length - 1].temp : '-'}</td>
