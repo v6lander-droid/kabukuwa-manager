@@ -1565,7 +1565,7 @@
                 return m;
             }, [creatures]);
 
-            const processedCreatures = useMemo(() => {
+            const processedCreatures = (() => {
                 return [...creatures]
                     .filter(c => {
                         if (filters.name && !c.name.includes(filters.name)) return false;
@@ -1609,7 +1609,7 @@
                         }
                         return cmp * (sort.direction === 'asc' ? 1 : -1);
                     });
-            }, [creatures, filters, sort, growthTableApp]);
+            })();
 
             const sim = useMemo(() => {
                 const m = creatures.find(c => c.id === maleSelection);
