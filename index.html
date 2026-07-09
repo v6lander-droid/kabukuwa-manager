@@ -2199,8 +2199,8 @@
                     var size = parseFloat((c.emergenceSize||'').replace(/[^0-9.]/g,''));
                     if (elapsed < 0 || isNaN(size)) return;
                     var point = { x: elapsed, y: size, label: c.name };
-                    if (c.sex === 'メス' || c.sex === 'female') femaleData.push(point);
-                    else maleData.push(point);
+                    if (isMale(c.sex)) maleData.push(point);
+                    else femaleData.push(point);
                 });
 
                 chartInstance.current = new Chart(chartRef.current, {
