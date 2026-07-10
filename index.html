@@ -1385,6 +1385,7 @@
             const [showGrowthSettings, setShowGrowthSettings] = useState(false);
             const [growthTargetApp, setGrowthTargetApp] = useState(80);
             const [growthAliasApp, setGrowthAliasApp] = useState('');
+            const [statsAlias, setStatsAlias] = useState('');
             const [growthTableApp, setGrowthTableApp] = React.useState(function(){
                 return buildGrowthTableForSize(80);
             });
@@ -1964,7 +1965,7 @@
                         </div>
                     )}
                     <div className="flex border-b border-neutral-800 mb-4">
-                        {['一覧', '血統図', '交配'].map(tab => (
+                        {['一覧', '血統図', '交配', '統計'].map(tab => (
                             <button key={tab} onClick={() => { setActiveTab(tab); setHighlightId(null); }} className={`px-4 py-2 text-sm font-bold ${activeTab === tab ? 'text-emerald-400 border-b-2 border-emerald-400' : 'text-neutral-200'}`}>{tab}</button>
                         ))}
                     </div>
@@ -2114,6 +2115,8 @@
                             onDeleteRow={handleDeleteRow}
                             onDeleteCol={handleDeleteCol}
                         />
+                    ) : activeTab === '統計' ? (
+                        <StatsView creatures={creatures} statsAlias={statsAlias} setStatsAlias={setStatsAlias} />
                     ) : (
                         <div className="bg-neutral-900 p-6 rounded-lg space-y-6 text-white text-sm">
                             <h3 className="font-bold text-emerald-400 text-lg border-b border-neutral-700 pb-2">交配シミュレーション</h3>
@@ -2164,6 +2167,75 @@
         }
 
         // ---- 比較グラフ ----
+        function StatsView({ creatures, statsAlias, setStatsAlias }) {
+            const chartRef = React.useRef(null);
+            const chartInstance = React.useRef(null);
+
+            // 羽化済み個体（孵化日・羽化日・羽化サイズあり）を抽出
+            const emerged = creatures.filter(function(c) {
+                return c.hatchDate && c.hatchDate !== '-'
+                    && c.emergenceDate && c.emergenceDate !== '-'
+                    && c.emergenceSize && parseFloat((c.emergenceSize||'').replace(/[^0-9.]/g,'')) > 0;
+            });
+
+            // aliasリスト
+            var aliasList = [];
+            var seen = {};
+            emerged.forEach(function(c){ if (c.alias && !seen[c.alias]){ seen[c.alias]=true; aliasList.push(c.alias); } });
+
+            // フィルター後の個体
+            const filtered = statsAlias ? emerged.filter(function(c){ return c.alias === statsAlias; }) : emerged;
+
+            React.useEffect(function() {
+                if (!chartRef.current) return;
+                if (chartInstance.current) chartInstance.current.destroy();
+
+                var maleData=[], femaleData=[];
+                filtered.forEach(function(c) {
+                    var origin = new Date(c.hatchDate);
+                    var emerge = new Date(c.emergenceDate);
+                    if (isNaN(origin.getTime())||isNaN(emerge.getTime())) return;
+                    var elapsed = Math.round((emerge - origin) / 86400000);
+                    var size = parseFloat((c.emergenceSize||'').replace(/[^0-9.]/g,''));
+                    if (elapsed < 0 || isNaN(size)) return;
+                    var point = { x: elapsed, y: size, label: c.name };
+                    if (isMale(c.sex)) maleData.push(point);
+                    else femaleData.push(point);
+                });
+
+                chartInstance.current = new Chart(chartRef.current, {
+                    type: 'scatter',
+                    data: {
+                        datasets: [
+                            { label: 'オス', data: maleData, backgroundColor: 'rgba(96,165,250,0.7)', pointRadius: 6, pointHoverRadius: 8 },
+                            { label: 'メス', data: femaleData, backgroundColor: 'rgba(244,114,182,0.7)', pointRadius: 6, pointHoverRadius: 8 }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { labels: { color: '#e5e5e5' } },
+                            tooltip: { callbacks: { label: function(ctx){ return ctx.raw.label + ': ' + ctx.raw.x + '日 / ' + ctx.raw.y + 'mm'; } } }
+                        },
+                        scales: {
+                            x: { title: { display: true, text: '経過日数（孵化〜羽化）', color: '#a3a3a3' }, ticks: { color: '#a3a3a3' }, grid: { color: '#404040' } },
+                            y: { title: { display: true, text: '羽化サイズ（mm）', color: '#a3a3a3' }, ticks: { color: '#a3a3a3', stepSize: 5 }, grid: { color: '#404040' } }
+                        }
+                    }
+                });
+            }, [filtered.length, statsAlias]);
+
+            return React.createElement('div', { className: 'bg-neutral-900 p-4 rounded-xl text-white' },
+                React.createElement('h3', { className: 'font-bold text-emerald-400 text-sm mb-3' }, '経過日数 × 羽化サイズ 散布図'),
+                React.createElement('div', { className: 'mb-3' },
+                    React.createElement('p', { className: 'text-xs text-neutral-400 mb-1' }, '名称（alias）で絞り込み'),
+                    React.createElement(AliasSelect, { allCreatures: creatures, value: statsAlias, onChange: setStatsAlias })
+                ),
+                React.createElement('p', { className: 'text-xs text-neutral-500 mb-2' }, '対象: ' + filtered.length + '個体（羽化済み）'),
+                React.createElement('div', { style: {height:'96rem'}, className: 'w-full' }, React.createElement('canvas', { ref: chartRef }))
+            );
+        }
         function CompareGrowthChart({ mainCreature, allCreatures, idealCurve, onToggleIdealCurve, growthTable }) {
             const chartRef = useRef(null);
             const chartInstance = useRef(null);
