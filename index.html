@@ -2383,7 +2383,7 @@
             const [showIdealCurve, setShowIdealCurve] = React.useState(false);
             const [showGrowthPanel, setShowGrowthPanel] = React.useState(false);
             const [growthTarget, setGrowthTarget] = React.useState(80);
-            const growthTable = buildGrowthTableForSize(growthTarget);
+            const growthTable = buildGrowthTableForSize(Number(growthTarget)||80);
             const calcRate = function(h){ return calcGrowthRate(form.hatchDate,h,growthTable); };
 
             const saveRecord = (record) => {
