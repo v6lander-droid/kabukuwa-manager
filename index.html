@@ -1337,10 +1337,13 @@
             var maxDay=Math.max.apply(null,xs);
             var peakDay = ca<0 ? Math.min(-cb/(2*ca),maxDay) : maxDay*0.7;
             peakDay=Math.max(30,Math.min(peakDay,maxDay));
-            var peakW=ca*peakDay*peakDay+cb*peakDay+cc;
+            // 羽化済み個体の最大体重平均を基準にスケール
+            var actualPeaks = same.filter(function(c){ return c.emergenceDate&&c.emergenceDate!=='-'; }).map(function(c){
+                return Math.max.apply(null, c.history.map(function(h){ return parseFloat((h.size||'').replace(/[^0-9.]/g,''))||0; }));
+            }).filter(function(p){ return p>0; });
+            var peakW = actualPeaks.length>0 ? actualPeaks.reduce(function(a,b){return a+b;},0)/actualPeaks.length : ca*peakDay*peakDay+cb*peakDay+cc;
             if (peakW<=0) return buildGrowthTableForSize(targetMm);
-            // 目標サイズのピーク体重にスケール（実績ピークが目標より大きい場合は目標ピークに固定）
-            var scale=targetPeak/peakW;
+            var scale = targetPeak/peakW;
             // 等間隔でテーブル生成
             var step=Math.max(15,Math.round(maxDay/20));
             var table=[{day:0,w:0}];
@@ -2610,7 +2613,7 @@
                                     <p className="text-emerald-400 font-bold text-sm mb-3">成長率設定</p>
                                     <div className="mb-3"><p className="text-xs text-white mb-1">名称</p><AliasSelect allCreatures={allCreatures} value={pendingAlias||''} onChange={setPendingAlias} /></div>
                                     <div className="mb-3"><p className="text-xs text-white mb-1">目標サイズ（mm）</p><input type="text" inputMode="numeric" value={pendingTarget} onChange={e => setPendingTarget(e.target.value)} className="w-20 bg-neutral-700 text-white text-xs rounded px-2 py-1 border border-neutral-600" /></div>
-                                    <div className="flex gap-2"><button onClick={() => { const t=Number(pendingTarget)||80; const newTbl=buildGrowthTableFromStats(allCreatures,pendingAlias||form.alias,t,form.id)||buildGrowthTableForSize(t); alert('適用: alias='+pendingAlias+' target='+t+' table='+newTbl.length+'件 peak='+Math.max.apply(null,newTbl.map(function(r){return r.w;}))+'g'); setGrowthAlias(pendingAlias); setGrowthTarget(t); setGrowthTable(newTbl); if(typeof onApplyGrowthSettings==='function') onApplyGrowthSettings(pendingAlias,t); setShowGrowthPanel(false); }} className="flex-1 bg-emerald-600 py-2 rounded text-white text-xs font-bold">適用</button><button onClick={() => setShowGrowthPanel(false)} className="flex-1 bg-neutral-600 py-2 rounded text-neutral-300 text-xs">キャンセル</button></div>
+                                    <div className="flex gap-2"><button onClick={() => { const t=Number(pendingTarget)||80; const newTbl=buildGrowthTableFromStats(allCreatures,pendingAlias||form.alias,t,form.id)||buildGrowthTableForSize(t); setGrowthAlias(pendingAlias); setGrowthTarget(t); setGrowthTable(newTbl); if(typeof onApplyGrowthSettings==='function') onApplyGrowthSettings(pendingAlias,t); setShowGrowthPanel(false); }} className="flex-1 bg-emerald-600 py-2 rounded text-white text-xs font-bold">適用</button><button onClick={() => setShowGrowthPanel(false)} className="flex-1 bg-neutral-600 py-2 rounded text-neutral-300 text-xs">キャンセル</button></div>
                                 </div>
                             )}
                             <div className="overflow-hidden rounded border border-neutral-800">
