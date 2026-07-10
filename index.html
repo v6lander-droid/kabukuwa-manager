@@ -1257,9 +1257,13 @@
                 return c.id!==excludeId && c.hatchDate && c.hatchDate!=='-' && c.history && c.history.length>0;
             });
             if (valid.length===0) return null;
-            // 経過日数ごとの体重平均（曲線の形状）
+            // 羽化済み個体のみで曲線形状を生成
+            var emerged = valid.filter(function(c){
+                return c.emergenceDate && c.emergenceDate!=='-';
+            });
+            var source = emerged.length>0 ? emerged : valid;
             var pts={};
-            valid.forEach(function(c){
+            source.forEach(function(c){
                 var origin=new Date(c.hatchDate);
                 c.history.forEach(function(h){
                     var w=parseFloat((h.size||'').replace(/[^0-9.]/g,''));
@@ -1276,30 +1280,8 @@
             }).sort(function(a,b){return a.day-b.day;});
             if (arr.length===0) return null;
             if (arr[0].day>0) arr.unshift({day:0,w:0});
-            // 羽化済み個体の羽化サイズ→最大体重の線形回帰
-            var rxs=[],rys=[];
-            valid.forEach(function(c){
-                var mm=parseFloat((c.emergenceSize||'').replace(/[^0-9.]/g,''));
-                if (isNaN(mm)||mm<=0) return;
-                var maxW=Math.max.apply(null,c.history.map(function(h){return parseFloat((h.size||'').replace(/[^0-9.]/g,''))||0;}));
-                if (maxW>0){rxs.push(mm);rys.push(maxW);}
-            });
-            // 目標サイズの理想最大体重を線形回帰から推定
-            var targetPeak;
-            if (rxs.length>=2) {
-                var rn=rxs.length,rsx=0,rsy=0,rsxy=0,rsx2=0;
-                for (var ri=0;ri<rn;ri++){rsx+=rxs[ri];rsy+=rys[ri];rsxy+=rxs[ri]*rys[ri];rsx2+=rxs[ri]*rxs[ri];}
-                var rdenom=rn*rsx2-rsx*rsx;
-                if (Math.abs(rdenom)>1e-10) {
-                    var ra=(rn*rsxy-rsx*rsy)/rdenom;
-                    var rb=(rsy-ra*rsx)/rn;
-                    targetPeak=ra*targetMm+rb;
-                }
-            }
-            if (!targetPeak||targetPeak<=0) {
-                targetPeak=targetMm<=80?22*(targetMm/80):22+(30-22)*(targetMm-80)/10;
-            }
-            // 平均曲線のピークをtargetPeakにスケール
+            // 目標サイズのピーク体重（80mm=22g、90mm=30g）で直接スケール
+            var targetPeak = targetMm<=80 ? 22*(targetMm/80) : 22+(30-22)*(targetMm-80)/10;
             var peak=Math.max.apply(null,arr.map(function(r){return r.w;}));
             var scale=peak>0?targetPeak/peak:1;
             return arr.map(function(r){return{day:r.day,w:Math.round(r.w*scale*10)/10};});
