@@ -1252,57 +1252,6 @@
             );
         }
 
-        function buildGrowthTableFromStats(sameAlias, targetMm, excludeId) {
-            var valid = sameAlias.filter(function(c){
-                return c.id!==excludeId && c.hatchDate && c.hatchDate!=='-' && c.history && c.history.length>0;
-            });
-            if (valid.length===0) return null;
-            // 経過日数ごとの体重平均
-            var pts={};
-            valid.forEach(function(c){
-                var origin=new Date(c.hatchDate);
-                c.history.forEach(function(h){
-                    var w=parseFloat((h.size||'').replace(/[^0-9.]/g,''));
-                    if (isNaN(w)||w<=0||!h.date) return;
-                    var el=Math.round((new Date(h.date)-origin)/86400000);
-                    if (el<0) return;
-                    if (!pts[el]) pts[el]=[];
-                    pts[el].push(w);
-                });
-            });
-            var arr=Object.keys(pts).map(function(d){
-                var v=pts[d];
-                return{day:parseInt(d),w:v.reduce(function(a,b){return a+b;},0)/v.length};
-            }).sort(function(a,b){return a.day-b.day;});
-            if (arr.length===0) return null;
-            if (arr[0].day>0) arr.unshift({day:0,w:0});
-            // 羽化済み個体の最大体重平均をピークとして使う
-            var emergedPeaks=[];
-            valid.forEach(function(c){
-                if (!c.emergenceDate||c.emergenceDate==='-') return;
-                var peaks=c.history.map(function(h){return parseFloat((h.size||'').replace(/[^0-9.]/g,''))||0;});
-                var maxW=Math.max.apply(null,peaks);
-                if (maxW>0) emergedPeaks.push(maxW);
-            });
-            var basePeak = emergedPeaks.length>0
-                ? emergedPeaks.reduce(function(a,b){return a+b;},0)/emergedPeaks.length
-                : Math.max.apply(null,arr.map(function(r){return r.w;}));
-            // 目標サイズのピーク体重
-            var targetPeak = targetMm<=80 ? 22*(targetMm/80) : 22+(30-22)*(targetMm-80)/10;
-            // scaleは上下とも制限（0.5〜1.2の範囲）
-            var rawScale = basePeak>0 ? targetPeak/basePeak : 1;
-            var scale = Math.max(0.5, Math.min(rawScale, 1.2));
-            return arr.map(function(r){return{day:r.day,w:Math.round(r.w*scale*10)/10};});
-        }
-        const GROWTH_TABLE = [{day:0,w:0},{day:30,w:0.3},{day:60,w:1.0},{day:90,w:2.5},
-            {day:120,w:4.5},{day:150,w:7.0},{day:180,w:10.0},{day:210,w:13.5},
-            {day:240,w:17.0},{day:270,w:19.5},{day:300,w:21.0},{day:330,w:22.0},
-            {day:360,w:21.5},{day:400,w:20.5},{day:450,w:19.5},{day:500,w:18.5}];
-        function buildGrowthTableForSize(mm) {
-            var peak = mm<=80 ? 22*(mm/80) : 22+(30-22)*(mm-80)/10;
-            var scale = peak/22;
-            return GROWTH_TABLE.map(function(r){return{day:r.day,w:Math.round(r.w*scale*10)/10};});
-        }
         function getIdealWeightFromTable(days,tbl) {
             if (!tbl||tbl.length===0||days===null||days<0) return null;
             if (days<=tbl[0].day) return tbl[0].w!==undefined?tbl[0].w:null;
@@ -1315,6 +1264,12 @@
             }
             return null;
         }
+        function buildGrowthTableForSize(mm) {
+            var base=[{day:0,w:0},{day:30,w:0.3},{day:60,w:1.0},{day:90,w:2.5},{day:120,w:4.5},{day:150,w:7.0},{day:180,w:10.0},{day:210,w:13.5},{day:240,w:17.0},{day:270,w:19.5},{day:300,w:21.0},{day:330,w:22.0},{day:360,w:21.5},{day:400,w:20.5},{day:450,w:19.5},{day:500,w:18.5}];
+            var peak=mm<=80?22*(mm/80):22+(30-22)*(mm-80)/10;
+            var scale=peak/22;
+            return base.map(function(r){return{day:r.day,w:Math.round(r.w*scale*10)/10};});
+        }
         function calcGrowthRate(hatchDate,h,tbl) {
             if (!h) return null;
             var w=parseFloat((h.size||'').replace(/[^0-9.]/g,''));
@@ -1326,7 +1281,7 @@
             var rec=new Date(h.date);
             if (isNaN(rec.getTime())) return null;
             var elapsed=Math.round((rec-origin)/86400000);
-            var ideal=getIdealWeightFromTable(elapsed,tbl||GROWTH_TABLE);
+            var ideal=getIdealWeightFromTable(elapsed,tbl||buildGrowthTableForSize(80));
             if (ideal===null||ideal===undefined||ideal<=0) return null;
             return Math.round((w/ideal-1)*100);
         }
@@ -1335,16 +1290,6 @@
             if (rate===null||rate===undefined) return React.createElement('span',{style:{color:'#737373'}},'-');
             var color=rate>=10?'#34d399':rate>=0?'#86efac':rate>=-10?'#fbbf24':'#f87171';
             return React.createElement('span',{style:{color:color,fontWeight:'bold'}},(rate>0?'+':'')+rate+'%');
-        }
-        function CreatureGrowthRate(props) {
-            var c=props.creature, allCreatures=props.allCreatures, targetMm=props.targetMm;
-            var h=c.history&&c.history.length>0?c.history[c.history.length-1]:null;
-            if (!h) return React.createElement(GrowthRateSpan,{rate:null});
-            var alias=c.alias||'';
-            var same=alias?allCreatures.filter(function(x){return x.id!==c.id&&x.alias===alias&&x.hatchDate&&x.hatchDate!=='-'&&x.history&&x.history.length>0;}):[];
-            var tbl=buildGrowthTableFromStats(same,targetMm,c.id)||buildGrowthTableForSize(targetMm);
-            var rate=calcGrowthRate(c.hatchDate,h,tbl);
-            return React.createElement(GrowthRateSpan,{rate:rate});
         }
         function AliasSelect(props) {
             var seen={};
@@ -1362,19 +1307,9 @@
             const [showGrowthSettings, setShowGrowthSettings] = useState(false);
             const [growthTargetApp, setGrowthTargetApp] = useState(80);
             const [growthAliasApp, setGrowthAliasApp] = useState('');
-            const [statsAlias, setStatsAlias] = useState('');
-            const [growthTableApp, setGrowthTableApp] = React.useState(function(){
-                return buildGrowthTableForSize(80);
-            });
-            React.useEffect(function(){
-                var same = growthAliasApp ? creatures.filter(function(c){
-                    return c.alias===growthAliasApp&&c.hatchDate&&c.hatchDate!=='-'&&c.history&&c.history.length>0;
-                }) : [];
-                var tbl = buildGrowthTableFromStats(same, Number(growthTargetApp)||80, null);
-                setGrowthTableApp(tbl||buildGrowthTableForSize(Number(growthTargetApp)||80));
-            }, [growthAliasApp, growthTargetApp, creatures]);
             const [showSavePrompt, setShowSavePrompt] = useState(false);
             const [pendingSaveData, setPendingSaveData] = useState(null);
+            const [statsAlias, setStatsAlias] = useState('');
             const [newCreatureData, setNewCreatureData] = useState({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '', femaleParent: '', stage: '幼虫', saleStatus: '使用', sex: 'オス', emergenceSize: '' });
             const [maleSelection, setMaleSelection] = useState('');
             const [femaleSelection, setFemaleSelection] = useState('');
@@ -1553,7 +1488,7 @@
                 return m;
             }, [creatures]);
 
-            const processedCreatures = (() => {
+            const processedCreatures = useMemo(() => {
                 return [...creatures]
                     .filter(c => {
                         if (filters.name && !c.name.includes(filters.name)) return false;
@@ -1570,14 +1505,8 @@
                             const aL=a.history.length>0?a.history[a.history.length-1]:null;
                             const bL=b.history.length>0?b.history[b.history.length-1]:null;
                             const tgt=Number(growthTargetApp)||80;
-                            const calcForC=function(c,h){
-                                if (!h) return null;
-                                var alias=c.alias||'';
-                                var same=alias?creatures.filter(function(x){return x.id!==c.id&&x.alias===alias&&x.hatchDate&&x.hatchDate!=='-'&&x.history&&x.history.length>0;}):[];
-                                var tbl=buildGrowthTableFromStats(same,tgt,c.id)||buildGrowthTableForSize(tgt);
-                                return calcGrowthRate(c.hatchDate,h,tbl);
-                            };
-                            av=calcForC(a,aL);bv=calcForC(b,bL);
+                            av=calcGrowthRate(a.hatchDate,aL,buildGrowthTableForSize(tgt));
+                            bv=calcGrowthRate(b.hatchDate,bL,buildGrowthTableForSize(tgt));
                         } else if (sort.key === 'size' || sort.key === 'temp') {
                             // 体重・温度はcreature自体のプロパティではなく、飼育記録（history）の最新値を見る必要がある。
                             // 単位付き文字列（例:"15g","26℃"）から数値部分だけを抽出して数値として比較する。
@@ -1605,7 +1534,7 @@
                         }
                         return cmp * (sort.direction === 'asc' ? 1 : -1);
                     });
-            })();
+            }, [creatures, filters, sort]);
 
             const sim = useMemo(() => {
                 const m = creatures.find(c => c.id === maleSelection);
@@ -1767,10 +1696,6 @@
                     onUpdate={updateCreature}
                     onGoToTree={(id) => { setHighlightId(id); setActiveTab('血統図'); setSelectedCreature(null); }}
                     onRequestSave={(updated)=>{const nc=creatures.map(c=>c.id===updated.id?updated:c);setPendingSaveData({creatures:nc,pedigreeLines,gridSize});setShowSavePrompt(true);}}
-                    sharedGrowthTarget={growthTargetApp}
-                    sharedGrowthAlias={growthAliasApp}
-                    sharedGrowthTable={growthTableApp}
-                    onGrowthSettingChange={(t,a)=>{setGrowthTargetApp(t);setGrowthAliasApp(a);}}
                 />
             );
 
@@ -1933,12 +1858,9 @@
                             </div>
                             <div className="mb-3">
                                 <p className="text-xs text-white mb-1">目標サイズ（mm）</p>
-                                <input type="text" inputMode="numeric" pattern="[0-9]*" value={growthTargetApp} onChange={e => setGrowthTargetApp(e.target.value)} onBlur={e => setGrowthTargetApp(Number(e.target.value)||80)} min="40" max="130" className="w-24 bg-neutral-700 text-white text-xs rounded px-2 py-2 border border-neutral-600" />
+                                <input type="number" value={growthTargetApp} onChange={e => setGrowthTargetApp(Number(e.target.value)||80)} min="40" max="130" className="w-24 bg-neutral-700 text-white text-xs rounded px-2 py-2 border border-neutral-600" />
                             </div>
-                            <div className="flex gap-2">
-                                <button onClick={() => { const same=creatures.filter(function(c){return c.alias===growthAliasApp&&c.hatchDate&&c.hatchDate!=='-'&&c.history&&c.history.length>0;}); const t=buildGrowthTableFromStats(same,growthTargetApp,null)||buildGrowthTableForSize(growthTargetApp); GROWTH_TABLE.length=0; t.forEach(r=>GROWTH_TABLE.push(r)); setShowGrowthSettings(false); }} className="flex-1 bg-emerald-600 py-2 rounded text-white text-xs font-bold">適用</button>
-                                <button onClick={() => { const t=buildGrowthTableForSize(80); GROWTH_TABLE.length=0; t.forEach(r=>GROWTH_TABLE.push(r)); setShowGrowthSettings(false); }} className="flex-1 bg-neutral-600 py-2 rounded text-neutral-300 text-xs">リセット</button>
-                            </div>
+                            <button onClick={() => setShowGrowthSettings(false)} className="w-full bg-emerald-600 py-2 rounded text-white text-xs font-bold">閉じる</button>
                         </div>
                     )}
                     <div className="flex border-b border-neutral-800 mb-4">
@@ -2059,7 +1981,7 @@
                                                 <td className="p-3 text-center">{c.origin}</td>
                                                 <td className="p-3 text-center">{c.generation}</td>
                                                 <td className="p-3 text-center">{c.history.length > 0 ? c.history[c.history.length - 1].size : '-'}</td>
-                                                <td className="p-3 text-center"><CreatureGrowthRate creature={c} allCreatures={creatures} targetMm={Number(growthTargetApp)||80} /></td>
+                                                <td className="p-3 text-center"><GrowthRateSpan rate={calcGrowthRate(c.hatchDate,c.history.length>0?c.history[c.history.length-1]:null,buildGrowthTableForSize(Number(growthTargetApp)||80))} /></td>
                                                 <td className="p-3 text-center">{c.hatchDate}</td>
                                                 <td className="p-3 text-center">{c.stage}</td>
                                                 <td className="p-3 text-center">{c.history.length > 0 ? c.history[c.history.length - 1].temp : '-'}</td>
@@ -2092,8 +2014,6 @@
                             onDeleteRow={handleDeleteRow}
                             onDeleteCol={handleDeleteCol}
                         />
-                    ) : activeTab === '統計' ? (
-                        <StatsView creatures={creatures} statsAlias={statsAlias} setStatsAlias={setStatsAlias} />
                     ) : (
                         <div className="bg-neutral-900 p-6 rounded-lg space-y-6 text-white text-sm">
                             <h3 className="font-bold text-emerald-400 text-lg border-b border-neutral-700 pb-2">交配シミュレーション</h3>
@@ -2146,159 +2066,73 @@
         // ---- 比較グラフ ----
         function StatsView({ creatures, statsAlias, setStatsAlias }) {
             const chartRef = React.useRef(null);
+            const chartRef2 = React.useRef(null);
+            const chartRef3 = React.useRef(null);
             const chartInstance = React.useRef(null);
-
-            // 羽化済み個体（孵化日・羽化日・羽化サイズあり）を抽出
+            const chartInstance2 = React.useRef(null);
+            const chartInstance3 = React.useRef(null);
             const emerged = creatures.filter(function(c) {
-                return c.hatchDate && c.hatchDate !== '-'
-                    && c.emergenceDate && c.emergenceDate !== '-'
-                    && c.emergenceSize && parseFloat((c.emergenceSize||'').replace(/[^0-9.]/g,'')) > 0;
+                return c.hatchDate && c.hatchDate !== '-' && c.emergenceDate && c.emergenceDate !== '-' && c.emergenceSize && parseFloat((c.emergenceSize||'').replace(/[^0-9.]/g,'')) > 0;
             });
-
-            // aliasリスト
-            var aliasList = [];
-            var seen = {};
-            emerged.forEach(function(c){ if (c.alias && !seen[c.alias]){ seen[c.alias]=true; aliasList.push(c.alias); } });
-
-            // フィルター後の個体
-            const filtered = statsAlias ? emerged.filter(function(c){ return c.alias === statsAlias; }) : emerged;
-
+            var aliasList = []; var seen = {};
+            emerged.forEach(function(c){ if (c.alias&&!seen[c.alias]){seen[c.alias]=true;aliasList.push(c.alias);} });
+            const filtered = statsAlias ? emerged.filter(function(c){return c.alias===statsAlias;}) : emerged;
             React.useEffect(function() {
                 if (!chartRef.current) return;
                 if (chartInstance.current) chartInstance.current.destroy();
-
-                var maleData=[], femaleData=[];
+                var maleData=[],femaleData=[];
                 filtered.forEach(function(c) {
-                    var origin = new Date(c.hatchDate);
-                    var emerge = new Date(c.emergenceDate);
+                    var origin=new Date(c.hatchDate),emerge=new Date(c.emergenceDate);
                     if (isNaN(origin.getTime())||isNaN(emerge.getTime())) return;
-                    var elapsed = Math.round((emerge - origin) / 86400000);
-                    var size = parseFloat((c.emergenceSize||'').replace(/[^0-9.]/g,''));
-                    if (elapsed < 0 || isNaN(size)) return;
-                    var point = { x: elapsed, y: size, label: c.name };
-                    if (isMale(c.sex)) maleData.push(point);
-                    else femaleData.push(point);
+                    var elapsed=Math.round((emerge-origin)/86400000);
+                    var size=parseFloat((c.emergenceSize||'').replace(/[^0-9.]/g,''));
+                    if (elapsed<0||isNaN(size)) return;
+                    var point={x:elapsed,y:size,label:c.name};
+                    if (isMale(c.sex)) maleData.push(point); else femaleData.push(point);
                 });
-
-                chartInstance.current = new Chart(chartRef.current, {
-                    type: 'scatter',
-                    data: {
-                        datasets: [
-                            { label: 'オス', data: maleData, backgroundColor: 'rgba(96,165,250,0.7)', pointRadius: 6, pointHoverRadius: 8 },
-                            { label: 'メス', data: femaleData, backgroundColor: 'rgba(244,114,182,0.7)', pointRadius: 6, pointHoverRadius: 8 }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { labels: { color: '#e5e5e5' } },
-                            tooltip: { callbacks: { label: function(ctx){ return ctx.raw.label + ': ' + ctx.raw.x + '日 / ' + ctx.raw.y + 'mm'; } } }
-                        },
-                        scales: {
-                            x: { title: { display: true, text: '経過日数（孵化〜羽化）', color: '#a3a3a3' }, ticks: { color: '#a3a3a3' }, grid: { color: '#404040' } },
-                            y: { title: { display: true, text: '羽化サイズ（mm）', color: '#a3a3a3' }, ticks: { color: '#a3a3a3', stepSize: 5 }, grid: { color: '#404040' }, grace: '5%' }
-                        }
-                    }
-                });
+                chartInstance.current = new Chart(chartRef.current, {type:'scatter',data:{datasets:[{label:'オス',data:maleData,backgroundColor:'rgba(96,165,250,0.7)',pointRadius:6,pointHoverRadius:8},{label:'メス',data:femaleData,backgroundColor:'rgba(244,114,182,0.7)',pointRadius:6,pointHoverRadius:8}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#e5e5e5'}},tooltip:{callbacks:{label:function(ctx){return ctx.raw.label+': '+ctx.raw.x+'日 / '+ctx.raw.y+'mm';}}}},scales:{x:{title:{display:true,text:'経過日数（孵化〜羽化）',color:'#a3a3a3'},ticks:{color:'#a3a3a3'},grid:{color:'#404040'}},y:{title:{display:true,text:'羽化サイズ（mm）',color:'#a3a3a3'},ticks:{color:'#a3a3a3',stepSize:5},grid:{color:'#404040'},grace:'5%'}}}});
             }, [filtered.length, statsAlias]);
-
-            // 2つ目のグラフ（最終体重 × 羽化サイズ）
-            const chartRef2 = React.useRef(null);
-            // 3つ目のグラフ（飼育温度 × 羽化サイズ）
-            const chartRef3 = React.useRef(null);
-            const chartInstance3 = React.useRef(null);
-
-            React.useEffect(function() {
-                if (!chartRef3.current) return;
-                if (chartInstance3.current) chartInstance3.current.destroy();
-                var maleData3=[], femaleData3=[];
-                filtered.forEach(function(c) {
-                    var size = parseFloat((c.emergenceSize||'').replace(/[^0-9.]/g,''));
-                    if (isNaN(size)||size<=0) return;
-                    if (!c.history||c.history.length===0) return;
-                    // 飼育記録の平均温度を使用
-                    var temps = c.history.map(function(h){ return parseFloat((h.temp||'').replace(/[^0-9.]/g,'')); }).filter(function(t){ return !isNaN(t)&&t>0; });
-                    if (temps.length===0) return;
-                    var avgTemp = temps.reduce(function(a,b){return a+b;},0)/temps.length;
-                    var point = { x: Math.round(avgTemp*10)/10, y: size, label: c.name };
-                    if (isMale(c.sex)) maleData3.push(point);
-                    else femaleData3.push(point);
-                });
-                chartInstance3.current = new Chart(chartRef3.current, {
-                    type: 'scatter',
-                    data: {
-                        datasets: [
-                            { label: 'オス', data: maleData3, backgroundColor: 'rgba(96,165,250,0.7)', pointRadius: 6, pointHoverRadius: 8 },
-                            { label: 'メス', data: femaleData3, backgroundColor: 'rgba(244,114,182,0.7)', pointRadius: 6, pointHoverRadius: 8 }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { labels: { color: '#e5e5e5' } },
-                            tooltip: { callbacks: { label: function(ctx){ return ctx.raw.label + ': ' + ctx.raw.x + '℃ / ' + ctx.raw.y + 'mm'; } } }
-                        },
-                        scales: {
-                            x: { title: { display: true, text: '平均飼育温度（℃）', color: '#a3a3a3' }, ticks: { color: '#a3a3a3', stepSize: 1 }, grid: { color: '#404040' }, grace: '5%' },
-                            y: { title: { display: true, text: '羽化サイズ（mm）', color: '#a3a3a3' }, ticks: { color: '#a3a3a3', stepSize: 5 }, grid: { color: '#404040' }, grace: '5%' }
-                        }
-                    }
-                });
-            }, [filtered.length, statsAlias]);
-            const chartInstance2 = React.useRef(null);
-
             React.useEffect(function() {
                 if (!chartRef2.current) return;
                 if (chartInstance2.current) chartInstance2.current.destroy();
-                var maleData2=[], femaleData2=[];
+                var maleData2=[],femaleData2=[];
                 filtered.forEach(function(c) {
-                    var size = parseFloat((c.emergenceSize||'').replace(/[^0-9.]/g,''));
-                    if (isNaN(size)||size<=0) return;
-                    if (!c.history||c.history.length===0) return;
-                    var lastH = c.history[c.history.length-1];
-                    var maxW = Math.max.apply(null, c.history.map(function(h){ return parseFloat((h.size||'').replace(/[^0-9.]/g,''))||0; }));
+                    var size=parseFloat((c.emergenceSize||'').replace(/[^0-9.]/g,''));
+                    if (isNaN(size)||size<=0||!c.history||c.history.length===0) return;
+                    var maxW=Math.max.apply(null,c.history.map(function(h){return parseFloat((h.size||'').replace(/[^0-9.]/g,''))||0;}));
                     if (maxW<=0) return;
-                    var point = { x: maxW, y: size, label: c.name };
-                    if (isMale(c.sex)) maleData2.push(point);
-                    else femaleData2.push(point);
+                    var point={x:maxW,y:size,label:c.name};
+                    if (isMale(c.sex)) maleData2.push(point); else femaleData2.push(point);
                 });
-                chartInstance2.current = new Chart(chartRef2.current, {
-                    type: 'scatter',
-                    data: {
-                        datasets: [
-                            { label: 'オス', data: maleData2, backgroundColor: 'rgba(96,165,250,0.7)', pointRadius: 6, pointHoverRadius: 8 },
-                            { label: 'メス', data: femaleData2, backgroundColor: 'rgba(244,114,182,0.7)', pointRadius: 6, pointHoverRadius: 8 }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { labels: { color: '#e5e5e5' } },
-                            tooltip: { callbacks: { label: function(ctx){ return ctx.raw.label + ': ' + ctx.raw.x + 'g / ' + ctx.raw.y + 'mm'; } } }
-                        },
-                        scales: {
-                            x: { title: { display: true, text: '最終体重（g）', color: '#a3a3a3' }, ticks: { color: '#a3a3a3', stepSize: 2 }, grid: { color: '#404040' }, grace: '5%' },
-                            y: { title: { display: true, text: '羽化サイズ（mm）', color: '#a3a3a3' }, ticks: { color: '#a3a3a3', stepSize: 5 }, grid: { color: '#404040' }, grace: '5%' }
-                        }
-                    }
-                });
+                chartInstance2.current = new Chart(chartRef2.current, {type:'scatter',data:{datasets:[{label:'オス',data:maleData2,backgroundColor:'rgba(96,165,250,0.7)',pointRadius:6,pointHoverRadius:8},{label:'メス',data:femaleData2,backgroundColor:'rgba(244,114,182,0.7)',pointRadius:6,pointHoverRadius:8}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#e5e5e5'}},tooltip:{callbacks:{label:function(ctx){return ctx.raw.label+': '+ctx.raw.x+'g / '+ctx.raw.y+'mm';}}}},scales:{x:{title:{display:true,text:'最終体重（g）',color:'#a3a3a3'},ticks:{color:'#a3a3a3',stepSize:2},grid:{color:'#404040'},grace:'5%'},y:{title:{display:true,text:'羽化サイズ（mm）',color:'#a3a3a3'},ticks:{color:'#a3a3a3',stepSize:5},grid:{color:'#404040'},grace:'5%'}}}});
             }, [filtered.length, statsAlias]);
-
-            return React.createElement('div', { className: 'bg-neutral-900 p-4 rounded-xl text-white' },
-                React.createElement('h3', { className: 'font-bold text-emerald-400 text-sm mb-3' }, '経過日数 × 羽化サイズ 散布図'),
-                React.createElement('div', { className: 'mb-3' },
-                    React.createElement('p', { className: 'text-xs text-neutral-400 mb-1' }, '名称（alias）で絞り込み'),
-                    React.createElement(AliasSelect, { allCreatures: creatures, value: statsAlias, onChange: setStatsAlias })
+            React.useEffect(function() {
+                if (!chartRef3.current) return;
+                if (chartInstance3.current) chartInstance3.current.destroy();
+                var maleData3=[],femaleData3=[];
+                filtered.forEach(function(c) {
+                    var size=parseFloat((c.emergenceSize||'').replace(/[^0-9.]/g,''));
+                    if (isNaN(size)||size<=0||!c.history||c.history.length===0) return;
+                    var temps=c.history.map(function(h){return parseFloat((h.temp||'').replace(/[^0-9.]/g,''));}).filter(function(t){return !isNaN(t)&&t>0;});
+                    if (temps.length===0) return;
+                    var avgTemp=temps.reduce(function(a,b){return a+b;},0)/temps.length;
+                    var point={x:Math.round(avgTemp*10)/10,y:size,label:c.name};
+                    if (isMale(c.sex)) maleData3.push(point); else femaleData3.push(point);
+                });
+                chartInstance3.current = new Chart(chartRef3.current, {type:'scatter',data:{datasets:[{label:'オス',data:maleData3,backgroundColor:'rgba(96,165,250,0.7)',pointRadius:6,pointHoverRadius:8},{label:'メス',data:femaleData3,backgroundColor:'rgba(244,114,182,0.7)',pointRadius:6,pointHoverRadius:8}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#e5e5e5'}},tooltip:{callbacks:{label:function(ctx){return ctx.raw.label+': '+ctx.raw.x+'℃ / '+ctx.raw.y+'mm';}}}},scales:{x:{title:{display:true,text:'平均飼育温度（℃）',color:'#a3a3a3'},ticks:{color:'#a3a3a3',stepSize:1},grid:{color:'#404040'},grace:'5%'},y:{title:{display:true,text:'羽化サイズ（mm）',color:'#a3a3a3'},ticks:{color:'#a3a3a3',stepSize:5},grid:{color:'#404040'},grace:'5%'}}}});
+            }, [filtered.length, statsAlias]);
+            return React.createElement('div', {className:'bg-neutral-900 p-4 rounded-xl text-white'},
+                React.createElement('h3',{className:'font-bold text-emerald-400 text-sm mb-3'},'経過日数 × 羽化サイズ 散布図'),
+                React.createElement('div',{className:'mb-3'},
+                    React.createElement('p',{className:'text-xs text-neutral-400 mb-1'},'名称（alias）で絞り込み'),
+                    React.createElement(AliasSelect,{allCreatures:creatures,value:statsAlias,onChange:setStatsAlias})
                 ),
-                React.createElement('p', { className: 'text-xs text-neutral-500 mb-2' }, '対象: ' + filtered.length + '個体（羽化済み）'),
-                React.createElement('div', { style: {height:'500px'}, className: 'w-full' }, React.createElement('canvas', { ref: chartRef })),
-                React.createElement('h3', { className: 'font-bold text-emerald-400 text-sm mt-6 mb-3' }, '最終体重 × 羽化サイズ 散布図'),
-                React.createElement('div', { style: {height:'500px'}, className: 'w-full' }, React.createElement('canvas', { ref: chartRef2 })),
-                React.createElement('h3', { className: 'font-bold text-emerald-400 text-sm mt-6 mb-3' }, '飼育温度 × 羽化サイズ 散布図'),
-                React.createElement('div', { style: {height:'500px'}, className: 'w-full' }, React.createElement('canvas', { ref: chartRef3 }))
+                React.createElement('p',{className:'text-xs text-neutral-500 mb-2'},'対象: '+filtered.length+'個体（羽化済み）'),
+                React.createElement('div',{style:{height:'500px'},className:'w-full'},React.createElement('canvas',{ref:chartRef})),
+                React.createElement('h3',{className:'font-bold text-emerald-400 text-sm mt-6 mb-3'},'最終体重 × 羽化サイズ 散布図'),
+                React.createElement('div',{style:{height:'500px'},className:'w-full'},React.createElement('canvas',{ref:chartRef2})),
+                React.createElement('h3',{className:'font-bold text-emerald-400 text-sm mt-6 mb-3'},'飼育温度 × 羽化サイズ 散布図'),
+                React.createElement('div',{style:{height:'500px'},className:'w-full'},React.createElement('canvas',{ref:chartRef3}))
             );
         }
         function CompareGrowthChart({ mainCreature, allCreatures, idealCurve, onToggleIdealCurve, growthTable }) {
@@ -2422,7 +2256,7 @@
                         markers.push({ label: '羽化', elapsed: emergenceElapsed, color: '#f472b6' });
                     }
                 }
-                const _tbl=growthTable||GROWTH_TABLE;
+                const _tbl=growthTable||buildGrowthTableForSize(80);
                 if (idealCurve&&_tbl.length>0) {
                     const iData=sortedElapsed.map((e,i)=>{ if(i===0)return 0; const w=getIdealWeightFromTable(e,_tbl); return w!==null?Math.round(w*10)/10:null; });
                     mappedDatasets.push({label:'理想曲線',data:iData,borderColor:'#fbbf24',backgroundColor:'transparent',borderDash:[6,3],borderWidth:1.5,pointRadius:0,tension:0.4,spanGaps:false});
@@ -2482,9 +2316,11 @@
 
             return (
                 <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 mt-4 text-white shadow-2xl">
-                     <div className="flex items-center justify-between border-b border-neutral-700 pb-2 mb-4"><h3 className="font-bold text-sm">成長グラフ <span className="text-[10px] text-neutral-400 font-normal">（他の個体と比較できます）</span></h3><button onClick={onToggleIdealCurve} className={idealCurve?"px-2 py-1 rounded text-xs font-bold bg-emerald-600 text-white":"px-2 py-1 rounded text-xs font-bold bg-neutral-700 text-neutral-300"}>理想曲線</button></div>
-                    {otherCreatures.length > 0 && (
-                        <div className="mb-3 space-y-2">
+                 <div className="bg-neutral-900 p-6 rounded-xl border border-neutral-700 mt-4 text-white shadow-2xl">
+                     <div className="flex items-center justify-between border-b border-neutral-700 pb-2 mb-4">
+                         <h3 className="font-bold text-sm">成長グラフ <span className="text-[10px] text-neutral-400 font-normal">（他の個体と比較できます）</span></h3>
+                         <button onClick={onToggleIdealCurve} className={idealCurve?"px-2 py-1 rounded text-xs font-bold bg-emerald-600 text-white":"px-2 py-1 rounded text-xs font-bold bg-neutral-700 text-neutral-300"}>理想曲線</button>
+                     </div>
                             <select value="" onChange={e => { addCompare(e.target.value); }} disabled={!canAddMore}
                                 className="w-full bg-neutral-800 border border-neutral-600 text-white text-xs rounded px-2 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:border-emerald-500">
                                 <option value="">{canAddMore ? (availableToAdd.length > 0 ? '比較個体を選択...' : '（追加できる個体なし）') : `最大${COMPARE_COLORS.length - 1}個体まで`}</option>
@@ -2515,7 +2351,7 @@
         }
 
         // ---- 詳細画面 ----
-        function DetailView({ creature, allCreatures, nameMap, onBack, onUpdate, onGoToTree, onRequestSave, sharedGrowthTarget, sharedGrowthAlias, sharedGrowthTable, onGrowthSettingChange }) {
+        function DetailView({ creature, allCreatures, nameMap, onBack, onUpdate, onGoToTree, onRequestSave }) {
             const [form, setForm] = useState(creature);
             const [showEditModal, setShowEditModal] = useState(false);
             const [editForm, setEditForm] = useState(creature);
@@ -2542,20 +2378,9 @@
             const saveEdit = () => { setForm(editForm); onUpdate(editForm); setShowEditModal(false); };
             const [showIdealCurve, setShowIdealCurve] = React.useState(false);
             const [showGrowthPanel, setShowGrowthPanel] = React.useState(false);
-            const [growthTarget, setGrowthTarget] = React.useState(sharedGrowthTarget||80);
-            const [growthAlias, setGrowthAlias] = React.useState(sharedGrowthAlias||creature.alias||'');
-            const [growthTable, setGrowthTable] = React.useState(function() {
-                return sharedGrowthTable || buildGrowthTableForSize(sharedGrowthTarget||80);
-            });
-            React.useEffect(function() {
-                var alias = growthAlias || form.alias || '';
-                var same = allCreatures.filter(function(c){
-                    return c.alias===alias && c.hatchDate && c.hatchDate!=='-' && c.history && c.history.length>0;
-                });
-                var tbl = buildGrowthTableFromStats(same, growthTarget, form.id);
-                setGrowthTable(tbl || buildGrowthTableForSize(growthTarget));
-            }, [growthAlias, growthTarget]);
-            const calcRate=function(h){return calcGrowthRate(form.hatchDate,h,growthTable);};
+            const [growthTarget, setGrowthTarget] = React.useState(80);
+            const growthTable = buildGrowthTableForSize(growthTarget);
+            const calcRate = function(h){ return calcGrowthRate(form.hatchDate,h,growthTable); };
 
             const saveRecord = (record) => {
                 // 入力欄は数値のみを受け付けるため、保存時に単位（g・℃）を自動付与する。
@@ -2733,8 +2558,7 @@
                             {showGrowthPanel && (
                                 <div className="mb-3 p-4 bg-neutral-800 rounded-xl border border-emerald-700">
                                     <p className="text-emerald-400 font-bold text-sm mb-3">成長率設定</p>
-                                    <div className="mb-3"><p className="text-xs text-white mb-1">名称</p><AliasSelect allCreatures={allCreatures} value={growthAlias} onChange={setGrowthAlias} /></div>
-                                    <div className="mb-3"><p className="text-xs text-white mb-1">目標サイズ（mm）</p><input type="text" inputMode="numeric" pattern="[0-9]*" value={growthTarget} onChange={e => { setGrowthTarget(e.target.value); if(typeof onGrowthSettingChange==='function') onGrowthSettingChange(Number(e.target.value)||80,growthAlias); }} onBlur={e => setGrowthTarget(Number(e.target.value)||80)} min="40" max="130" className="w-20 bg-neutral-700 text-white text-xs rounded px-2 py-1 border border-neutral-600" /></div>
+                                    <div className="mb-3"><p className="text-xs text-white mb-1">目標サイズ（mm）</p><input type="number" value={growthTarget} onChange={e => setGrowthTarget(Number(e.target.value)||80)} min="40" max="130" className="w-20 bg-neutral-700 text-white text-xs rounded px-2 py-1 border border-neutral-600" /></div>
                                     <button onClick={() => setShowGrowthPanel(false)} className="w-full bg-emerald-600 py-2 rounded text-white text-xs font-bold">閉じる</button>
                                 </div>
                             )}
