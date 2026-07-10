@@ -2548,20 +2548,14 @@
                 return sharedGrowthTable || buildGrowthTableForSize(sharedGrowthTarget||80);
             });
             React.useEffect(function() {
-                if (sharedGrowthTable) { setGrowthTable(sharedGrowthTable); return; }
-                var alias = growthAlias;
+                var alias = growthAlias || form.alias || '';
                 var same = allCreatures.filter(function(c){
                     return c.alias===alias && c.hatchDate && c.hatchDate!=='-' && c.history && c.history.length>0;
                 });
                 var tbl = buildGrowthTableFromStats(same, growthTarget, form.id);
                 setGrowthTable(tbl || buildGrowthTableForSize(growthTarget));
-            }, [growthAlias, growthTarget, sharedGrowthTable]);
-            const calcRate=function(h) {
-                var alias=form.alias||'';
-                var same=alias?allCreatures.filter(function(c){return c.id!==form.id&&c.alias===alias&&c.hatchDate&&c.hatchDate!=='-'&&c.history&&c.history.length>0;}):[];
-                var tbl=buildGrowthTableFromStats(same,Number(growthTarget)||80,form.id)||buildGrowthTableForSize(Number(growthTarget)||80);
-                return calcGrowthRate(form.hatchDate,h,tbl);
-            };
+            }, [growthAlias, growthTarget]);
+            const calcRate=function(h){return calcGrowthRate(form.hatchDate,h,growthTable);};
 
             const saveRecord = (record) => {
                 // 入力欄は数値のみを受け付けるため、保存時に単位（g・℃）を自動付与する。
