@@ -2226,6 +2226,48 @@
                 });
             }, [filtered.length, statsAlias]);
 
+            // 2つ目のグラフ（最終体重 × 羽化サイズ）
+            const chartRef2 = React.useRef(null);
+            const chartInstance2 = React.useRef(null);
+
+            React.useEffect(function() {
+                if (!chartRef2.current) return;
+                if (chartInstance2.current) chartInstance2.current.destroy();
+                var maleData2=[], femaleData2=[];
+                filtered.forEach(function(c) {
+                    var size = parseFloat((c.emergenceSize||'').replace(/[^0-9.]/g,''));
+                    if (isNaN(size)||size<=0) return;
+                    if (!c.history||c.history.length===0) return;
+                    var lastH = c.history[c.history.length-1];
+                    var maxW = Math.max.apply(null, c.history.map(function(h){ return parseFloat((h.size||'').replace(/[^0-9.]/g,''))||0; }));
+                    if (maxW<=0) return;
+                    var point = { x: maxW, y: size, label: c.name };
+                    if (isMale(c.sex)) maleData2.push(point);
+                    else femaleData2.push(point);
+                });
+                chartInstance2.current = new Chart(chartRef2.current, {
+                    type: 'scatter',
+                    data: {
+                        datasets: [
+                            { label: 'オス', data: maleData2, backgroundColor: 'rgba(96,165,250,0.7)', pointRadius: 6, pointHoverRadius: 8 },
+                            { label: 'メス', data: femaleData2, backgroundColor: 'rgba(244,114,182,0.7)', pointRadius: 6, pointHoverRadius: 8 }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { labels: { color: '#e5e5e5' } },
+                            tooltip: { callbacks: { label: function(ctx){ return ctx.raw.label + ': ' + ctx.raw.x + 'g / ' + ctx.raw.y + 'mm'; } } }
+                        },
+                        scales: {
+                            x: { title: { display: true, text: '最終体重（g）', color: '#a3a3a3' }, ticks: { color: '#a3a3a3', stepSize: 2 }, grid: { color: '#404040' }, grace: '5%' },
+                            y: { title: { display: true, text: '羽化サイズ（mm）', color: '#a3a3a3' }, ticks: { color: '#a3a3a3', stepSize: 5 }, grid: { color: '#404040' }, grace: '5%' }
+                        }
+                    }
+                });
+            }, [filtered.length, statsAlias]);
+
             return React.createElement('div', { className: 'bg-neutral-900 p-4 rounded-xl text-white' },
                 React.createElement('h3', { className: 'font-bold text-emerald-400 text-sm mb-3' }, '経過日数 × 羽化サイズ 散布図'),
                 React.createElement('div', { className: 'mb-3' },
@@ -2233,7 +2275,9 @@
                     React.createElement(AliasSelect, { allCreatures: creatures, value: statsAlias, onChange: setStatsAlias })
                 ),
                 React.createElement('p', { className: 'text-xs text-neutral-500 mb-2' }, '対象: ' + filtered.length + '個体（羽化済み）'),
-                React.createElement('div', { style: {height:'500px'}, className: 'w-full' }, React.createElement('canvas', { ref: chartRef }))
+                React.createElement('div', { style: {height:'500px'}, className: 'w-full' }, React.createElement('canvas', { ref: chartRef })),
+                React.createElement('h3', { className: 'font-bold text-emerald-400 text-sm mt-6 mb-3' }, '最終体重 × 羽化サイズ 散布図'),
+                React.createElement('div', { style: {height:'500px'}, className: 'w-full' }, React.createElement('canvas', { ref: chartRef2 }))
             );
         }
         function CompareGrowthChart({ mainCreature, allCreatures, idealCurve, onToggleIdealCurve, growthTable }) {
