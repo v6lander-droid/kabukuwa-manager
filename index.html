@@ -2429,14 +2429,7 @@
             const [growthAlias, setGrowthAlias] = React.useState(sharedGrowthAlias||creature.alias||'');
             const [pendingAlias, setPendingAlias] = React.useState(sharedGrowthAlias||creature.alias||'');
             const [pendingTarget, setPendingTarget] = React.useState(sharedGrowthTarget||80);
-            const [growthTable, setGrowthTable] = React.useState(function(){ return buildGrowthTableFromStats(allCreatures, creature.alias||''  , 80, creature.id); });
-            React.useEffect(function(){
-                setGrowthTable(buildGrowthTableFromStats(allCreatures, growthAlias||form.alias, Number(growthTarget)||80, form.id));
-            }, [growthAlias, growthTarget]);
-            React.useEffect(function(){
-                if (sharedGrowthAlias!==undefined) { setGrowthAlias(sharedGrowthAlias); setPendingAlias(sharedGrowthAlias); }
-                if (sharedGrowthTarget!==undefined) { setGrowthTarget(sharedGrowthTarget); setPendingTarget(sharedGrowthTarget); }
-            }, [sharedGrowthAlias, sharedGrowthTarget]);
+            const growthTable = buildGrowthTableFromStats(allCreatures, growthAlias||form.alias, Number(growthTarget)||80, form.id);
             const [growthTarget, setGrowthTarget] = React.useState(sharedGrowthTarget||80);
             const calcRate = function(h){ return calcGrowthRate(form.hatchDate,h,growthTable); };
 
