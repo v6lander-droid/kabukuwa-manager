@@ -1909,7 +1909,7 @@
                                 <p className="text-xs text-white mb-1">目標サイズ（mm）</p>
                                 <input type="text" inputMode="numeric" value={growthTargetApp} onChange={e => setGrowthTargetApp(e.target.value)} className="w-24 bg-neutral-700 text-white text-xs rounded px-2 py-2 border border-neutral-600" />
                             </div>
-                            <button onClick={() => setShowGrowthSettings(false)} className="w-full bg-emerald-600 py-2 rounded text-white text-xs font-bold">閉じる</button>
+                            <div className="flex gap-2"><button onClick={() => setShowGrowthSettings(false)} className="flex-1 bg-emerald-600 py-2 rounded text-white text-xs font-bold">適用</button><button onClick={() => setShowGrowthSettings(false)} className="flex-1 bg-neutral-600 py-2 rounded text-neutral-300 text-xs">キャンセル</button></div>
                         </div>
                     )}
                     <div className="flex border-b border-neutral-800 mb-4">
@@ -2399,7 +2399,7 @@
         }
 
         // ---- 詳細画面 ----
-        function DetailView({ creature, allCreatures, nameMap, onBack, onUpdate, onGoToTree }) {
+        function DetailView({ creature, allCreatures, nameMap, onBack, onUpdate, onGoToTree, onRequestSave, sharedGrowthAlias, sharedGrowthTarget, onApplyGrowthSettings }) {
             const [form, setForm] = useState(creature);
             const [showEditModal, setShowEditModal] = useState(false);
             const [editForm, setEditForm] = useState(creature);
@@ -2426,12 +2426,18 @@
             const saveEdit = () => { setForm(editForm); onUpdate(editForm); setShowEditModal(false); };
             const [showIdealCurve, setShowIdealCurve] = React.useState(false);
             const [showGrowthPanel, setShowGrowthPanel] = React.useState(false);
-            const [growthAlias, setGrowthAlias] = React.useState(creature.alias||'');
+            const [growthAlias, setGrowthAlias] = React.useState(sharedGrowthAlias||creature.alias||'');
+            const [pendingAlias, setPendingAlias] = React.useState(sharedGrowthAlias||creature.alias||'');
+            const [pendingTarget, setPendingTarget] = React.useState(sharedGrowthTarget||80);
             const [growthTable, setGrowthTable] = React.useState(function(){ return buildGrowthTableFromStats(allCreatures, creature.alias||''  , 80, creature.id); });
             React.useEffect(function(){
                 setGrowthTable(buildGrowthTableFromStats(allCreatures, growthAlias||form.alias, Number(growthTarget)||80, form.id));
             }, [growthAlias, growthTarget]);
-            const [growthTarget, setGrowthTarget] = React.useState(80);
+            React.useEffect(function(){
+                if (sharedGrowthAlias!==undefined) { setGrowthAlias(sharedGrowthAlias); setPendingAlias(sharedGrowthAlias); }
+                if (sharedGrowthTarget!==undefined) { setGrowthTarget(sharedGrowthTarget); setPendingTarget(sharedGrowthTarget); }
+            }, [sharedGrowthAlias, sharedGrowthTarget]);
+            const [growthTarget, setGrowthTarget] = React.useState(sharedGrowthTarget||80);
             const calcRate = function(h){ return calcGrowthRate(form.hatchDate,h,growthTable); };
 
             const saveRecord = (record) => {
@@ -2609,9 +2615,9 @@
                             {showGrowthPanel && (
                                 <div className="mb-3 p-4 bg-neutral-800 rounded-xl border border-emerald-700">
                                     <p className="text-emerald-400 font-bold text-sm mb-3">成長率設定</p>
-                                    <div className="mb-3"><p className="text-xs text-white mb-1">名称</p><AliasSelect allCreatures={allCreatures} value={growthAlias||''} onChange={setGrowthAlias} /></div>
-                                    <div className="mb-3"><p className="text-xs text-white mb-1">目標サイズ（mm）</p><input type="text" inputMode="numeric" value={growthTarget} onChange={e => setGrowthTarget(e.target.value)} className="w-20 bg-neutral-700 text-white text-xs rounded px-2 py-1 border border-neutral-600" /></div>
-                                    <button onClick={() => setShowGrowthPanel(false)} className="w-full bg-emerald-600 py-2 rounded text-white text-xs font-bold">閉じる</button>
+                                    <div className="mb-3"><p className="text-xs text-white mb-1">名称</p><AliasSelect allCreatures={allCreatures} value={pendingAlias||''} onChange={setPendingAlias} /></div>
+                                    <div className="mb-3"><p className="text-xs text-white mb-1">目標サイズ（mm）</p><input type="text" inputMode="numeric" value={pendingTarget} onChange={e => setPendingTarget(e.target.value)} className="w-20 bg-neutral-700 text-white text-xs rounded px-2 py-1 border border-neutral-600" /></div>
+                                    <div className="flex gap-2"><button onClick={() => { const t=Number(pendingTarget)||80; setGrowthAlias(pendingAlias); setGrowthTarget(t); if(typeof onApplyGrowthSettings==='function') onApplyGrowthSettings(pendingAlias,t); setShowGrowthPanel(false); }} className="flex-1 bg-emerald-600 py-2 rounded text-white text-xs font-bold">適用</button><button onClick={() => setShowGrowthPanel(false)} className="flex-1 bg-neutral-600 py-2 rounded text-neutral-300 text-xs">キャンセル</button></div>
                                 </div>
                             )}
                             <div className="overflow-hidden rounded border border-neutral-800">
