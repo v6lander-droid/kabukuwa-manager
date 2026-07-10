@@ -2426,11 +2426,11 @@
             const saveEdit = () => { setForm(editForm); onUpdate(editForm); setShowEditModal(false); };
             const [showIdealCurve, setShowIdealCurve] = React.useState(false);
             const [showGrowthPanel, setShowGrowthPanel] = React.useState(false);
-            const [growthAlias, setGrowthAlias] = React.useState(sharedGrowthAlias||creature.alias||'');
-            const [pendingAlias, setPendingAlias] = React.useState(sharedGrowthAlias||creature.alias||'');
-            const [pendingTarget, setPendingTarget] = React.useState(sharedGrowthTarget||80);
+            const [growthAlias, setGrowthAlias] = React.useState(sharedGrowthAlias!==undefined?sharedGrowthAlias:creature.alias||'');
+            const [pendingAlias, setPendingAlias] = React.useState(sharedGrowthAlias!==undefined?sharedGrowthAlias:creature.alias||'');
+            const [pendingTarget, setPendingTarget] = React.useState(sharedGrowthTarget!==undefined?Number(sharedGrowthTarget)||80:80);
             const [growthTable, setGrowthTable] = React.useState(function(){ return buildGrowthTableFromStats(allCreatures, sharedGrowthAlias||creature.alias||''  , Number(sharedGrowthTarget)||80, creature.id) || buildGrowthTableForSize(Number(sharedGrowthTarget)||80); });
-            const [growthTarget, setGrowthTarget] = React.useState(sharedGrowthTarget||80);
+            const [growthTarget, setGrowthTarget] = React.useState(sharedGrowthTarget!==undefined?Number(sharedGrowthTarget)||80:80);
             const calcRate = function(h){ return calcGrowthRate(form.hatchDate,h,growthTable); };
 
             const saveRecord = (record) => {
