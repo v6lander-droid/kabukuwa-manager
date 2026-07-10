@@ -2220,7 +2220,7 @@
                         },
                         scales: {
                             x: { title: { display: true, text: '経過日数（孵化〜羽化）', color: '#a3a3a3' }, ticks: { color: '#a3a3a3' }, grid: { color: '#404040' } },
-                            y: { title: { display: true, text: '羽化サイズ（mm）', color: '#a3a3a3' }, ticks: { color: '#a3a3a3', stepSize: 5 }, grid: { color: '#404040' } }
+                            y: { title: { display: true, text: '羽化サイズ（mm）', color: '#a3a3a3' }, ticks: { color: '#a3a3a3', stepSize: 5 }, grid: { color: '#404040' }, grace: '5%' }
                         }
                     }
                 });
@@ -2233,7 +2233,7 @@
                     React.createElement(AliasSelect, { allCreatures: creatures, value: statsAlias, onChange: setStatsAlias })
                 ),
                 React.createElement('p', { className: 'text-xs text-neutral-500 mb-2' }, '対象: ' + filtered.length + '個体（羽化済み）'),
-                React.createElement('div', { style: {height:'96rem'}, className: 'w-full' }, React.createElement('canvas', { ref: chartRef }))
+                React.createElement('div', { style: {height:'500px'}, className: 'w-full' }, React.createElement('canvas', { ref: chartRef }))
             );
         }
         function CompareGrowthChart({ mainCreature, allCreatures, idealCurve, onToggleIdealCurve, growthTable }) {
