@@ -2232,7 +2232,7 @@
                     React.createElement(AliasSelect, { allCreatures: creatures, value: statsAlias, onChange: setStatsAlias })
                 ),
                 React.createElement('p', { className: 'text-xs text-neutral-500 mb-2' }, '対象: ' + filtered.length + '個体（羽化済み）'),
-                React.createElement('div', { className: 'h-96 w-full' }, React.createElement('canvas', { ref: chartRef }))
+                React.createElement('div', { style: {height:'48rem'}, className: 'w-full' }, React.createElement('canvas', { ref: chartRef }))
             );
         }
         function CompareGrowthChart({ mainCreature, allCreatures, idealCurve, onToggleIdealCurve, growthTable }) {
