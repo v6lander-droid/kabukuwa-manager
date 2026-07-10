@@ -1339,14 +1339,14 @@
             peakDay=Math.max(30,Math.min(peakDay,maxDay));
             var peakW=ca*peakDay*peakDay+cb*peakDay+cc;
             if (peakW<=0) return buildGrowthTableForSize(targetMm);
-            // 目標サイズのピーク体重にスケール
+            // 目標サイズのピーク体重にスケール（実績ピークが目標より大きい場合は目標ピークに固定）
             var scale=targetPeak/peakW;
             // 等間隔でテーブル生成
             var step=Math.max(15,Math.round(maxDay/20));
             var table=[{day:0,w:0}];
             for (var d=step;d<=maxDay+step;d+=step){
                 var w=(ca*d*d+cb*d+cc)*scale;
-                table.push({day:d,w:Math.max(0,Math.round(w*10)/10)});
+                table.push({day:d,w:Math.max(0,Math.min(Math.round(w*10)/10,targetPeak*1.05))});
             }
             return table;
         }
