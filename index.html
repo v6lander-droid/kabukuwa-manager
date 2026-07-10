@@ -1257,13 +1257,9 @@
                 return c.id!==excludeId && c.hatchDate && c.hatchDate!=='-' && c.history && c.history.length>0;
             });
             if (valid.length===0) return null;
-            // 羽化済み個体のみで曲線形状を生成
-            var emerged = valid.filter(function(c){
-                return c.emergenceDate && c.emergenceDate!=='-';
-            });
-            var source = emerged.length>0 ? emerged : valid;
+            // 経過日数ごとの体重平均
             var pts={};
-            source.forEach(function(c){
+            valid.forEach(function(c){
                 var origin=new Date(c.hatchDate);
                 c.history.forEach(function(h){
                     var w=parseFloat((h.size||'').replace(/[^0-9.]/g,''));
@@ -1280,10 +1276,20 @@
             }).sort(function(a,b){return a.day-b.day;});
             if (arr.length===0) return null;
             if (arr[0].day>0) arr.unshift({day:0,w:0});
-            // 目標サイズのピーク体重（80mm=22g、90mm=30g）で直接スケール
+            // 羽化済み個体の最大体重平均をピークとして使う
+            var emergedPeaks=[];
+            valid.forEach(function(c){
+                if (!c.emergenceDate||c.emergenceDate==='-') return;
+                var peaks=c.history.map(function(h){return parseFloat((h.size||'').replace(/[^0-9.]/g,''))||0;});
+                var maxW=Math.max.apply(null,peaks);
+                if (maxW>0) emergedPeaks.push(maxW);
+            });
+            var basePeak = emergedPeaks.length>0
+                ? emergedPeaks.reduce(function(a,b){return a+b;},0)/emergedPeaks.length
+                : Math.max.apply(null,arr.map(function(r){return r.w;}));
+            // 目標サイズのピーク体重
             var targetPeak = targetMm<=80 ? 22*(targetMm/80) : 22+(30-22)*(targetMm-80)/10;
-            var peak=Math.max.apply(null,arr.map(function(r){return r.w;}));
-            var scale=peak>0?targetPeak/peak:1;
+            var scale = basePeak>0 ? Math.min(targetPeak/basePeak, 1.5) : 1;
             return arr.map(function(r){return{day:r.day,w:Math.round(r.w*scale*10)/10};});
         }
         const GROWTH_TABLE = [{day:0,w:0},{day:30,w:0.3},{day:60,w:1.0},{day:90,w:2.5},
