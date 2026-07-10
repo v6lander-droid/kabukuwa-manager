@@ -1300,9 +1300,12 @@
             var ca=coef[2], cb=coef[1], cc=coef[0];
             // 回帰曲線のピーク日数（頂点 x=-b/2a）
             var maxDay=Math.max.apply(null,xs);
+            // 回帰曲線のピーク or 実績最大値の大きい方をpeakWとする
             var peakDay = ca<0 ? Math.min(-cb/(2*ca), maxDay) : maxDay*0.7;
             peakDay=Math.max(30,Math.min(peakDay,maxDay));
-            var peakW=ca*peakDay*peakDay+cb*peakDay+cc;
+            var peakWReg=ca*peakDay*peakDay+cb*peakDay+cc;
+            var peakWActual=Math.max.apply(null,ys);
+            var peakW=Math.max(peakWReg, peakWActual);
             if (peakW<=0) return null;
             // 目標サイズのピーク体重（80mm=22g、90mm=30g）
             var targetPeak=targetMm<=80?22*(targetMm/80):22+(30-22)*(targetMm-80)/10;
