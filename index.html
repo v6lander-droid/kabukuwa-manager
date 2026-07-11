@@ -1344,14 +1344,17 @@
             var peakW = actualPeaks.length>0 ? actualPeaks.reduce(function(a,b){return a+b;},0)/actualPeaks.length : ca*peakDay*peakDay+cb*peakDay+cc;
             if (peakW<=0) return buildGrowthTableForSize(targetMm);
             var scale = targetPeak/peakW;
-            // 等間隔でテーブル生成
+            // 等間隔でテーブル生成して正規化
             var step=Math.max(15,Math.round(maxDay/20));
-            var table=[{day:0,w:0}];
+            var rawTable=[{day:0,w:0}];
             for (var d=step;d<=maxDay+step;d+=step){
                 var w=(ca*d*d+cb*d+cc)*scale;
-                table.push({day:d,w:Math.max(0,Math.min(Math.round(w*10)/10,targetPeak*1.05))});
+                rawTable.push({day:d,w:Math.max(0,w)});
             }
-            return table;
+            // 実際のピークをtargetPeakに正規化
+            var rawPeak=Math.max.apply(null,rawTable.map(function(r){return r.w;}));
+            var normalize = rawPeak>0 ? targetPeak/rawPeak : 1;
+            return rawTable.map(function(r){return{day:r.day,w:Math.round(r.w*normalize*10)/10};});
         }
 
         function GrowthRateSpan(props) {
