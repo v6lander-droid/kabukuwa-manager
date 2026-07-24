@@ -1786,7 +1786,10 @@
                                 <div className="flex flex-col"><span>Beetle Base</span><span className="text-[10px] text-white">made by ＭＨ</span></div>
                             </div>
                             <div className="flex gap-2">
+                            <div className="flex items-center gap-2">
+                            <span className="text-xs text-neutral-400">目標サイズ <span className="text-emerald-400 font-bold">{Number(growthTargetApp)||80}mm</span></span>
                             <button onClick={() => setShowGrowthSettings(s => !s)} className="bg-emerald-600 px-3 py-2 rounded text-xs text-white font-bold"><i className="fa-solid fa-chart-line mr-1"></i>成長率設定</button>
+                            </div>
                             {activeTab === '一覧' && <button onClick={() => setShowAddModal(true)} className="bg-emerald-600 px-3 py-2 rounded text-xs text-white font-bold">追加</button>}
                             </div>
                         </div>
@@ -2340,7 +2343,7 @@
                      <div className="flex items-center justify-between border-b border-neutral-700 pb-2 mb-4">
                          <div>
                              <h3 className="font-bold text-sm">成長グラフ <span className="text-[10px] text-neutral-400 font-normal">（他の個体と比較できます）</span></h3>
-                             {idealCurve && <p className="text-[10px] text-neutral-400 mt-0.5">理想曲線の目標サイズ: <span className="text-emerald-400 font-bold">{growthTarget||80}mm</span></p>}
+                             {idealCurve && <p className="text-[10px] text-neutral-400 mt-0.5">目標サイズ <span className="text-emerald-400 font-bold">{growthTarget||80}mm</span></p>}
                          </div>
                          <button onClick={onToggleIdealCurve} className={idealCurve?"px-2 py-1 rounded text-xs font-bold bg-emerald-600 text-white":"px-2 py-1 rounded text-xs font-bold bg-neutral-700 text-neutral-300"}>理想曲線</button>
                      </div>
