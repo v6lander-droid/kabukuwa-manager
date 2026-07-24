@@ -1698,17 +1698,14 @@
                     };
                 });
                 const ws = XLSX.utils.json_to_sheet(rows);
-                ws['!cols'] = Object.keys(rows[0] || {}).map(() => ({ wch: 12 }));
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, '個体一覧');
-                const fileName = `beetle_data_${new Date().toISOString().slice(0,10)}.xlsx`;
-                const mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-                const arrayBuf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-                const blob = new Blob([arrayBuf], { type: mimeType });
+                const csvBody = XLSX.utils.sheet_to_csv(ws);
+                const bom = '\uFEFF'; // Excelで文字化けしないようUTF-8 BOMを付与
+                const fileName = `beetle_data_${new Date().toISOString().slice(0,10)}.csv`;
+                const mimeType = 'text/csv;charset=utf-8';
+                const blob = new Blob([bom + csvBody], { type: mimeType });
 
                 const fallbackDownload = () => {
-                    const base64 = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
-                    const dataUri = 'data:' + mimeType + ';base64,' + base64;
+                    const dataUri = 'data:' + mimeType + ',' + encodeURIComponent(bom + csvBody);
                     const a = document.createElement('a');
                     a.href = dataUri;
                     a.download = fileName;
@@ -1720,14 +1717,14 @@
 
                 let file = null;
                 try {
-                    file = new File([blob], fileName, { type: mimeType });
+                    file = new File([blob], fileName, { type: 'text/csv' });
                 } catch (e) {
                     file = null;
                 }
 
                 if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
                     navigator.share({ files: [file], title: fileName }).catch(() => {
-                        // 共有シートがキャンセルされた場合は何もしない（失敗時のみフォールバック）
+                        fallbackDownload();
                     });
                 } else {
                     fallbackDownload();
