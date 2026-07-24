@@ -1291,6 +1291,7 @@
                     xs.push(el); ys.push(w);
                 });
             });
+            if (same.length<3) return buildGrowthTableForSize(targetMm);
             if (xs.length<3) return buildGrowthTableForSize(targetMm);
             var n=xs.length,sx=0,sx2=0,sx3=0,sx4=0,sy=0,sxy=0,sx2y=0;
             for (var k=0;k<n;k++){
