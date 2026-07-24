@@ -1673,35 +1673,13 @@
                 localStorage.setItem('beetle_agreed', 'true');
                 setAgreedToTerms(true);
             };
-            const exportToExcel = () => {
-                const rows = processedCreatures.map(c => {
-                    const latestSize = c.history.length > 0 ? c.history[c.history.length - 1].size : '-';
-                    const latestTemp = c.history.length > 0 ? c.history[c.history.length - 1].temp : '-';
-                    const rate = calcGrowthRate(c.hatchDate, c.history.length > 0 ? c.history[c.history.length - 1] : null, buildGrowthTableFromStats(creatures, c.alias, Number(growthTargetApp) || 80, c.id));
-                    const f = calcSelfF(c, nameMap);
-                    return {
-                        '個体名': c.name,
-                        '計画': c.saleStatus,
-                        '性別': c.sex,
-                        '名称': c.alias,
-                        '産地': c.origin,
-                        '累代': c.generation,
-                        '体重': latestSize,
-                        '成長率': (rate === null || rate === undefined) ? '-' : (rate > 0 ? '+' : '') + rate + '%',
-                        '孵化日': `="${c.hatchDate}"`,
-                        'ステージ': c.stage,
-                        '温度': latestTemp,
-                        '羽化日': `="${c.emergenceDate}"`,
-                        '羽化サイズ': c.emergenceSize ? `${c.emergenceSize}mm` : '-',
-                        'オス親': (c.maleParent && c.maleParent !== '-' && nameMap[c.maleParent]) ? c.maleParent : '',
-                        'メス親': (c.femaleParent && c.femaleParent !== '-' && nameMap[c.femaleParent]) ? c.femaleParent : '',
-                        '累積F値': (f * 100).toFixed(2) + '%'
-                    };
-                });
-                const ws = XLSX.utils.json_to_sheet(rows);
-                const csvBody = XLSX.utils.sheet_to_csv(ws);
+            const toCsvDate = (v) => {
+                const s = String(v || '').trim();
+                if (!s || s === '-') return '-';
+                return s.replace(/-/g, '／'); // 全角スラッシュにしてExcelの自動日付変換を回避
+            };
+            const downloadCsv = (fileName, csvBody) => {
                 const bom = '\uFEFF'; // Excelで文字化けしないようUTF-8 BOMを付与
-                const fileName = `beetle_data_${new Date().toISOString().slice(0,10)}.csv`;
                 const mimeType = 'text/csv;charset=utf-8';
                 const blob = new Blob([bom + csvBody], { type: mimeType });
 
@@ -1731,6 +1709,55 @@
                     fallbackDownload();
                 }
             };
+            const exportToExcel = () => {
+                const rows = processedCreatures.map(c => {
+                    const latestSize = c.history.length > 0 ? c.history[c.history.length - 1].size : '-';
+                    const latestTemp = c.history.length > 0 ? c.history[c.history.length - 1].temp : '-';
+                    const rate = calcGrowthRate(c.hatchDate, c.history.length > 0 ? c.history[c.history.length - 1] : null, buildGrowthTableFromStats(creatures, c.alias, Number(growthTargetApp) || 80, c.id));
+                    const f = calcSelfF(c, nameMap);
+                    return {
+                        '個体名': c.name,
+                        '計画': c.saleStatus,
+                        '性別': c.sex,
+                        '名称': c.alias,
+                        '産地': c.origin,
+                        '累代': c.generation,
+                        '体重': latestSize,
+                        '成長率': (rate === null || rate === undefined) ? '-' : (rate > 0 ? '+' : '') + rate + '%',
+                        '孵化日': toCsvDate(c.hatchDate),
+                        'ステージ': c.stage,
+                        '温度': latestTemp,
+                        '羽化日': toCsvDate(c.emergenceDate),
+                        '羽化サイズ': c.emergenceSize ? `${c.emergenceSize}mm` : '-',
+                        'オス親': (c.maleParent && c.maleParent !== '-' && nameMap[c.maleParent]) ? c.maleParent : '',
+                        'メス親': (c.femaleParent && c.femaleParent !== '-' && nameMap[c.femaleParent]) ? c.femaleParent : '',
+                        '累積F値': (f * 100).toFixed(2) + '%'
+                    };
+                });
+                const ws = XLSX.utils.json_to_sheet(rows);
+                const csvBody = XLSX.utils.sheet_to_csv(ws);
+                const fileName = `beetle_data_${new Date().toISOString().slice(0,10)}.csv`;
+                downloadCsv(fileName, csvBody);
+            };
+            const downloadCsvTemplate = () => {
+                const exampleRow = {
+                    '個体名': '例）個体1号',
+                    '計画': '例）使用（使用/予備/不要）',
+                    '性別': '例）オス（オス/メス）',
+                    '名称': '例）Aライン',
+                    '産地': '例）福岡県久留米市',
+                    '累代': '例）F1',
+                    '孵化日': '例）2026／04／01',
+                    'ステージ': '例）幼虫（幼虫/蛹/羽化/成虫）',
+                    '羽化日': '例）2026／05／01（未羽化なら空欄）',
+                    '羽化サイズ': '例）80（単位mmは自動で付きます）',
+                    'オス親': '例）個体1号（既に登録済みの個体名を入力）',
+                    'メス親': '例）個体2号（既に登録済みの個体名を入力）'
+                };
+                const ws = XLSX.utils.json_to_sheet([exampleRow]);
+                const csvBody = XLSX.utils.sheet_to_csv(ws);
+                downloadCsv('beetle_import_template.csv', csvBody);
+            };
             const importFromCSV = (file) => {
                 const reader = new FileReader();
                 reader.onload = (ev) => {
@@ -1746,10 +1773,22 @@
                         const updated = [...creatures];
                         let newCount = 0, updateCount = 0;
 
-                        const stripDateFormula = (v) => {
-                            const s = String(v || '').trim();
-                            const m = s.match(/^="(.*)"$/);
-                            return m ? m[1] : s;
+                        const normalizeImportedDate = (v) => {
+                            let s = String(v || '').trim();
+                            if (!s) return '-';
+                            const legacyFormula = s.match(/^="(.*)"$/); // 旧バージョンの数式形式との後方互換
+                            if (legacyFormula) s = legacyFormula[1];
+                            if (s === '-') return '-';
+                            // Excelがシリアル値（数値）に変換してしまった場合の救済
+                            if (/^\d+(\.\d+)?$/.test(s)) {
+                                const n = Number(s);
+                                const d = new Date(Math.round((n - 25569) * 86400 * 1000));
+                                if (!isNaN(d.getTime())) {
+                                    const pad = (x) => String(x).padStart(2, '0');
+                                    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+                                }
+                            }
+                            return s.replace(/／/g, '-').replace(/\//g, '-');
                         };
 
                         rows.forEach(row => {
@@ -1763,9 +1802,9 @@
                                 alias: row['名称'] || '',
                                 origin: row['産地'] || '',
                                 generation: row['累代'] || '',
-                                hatchDate: stripDateFormula(row['孵化日']) || '-',
+                                hatchDate: normalizeImportedDate(row['孵化日']),
                                 stage: row['ステージ'] || '幼虫',
-                                emergenceDate: stripDateFormula(row['羽化日']) || '-',
+                                emergenceDate: normalizeImportedDate(row['羽化日']),
                                 emergenceSize: (emergenceSizeRaw && emergenceSizeRaw !== '-') ? emergenceSizeRaw : '',
                                 maleParent: row['オス親'] || '',
                                 femaleParent: row['メス親'] || ''
@@ -1996,7 +2035,11 @@
                                             setShowExcelModal(false);
                                         }} />
                                     </label>
+                                    <button onClick={() => { downloadCsvTemplate(); setShowExcelModal(false); }} className="w-full bg-neutral-700 py-3 rounded-lg font-bold text-white text-sm hover:bg-neutral-600 transition-colors">
+                                        <i className="fa-solid fa-file-lines mr-1"></i>入力フォームをダウンロード
+                                    </button>
                                 </div>
+                                <p className="text-[10px] text-neutral-500">※ 入力フォームは各項目の先頭行に記入例が入ったCSVです。Excelで開いて2行目を書き換え、行を追加してから「CSVを読込」してください。</p>
                                 <p className="text-[10px] text-neutral-500">※ 読込時は「個体名」で既存データと照合し、一致すれば更新・なければ新規追加されます（体重・成長率・温度・累積F値は反映されません）。</p>
                                 <button onClick={() => setShowExcelModal(false)} className="w-full bg-neutral-700 py-2 rounded font-bold text-white text-sm">閉じる</button>
                             </div>
