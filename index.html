@@ -1688,10 +1688,10 @@
                         '累代': c.generation,
                         '体重': latestSize,
                         '成長率': (rate === null || rate === undefined) ? '-' : (rate > 0 ? '+' : '') + rate + '%',
-                        '孵化日': c.hatchDate,
+                        '孵化日': `="${c.hatchDate}"`,
                         'ステージ': c.stage,
                         '温度': latestTemp,
-                        '羽化日': c.emergenceDate,
+                        '羽化日': `="${c.emergenceDate}"`,
                         '羽化サイズ': c.emergenceSize ? `${c.emergenceSize}mm` : '-',
                         'オス親': (c.maleParent && c.maleParent !== '-' && nameMap[c.maleParent]) ? c.maleParent : '',
                         'メス親': (c.femaleParent && c.femaleParent !== '-' && nameMap[c.femaleParent]) ? c.femaleParent : '',
@@ -1746,6 +1746,12 @@
                         const updated = [...creatures];
                         let newCount = 0, updateCount = 0;
 
+                        const stripDateFormula = (v) => {
+                            const s = String(v || '').trim();
+                            const m = s.match(/^="(.*)"$/);
+                            return m ? m[1] : s;
+                        };
+
                         rows.forEach(row => {
                             const name = String(row['個体名'] || '').trim();
                             if (!name) return;
@@ -1757,9 +1763,9 @@
                                 alias: row['名称'] || '',
                                 origin: row['産地'] || '',
                                 generation: row['累代'] || '',
-                                hatchDate: row['孵化日'] || '-',
+                                hatchDate: stripDateFormula(row['孵化日']) || '-',
                                 stage: row['ステージ'] || '幼虫',
-                                emergenceDate: row['羽化日'] || '-',
+                                emergenceDate: stripDateFormula(row['羽化日']) || '-',
                                 emergenceSize: (emergenceSizeRaw && emergenceSizeRaw !== '-') ? emergenceSizeRaw : '',
                                 maleParent: row['オス親'] || '',
                                 femaleParent: row['メス親'] || ''
