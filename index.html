@@ -1266,19 +1266,21 @@
             }
             return null;
         }
-        function buildGrowthTableForSize(mm) {
+        function buildGrowthTableForSize(mm, refSize, refWeight) {
+            var rs = Number(refSize) || 80, rw = (refWeight !== undefined && refWeight !== null && refWeight !== '') ? Number(refWeight) : 22;
             var base=[{day:0,w:0},{day:30,w:0.3},{day:60,w:1.0},{day:90,w:2.5},{day:120,w:4.5},{day:150,w:7.0},{day:180,w:10.0},{day:210,w:13.5},{day:240,w:17.0},{day:270,w:19.5},{day:300,w:21.0},{day:330,w:22.0},{day:360,w:21.5},{day:400,w:20.5},{day:450,w:19.5},{day:500,w:18.5}];
-            var peak=mm<=80?22*(mm/80):22+(30-22)*(mm-80)/10;
+            var peak = mm<=rs ? rw*(mm/rs) : rw+rw*(30/22-1)*(mm-rs)/10;
             var sc=peak/22;
             return base.map(function(r){return{day:r.day,w:Math.round(r.w*sc*10)/10};});
         }
-        function buildGrowthTableFromStats(allCreatures, alias, targetMm, excludeId) {
-            var targetPeak = targetMm<=80 ? 22*(targetMm/80) : 22+(30-22)*(targetMm-80)/10;
-            if (!alias) return buildGrowthTableForSize(targetMm);
+        function buildGrowthTableFromStats(allCreatures, alias, targetMm, excludeId, refSize, refWeight) {
+            var rs = Number(refSize) || 80, rw = (refWeight !== undefined && refWeight !== null && refWeight !== '') ? Number(refWeight) : 22;
+            var targetPeak = targetMm<=rs ? rw*(targetMm/rs) : rw+rw*(30/22-1)*(targetMm-rs)/10;
+            if (!alias) return buildGrowthTableForSize(targetMm, rs, rw);
             var same = allCreatures.filter(function(c){
                 return c.id!==excludeId && c.alias===alias && c.hatchDate && c.hatchDate!=='-' && c.history && c.history.length>0;
             });
-            if (same.length===0) return buildGrowthTableForSize(targetMm);
+            if (same.length===0) return buildGrowthTableForSize(targetMm, rs, rw);
             var xs=[],ys=[];
             same.forEach(function(c){
                 var origin=new Date(c.hatchDate);
@@ -1290,7 +1292,7 @@
                     xs.push(el); ys.push(w);
                 });
             });
-            if (xs.length<3) return buildGrowthTableForSize(targetMm);
+            if (xs.length<3) return buildGrowthTableForSize(targetMm, rs, rw);
             var n=xs.length,sx=0,sx2=0,sx3=0,sx4=0,sy=0,sxy=0,sx2y=0;
             for (var k=0;k<n;k++){
                 var xk=xs[k],yk=ys[k];
@@ -1304,7 +1306,7 @@
                 for (var row=col+1;row<3;row++) if (Math.abs(A[row][col])>Math.abs(A[pivot][col])) pivot=row;
                 var tmp=A[col];A[col]=A[pivot];A[pivot]=tmp;
                 var tb=B[col];B[col]=B[pivot];B[pivot]=tb;
-                if (Math.abs(A[col][col])<1e-10) return buildGrowthTableForSize(targetMm);
+                if (Math.abs(A[col][col])<1e-10) return buildGrowthTableForSize(targetMm, rs, rw);
                 for (var r=col+1;r<3;r++){
                     var f=A[r][col]/A[col][col];
                     B[r]-=f*B[col];
@@ -1325,7 +1327,7 @@
                 return Math.max.apply(null,c.history.map(function(h){return parseFloat((h.size||'').replace(/[^0-9.]/g,''))||0;}));
             }).filter(function(p){return p>0;});
             var peakW=actualPeaks.length>0?actualPeaks.reduce(function(a,b){return a+b;},0)/actualPeaks.length:ca*peakDay*peakDay+cb*peakDay+cc;
-            if (peakW<=0) return buildGrowthTableForSize(targetMm);
+            if (peakW<=0) return buildGrowthTableForSize(targetMm, rs, rw);
             var scale=targetPeak/peakW;
             var step=Math.max(15,Math.round(maxDay/20));
             var rawTable=[{day:0,w:0}];
@@ -1373,6 +1375,8 @@
             const [showAddModal, setShowAddModal] = useState(false);
             const [showGrowthSettings, setShowGrowthSettings] = useState(false);
             const [growthTargetApp, setGrowthTargetApp] = useState(80);
+            const [refSizeApp, setRefSizeApp] = useState(80);
+            const [refWeightApp, setRefWeightApp] = useState(22);
             const [growthAliasApp, setGrowthAliasApp] = useState('');
             const [statsAlias, setStatsAlias] = useState('');
             const [newCreatureData, setNewCreatureData] = useState({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '', femaleParent: '', stage: '幼虫', saleStatus: '使用', sex: 'オス', emergenceSize: '' });
@@ -1571,8 +1575,8 @@
                             const aL=a.history.length>0?a.history[a.history.length-1]:null;
                             const bL=b.history.length>0?b.history[b.history.length-1]:null;
                             const tgt=Number(growthTargetApp)||80;
-                            av=calcGrowthRate(a.hatchDate,aL,buildGrowthTableFromStats(creatures,a.alias,tgt,a.id));
-                            bv=calcGrowthRate(b.hatchDate,bL,buildGrowthTableFromStats(creatures,b.alias,tgt,b.id));
+                            av=calcGrowthRate(a.hatchDate,aL,buildGrowthTableFromStats(creatures,a.alias,tgt,a.id,refSizeApp,refWeightApp));
+                            bv=calcGrowthRate(b.hatchDate,bL,buildGrowthTableFromStats(creatures,b.alias,tgt,b.id,refSizeApp,refWeightApp));
                         } else if (sort.key === 'size' || sort.key === 'temp') {
                             // 体重・温度はcreature自体のプロパティではなく、飼育記録（history）の最新値を見る必要がある。
                             // 単位付き文字列（例:"15g","26℃"）から数値部分だけを抽出して数値として比較する。
@@ -1713,7 +1717,7 @@
                 const rows = processedCreatures.map(c => {
                     const latestSize = c.history.length > 0 ? c.history[c.history.length - 1].size : '-';
                     const latestTemp = c.history.length > 0 ? c.history[c.history.length - 1].temp : '-';
-                    const rate = calcGrowthRate(c.hatchDate, c.history.length > 0 ? c.history[c.history.length - 1] : null, buildGrowthTableFromStats(creatures, c.alias, Number(growthTargetApp) || 80, c.id));
+                    const rate = calcGrowthRate(c.hatchDate, c.history.length > 0 ? c.history[c.history.length - 1] : null, buildGrowthTableFromStats(creatures, c.alias, Number(growthTargetApp) || 80, c.id, refSizeApp, refWeightApp));
                     const f = calcSelfF(c, nameMap);
                     return {
                         '個体名': c.name,
@@ -1919,7 +1923,9 @@
                     onGoToTree={(id) => { setHighlightId(id); setActiveTab('血統図'); setSelectedCreature(null); }}
                     sharedGrowthAlias={growthAliasApp}
                     sharedGrowthTarget={growthTargetApp}
-                    onApplyGrowthSettings={(alias,target)=>{setGrowthAliasApp(alias);setGrowthTargetApp(target);}}
+                    sharedRefSize={refSizeApp}
+                    sharedRefWeight={refWeightApp}
+                    onApplyGrowthSettings={(alias,target,refSize,refWeight)=>{setGrowthAliasApp(alias);setGrowthTargetApp(target);if(refSize!==undefined)setRefSizeApp(refSize);if(refWeight!==undefined)setRefWeightApp(refWeight);}}
                 />
             );
 
@@ -2108,6 +2114,20 @@
                                 <p className="text-xs text-white mb-1">目標サイズ（mm）</p>
                                 <input type="text" inputMode="numeric" value={growthTargetApp} onChange={e => setGrowthTargetApp(e.target.value)} className="w-24 bg-neutral-700 text-white text-xs rounded px-2 py-2 border border-neutral-600" />
                             </div>
+                            <div className="mb-3 p-3 bg-neutral-900 rounded-lg border border-neutral-700">
+                                <p className="text-xs text-emerald-400 font-bold mb-2">基準サイズ設定</p>
+                                <p className="text-[10px] text-neutral-400 mb-2">「このサイズならこの体重が目安」という基準点です。理想曲線の計算のベースになります。</p>
+                                <div className="flex gap-3">
+                                    <div>
+                                        <p className="text-[10px] text-neutral-400 mb-1">基準サイズ（mm）</p>
+                                        <input type="text" inputMode="numeric" value={refSizeApp} onChange={e => setRefSizeApp(e.target.value)} className="w-20 bg-neutral-700 text-white text-xs rounded px-2 py-2 border border-neutral-600" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] text-neutral-400 mb-1">基準体重（g）</p>
+                                        <input type="text" inputMode="decimal" value={refWeightApp} onChange={e => setRefWeightApp(e.target.value)} className="w-20 bg-neutral-700 text-white text-xs rounded px-2 py-2 border border-neutral-600" />
+                                    </div>
+                                </div>
+                            </div>
                             <div className="flex gap-2"><button onClick={() => setShowGrowthSettings(false)} className="flex-1 bg-emerald-600 py-2 rounded text-white text-xs font-bold">適用</button><button onClick={() => setShowGrowthSettings(false)} className="flex-1 bg-neutral-600 py-2 rounded text-neutral-300 text-xs">キャンセル</button></div>
                         </div>
                     )}
@@ -2229,7 +2249,7 @@
                                                 <td className="p-3 text-center">{c.origin}</td>
                                                 <td className="p-3 text-center">{c.generation}</td>
                                                 <td className="p-3 text-center">{c.history.length > 0 ? c.history[c.history.length - 1].size : '-'}</td>
-                                                <td className="p-3 text-center"><GrowthRateSpan rate={calcGrowthRate(c.hatchDate,c.history.length>0?c.history[c.history.length-1]:null,buildGrowthTableFromStats(creatures,c.alias,Number(growthTargetApp)||80,c.id))} /></td>
+                                                <td className="p-3 text-center"><GrowthRateSpan rate={calcGrowthRate(c.hatchDate,c.history.length>0?c.history[c.history.length-1]:null,buildGrowthTableFromStats(creatures,c.alias,Number(growthTargetApp)||80,c.id,refSizeApp,refWeightApp))} /></td>
                                                 <td className="p-3 text-center">{c.hatchDate}</td>
                                                 <td className="p-3 text-center">{c.stage}</td>
                                                 <td className="p-3 text-center">{c.history.length > 0 ? c.history[c.history.length - 1].temp : '-'}</td>
@@ -2574,7 +2594,7 @@
         }
 
         // ---- 詳細画面 ----
-        function DetailView({ creature, allCreatures, nameMap, onBack, onUpdate, onGoToTree, onRequestSave, sharedGrowthAlias, sharedGrowthTarget, onApplyGrowthSettings }) {
+        function DetailView({ creature, allCreatures, nameMap, onBack, onUpdate, onGoToTree, onRequestSave, sharedGrowthAlias, sharedGrowthTarget, sharedRefSize, sharedRefWeight, onApplyGrowthSettings }) {
             const [form, setForm] = useState(creature);
             const [showEditModal, setShowEditModal] = useState(false);
             const [editForm, setEditForm] = useState(creature);
@@ -2605,7 +2625,11 @@
             const [pendingAlias, setPendingAlias] = React.useState(sharedGrowthAlias!==undefined?sharedGrowthAlias:creature.alias||'');
             const [pendingTarget, setPendingTarget] = React.useState(sharedGrowthTarget!==undefined?Number(sharedGrowthTarget)||80:80);
             const [growthTarget, setGrowthTarget] = React.useState(sharedGrowthTarget!==undefined?Number(sharedGrowthTarget)||80:80);
-            const [growthTable, setGrowthTable] = React.useState(function(){ var a=sharedGrowthAlias!==undefined?sharedGrowthAlias:creature.alias||''; var t=sharedGrowthTarget!==undefined?Number(sharedGrowthTarget)||80:80; return buildGrowthTableFromStats(allCreatures,a,t,creature.id)||buildGrowthTableForSize(t); });
+            const [pendingRefSize, setPendingRefSize] = React.useState(sharedRefSize!==undefined?Number(sharedRefSize)||80:80);
+            const [pendingRefWeight, setPendingRefWeight] = React.useState(sharedRefWeight!==undefined?Number(sharedRefWeight)||22:22);
+            const [growthRefSize, setGrowthRefSize] = React.useState(sharedRefSize!==undefined?Number(sharedRefSize)||80:80);
+            const [growthRefWeight, setGrowthRefWeight] = React.useState(sharedRefWeight!==undefined?Number(sharedRefWeight)||22:22);
+            const [growthTable, setGrowthTable] = React.useState(function(){ var a=sharedGrowthAlias!==undefined?sharedGrowthAlias:creature.alias||''; var t=sharedGrowthTarget!==undefined?Number(sharedGrowthTarget)||80:80; var rs=sharedRefSize!==undefined?Number(sharedRefSize)||80:80; var rw=sharedRefWeight!==undefined?Number(sharedRefWeight)||22:22; return buildGrowthTableFromStats(allCreatures,a,t,creature.id,rs,rw)||buildGrowthTableForSize(t,rs,rw); });
             const calcRate = function(h){ return calcGrowthRate(form.hatchDate,h,growthTable); };
 
             const saveRecord = (record) => {
@@ -2786,7 +2810,21 @@
                                 <div className="mb-3 p-4 bg-neutral-800 rounded-xl border border-emerald-700">
                                     <div className="mb-3"><p className="text-xs text-white mb-1">名称</p><AliasSelect allCreatures={allCreatures} value={pendingAlias||''} onChange={setPendingAlias} /></div>
                                     <div className="mb-3"><p className="text-xs text-white mb-1">目標サイズ（mm）</p><input type="text" inputMode="numeric" value={pendingTarget} onChange={e => setPendingTarget(e.target.value)} className="w-20 bg-neutral-700 text-white text-xs rounded px-2 py-1 border border-neutral-600" /></div>
-                                    <div className="flex gap-2"><button onClick={() => { const t=Number(pendingTarget)||80; const newTbl=buildGrowthTableFromStats(allCreatures,pendingAlias||form.alias,t,form.id)||buildGrowthTableForSize(t); setGrowthAlias(pendingAlias); setGrowthTarget(t); setGrowthTable(newTbl); if(typeof onApplyGrowthSettings==='function') onApplyGrowthSettings(pendingAlias,t); setShowGrowthPanel(false); }} className="flex-1 bg-emerald-600 py-2 rounded text-white text-xs font-bold">適用</button><button onClick={() => setShowGrowthPanel(false)} className="flex-1 bg-neutral-600 py-2 rounded text-neutral-300 text-xs">キャンセル</button></div>
+                                    <div className="mb-3 p-3 bg-neutral-900 rounded-lg border border-neutral-700">
+                                        <p className="text-xs text-emerald-400 font-bold mb-2">基準サイズ設定</p>
+                                        <p className="text-[10px] text-neutral-400 mb-2">「このサイズならこの体重が目安」という基準点です。理想曲線の計算のベースになります。</p>
+                                        <div className="flex gap-3">
+                                            <div>
+                                                <p className="text-[10px] text-neutral-400 mb-1">基準サイズ（mm）</p>
+                                                <input type="text" inputMode="numeric" value={pendingRefSize} onChange={e => setPendingRefSize(e.target.value)} className="w-20 bg-neutral-700 text-white text-xs rounded px-2 py-1 border border-neutral-600" />
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] text-neutral-400 mb-1">基準体重（g）</p>
+                                                <input type="text" inputMode="decimal" value={pendingRefWeight} onChange={e => setPendingRefWeight(e.target.value)} className="w-20 bg-neutral-700 text-white text-xs rounded px-2 py-1 border border-neutral-600" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2"><button onClick={() => { const t=Number(pendingTarget)||80; const rs=Number(pendingRefSize)||80; const rw=Number(pendingRefWeight)||22; const newTbl=buildGrowthTableFromStats(allCreatures,pendingAlias||form.alias,t,form.id,rs,rw)||buildGrowthTableForSize(t,rs,rw); setGrowthAlias(pendingAlias); setGrowthTarget(t); setGrowthRefSize(rs); setGrowthRefWeight(rw); setGrowthTable(newTbl); if(typeof onApplyGrowthSettings==='function') onApplyGrowthSettings(pendingAlias,t,rs,rw); setShowGrowthPanel(false); }} className="flex-1 bg-emerald-600 py-2 rounded text-white text-xs font-bold">適用</button><button onClick={() => setShowGrowthPanel(false)} className="flex-1 bg-neutral-600 py-2 rounded text-neutral-300 text-xs">キャンセル</button></div>
                                 </div>
                             )}
                             <div className="overflow-hidden rounded border border-neutral-800">
