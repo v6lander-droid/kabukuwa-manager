@@ -1545,6 +1545,7 @@
             const [termsTab, setTermsTab] = useState('使用方法');
             const [appIcon, setAppIcon] = useState(() => localStorage.getItem('beetle_icon') || '');
             const [showIconModal, setShowIconModal] = useState(false);
+            const [showExcelModal, setShowExcelModal] = useState(false);
             const [iconCropSrc, setIconCropSrc] = useState(null); // アイコン用：トリミング待ちの選択直後画像
 
             const nameMap = useMemo(() => {
@@ -1730,6 +1731,62 @@
                     fallbackDownload();
                 }
             };
+            const importFromCSV = (file) => {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    try {
+                        const text = ev.target.result;
+                        const csvWb = XLSX.read(text, { type: 'string' });
+                        const wsname = csvWb.SheetNames[0];
+                        const rows = XLSX.utils.sheet_to_json(csvWb.Sheets[wsname], { defval: '' });
+                        if (!rows.length) throw new Error('データが見つかりません');
+
+                        const existingByName = {};
+                        creatures.forEach(c => { existingByName[c.name] = c; });
+                        const updated = [...creatures];
+                        let newCount = 0, updateCount = 0;
+
+                        rows.forEach(row => {
+                            const name = String(row['個体名'] || '').trim();
+                            if (!name) return;
+                            const emergenceSizeRaw = String(row['羽化サイズ'] || '').replace('mm', '').trim();
+                            const fields = {
+                                name,
+                                saleStatus: row['計画'] || '使用',
+                                sex: row['性別'] || 'オス',
+                                alias: row['名称'] || '',
+                                origin: row['産地'] || '',
+                                generation: row['累代'] || '',
+                                hatchDate: row['孵化日'] || '-',
+                                stage: row['ステージ'] || '幼虫',
+                                emergenceDate: row['羽化日'] || '-',
+                                emergenceSize: (emergenceSizeRaw && emergenceSizeRaw !== '-') ? emergenceSizeRaw : '',
+                                maleParent: row['オス親'] || '',
+                                femaleParent: row['メス親'] || ''
+                            };
+                            const existing = existingByName[name];
+                            if (existing) {
+                                const idx = updated.findIndex(c => c.id === existing.id);
+                                updated[idx] = { ...updated[idx], ...fields };
+                                updateCount++;
+                            } else {
+                                const newCreature = { ...fields, id: `${Date.now().toString()}_${Math.random().toString(36).slice(2, 8)}`, history: [] };
+                                updated.push(newCreature);
+                                existingByName[name] = newCreature;
+                                newCount++;
+                            }
+                        });
+
+                        const confirmMsg = `${newCount}件を新規追加、${updateCount}件を更新します。よろしいですか？\n（体重・温度・成長率・累積F値はCSVの内容に関わらず反映されません。個体の基本情報のみが対象です）`;
+                        if (confirm(confirmMsg)) {
+                            setCreatures(dedupeIds(updated));
+                        }
+                    } catch (err) {
+                        alert('CSVファイルの読み込みに失敗しました。正しい形式か確認してください。\n[詳細: ' + (err && err.message ? err.message : String(err)) + ']');
+                    }
+                };
+                reader.readAsText(file, 'UTF-8');
+            };
 
             if (!agreedToTerms) return (
                 <div className="min-h-screen flex items-center justify-center p-4 bg-neutral-950">
@@ -1908,12 +1965,37 @@
                             <button onClick={() => setShowIconModal(true)} className="flex-1 bg-neutral-700 py-2 rounded text-xs text-white font-bold hover:bg-neutral-600 transition-colors">
                                 <i className="fa-solid fa-image mr-1"></i>アイコン
                             </button>
-                            <button onClick={exportToExcel} className="flex-1 bg-emerald-700 py-2 rounded text-xs text-white font-bold hover:bg-emerald-600 transition-colors">
+                            <button onClick={() => setShowExcelModal(true)} className="flex-1 bg-emerald-700 py-2 rounded text-xs text-white font-bold hover:bg-emerald-600 transition-colors">
                                 <i className="fa-solid fa-file-excel mr-1"></i>Excel
                             </button>
                         </div>
                     </nav>
 
+                    {showExcelModal && (
+                        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+                            <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4">
+                                <h3 className="font-bold text-white"><i className="fa-solid fa-file-excel mr-1"></i>Excel連携</h3>
+                                <p className="text-[11px] text-neutral-400 leading-relaxed">一覧に表示中のデータをCSVファイルとして書き出したり、CSVファイルから個体データを取り込んだりできます（Excelでそのまま開けます）。</p>
+                                <div className="space-y-2">
+                                    <button onClick={() => { exportToExcel(); setShowExcelModal(false); }} className="w-full bg-emerald-600 py-3 rounded-lg font-bold text-white text-sm hover:bg-emerald-500 transition-colors">
+                                        <i className="fa-solid fa-download mr-1"></i>CSVで保存
+                                    </button>
+                                    <label className="w-full bg-emerald-600 py-3 rounded-lg font-bold text-white text-sm hover:bg-emerald-500 transition-colors cursor-pointer text-center block">
+                                        <i className="fa-solid fa-upload mr-1"></i>CSVを読込
+                                        <input type="file" accept=".csv" className="hidden" onChange={e => {
+                                            const file = e.target.files[0];
+                                            if (!file) return;
+                                            importFromCSV(file);
+                                            e.target.value = '';
+                                            setShowExcelModal(false);
+                                        }} />
+                                    </label>
+                                </div>
+                                <p className="text-[10px] text-neutral-500">※ 読込時は「個体名」で既存データと照合し、一致すれば更新・なければ新規追加されます（体重・成長率・温度・累積F値は反映されません）。</p>
+                                <button onClick={() => setShowExcelModal(false)} className="w-full bg-neutral-700 py-2 rounded font-bold text-white text-sm">閉じる</button>
+                            </div>
+                        </div>
+                    )}
                     {showIconModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
                             <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4">
