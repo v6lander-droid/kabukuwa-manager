@@ -20,8 +20,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         .sticky-col-1 { position: sticky; left: 0; z-index: 10; background-color: #171717; }
@@ -1254,23 +1252,6 @@
             );
         }
 
-        function normalizeDateValue(v) {
-            let s = String(v || '').trim();
-            if (!s) return '-';
-            const legacyFormula = s.match(/^="(.*)"$/); // 旧バージョンの数式形式との後方互換
-            if (legacyFormula) s = legacyFormula[1];
-            if (s === '-') return '-';
-            // Excelがシリアル値（数値）に変換してしまった場合の救済
-            if (/^\d+(\.\d+)?$/.test(s)) {
-                const n = Number(s);
-                const d = new Date(Math.round((n - 25569) * 86400 * 1000));
-                if (!isNaN(d.getTime())) {
-                    const pad = (x) => String(x).padStart(2, '0');
-                    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
-                }
-            }
-            return s.replace(/／/g, '-').replace(/\//g, '-');
-        }
         function getIdealWeightFromTable(days,tbl) {
             if (!tbl||tbl.length===0||days===null||days<0) return null;
             if (days<=tbl[0].day) return tbl[0].w!==undefined?tbl[0].w:null;
@@ -1283,21 +1264,19 @@
             }
             return null;
         }
-        function buildGrowthTableForSize(mm, refSize, refWeight) {
-            var rs = Number(refSize) || 80, rw = (refWeight !== undefined && refWeight !== null && refWeight !== '') ? Number(refWeight) : 22;
+        function buildGrowthTableForSize(mm) {
             var base=[{day:0,w:0},{day:30,w:0.3},{day:60,w:1.0},{day:90,w:2.5},{day:120,w:4.5},{day:150,w:7.0},{day:180,w:10.0},{day:210,w:13.5},{day:240,w:17.0},{day:270,w:19.5},{day:300,w:21.0},{day:330,w:22.0},{day:360,w:21.5},{day:400,w:20.5},{day:450,w:19.5},{day:500,w:18.5}];
-            var peak = mm<=rs ? rw*(mm/rs) : rw+rw*(30/22-1)*(mm-rs)/10;
+            var peak=mm<=80?22*(mm/80):22+(30-22)*(mm-80)/10;
             var sc=peak/22;
             return base.map(function(r){return{day:r.day,w:Math.round(r.w*sc*10)/10};});
         }
-        function buildGrowthTableFromStats(allCreatures, alias, targetMm, excludeId, refSize, refWeight) {
-            var rs = Number(refSize) || 80, rw = (refWeight !== undefined && refWeight !== null && refWeight !== '') ? Number(refWeight) : 22;
-            var targetPeak = targetMm<=rs ? rw*(targetMm/rs) : rw+rw*(30/22-1)*(targetMm-rs)/10;
-            if (!alias) return buildGrowthTableForSize(targetMm, rs, rw);
+        function buildGrowthTableFromStats(allCreatures, alias, targetMm, excludeId) {
+            var targetPeak = targetMm<=80 ? 22*(targetMm/80) : 22+(30-22)*(targetMm-80)/10;
+            if (!alias) return buildGrowthTableForSize(targetMm);
             var same = allCreatures.filter(function(c){
                 return c.id!==excludeId && c.alias===alias && c.hatchDate && c.hatchDate!=='-' && c.history && c.history.length>0;
             });
-            if (same.length===0) return buildGrowthTableForSize(targetMm, rs, rw);
+            if (same.length===0) return buildGrowthTableForSize(targetMm);
             var xs=[],ys=[];
             same.forEach(function(c){
                 var origin=new Date(c.hatchDate);
@@ -1309,7 +1288,7 @@
                     xs.push(el); ys.push(w);
                 });
             });
-            if (xs.length<3) return buildGrowthTableForSize(targetMm, rs, rw);
+            if (xs.length<3) return buildGrowthTableForSize(targetMm);
             var n=xs.length,sx=0,sx2=0,sx3=0,sx4=0,sy=0,sxy=0,sx2y=0;
             for (var k=0;k<n;k++){
                 var xk=xs[k],yk=ys[k];
@@ -1323,7 +1302,7 @@
                 for (var row=col+1;row<3;row++) if (Math.abs(A[row][col])>Math.abs(A[pivot][col])) pivot=row;
                 var tmp=A[col];A[col]=A[pivot];A[pivot]=tmp;
                 var tb=B[col];B[col]=B[pivot];B[pivot]=tb;
-                if (Math.abs(A[col][col])<1e-10) return buildGrowthTableForSize(targetMm, rs, rw);
+                if (Math.abs(A[col][col])<1e-10) return buildGrowthTableForSize(targetMm);
                 for (var r=col+1;r<3;r++){
                     var f=A[r][col]/A[col][col];
                     B[r]-=f*B[col];
@@ -1344,7 +1323,7 @@
                 return Math.max.apply(null,c.history.map(function(h){return parseFloat((h.size||'').replace(/[^0-9.]/g,''))||0;}));
             }).filter(function(p){return p>0;});
             var peakW=actualPeaks.length>0?actualPeaks.reduce(function(a,b){return a+b;},0)/actualPeaks.length:ca*peakDay*peakDay+cb*peakDay+cc;
-            if (peakW<=0) return buildGrowthTableForSize(targetMm, rs, rw);
+            if (peakW<=0) return buildGrowthTableForSize(targetMm);
             var scale=targetPeak/peakW;
             var step=Math.max(15,Math.round(maxDay/20));
             var rawTable=[{day:0,w:0}];
@@ -1392,8 +1371,6 @@
             const [showAddModal, setShowAddModal] = useState(false);
             const [showGrowthSettings, setShowGrowthSettings] = useState(false);
             const [growthTargetApp, setGrowthTargetApp] = useState(80);
-            const [refSizeApp, setRefSizeApp] = useState(80);
-            const [refWeightApp, setRefWeightApp] = useState(22);
             const [growthAliasApp, setGrowthAliasApp] = useState('');
             const [statsAlias, setStatsAlias] = useState('');
             const [newCreatureData, setNewCreatureData] = useState({ name: '新規個体', alias: '', origin: '', generation: '', hatchDate: '-', emergenceDate: '-', maleParent: '', femaleParent: '', stage: '幼虫', saleStatus: '使用', sex: 'オス', emergenceSize: '' });
@@ -1541,17 +1518,28 @@
                 setGridSize(prev => ({ ...prev, cols: Math.max(1, prev.cols - 1) }));
             };
 
-            // 登録個体数の変化に応じて、グリッドサイズ（行数・列数）が常に「個体数×2」を下回らないよう自動拡大する。
+            // グリッドサイズ（行数・列数）は、未配置リストも含めた登録総数ではなく、
+            // 実際に配置されているカードの最大行・列位置から必要な分だけ自動拡大する。
+            // （以前は「個体数×2」で拡大しており、未配置の個体が増えるだけでも描画エリアが
+            // 際限なく巨大化し、描画・ドラッグ操作が重くなる原因になっていた）
             // 手動の行追加・列追加ボタンで広げたサイズより縮小することはない（Math.maxで両者の大きい方を採用）。
             useEffect(() => {
-                const minSize = creatures.length * 2;
+                let maxRow = -1, maxCol = -1;
+                creatures.forEach(c => {
+                    if (c.gridPos && Number.isInteger(c.gridPos.row) && Number.isInteger(c.gridPos.col)) {
+                        if (c.gridPos.row > maxRow) maxRow = c.gridPos.row;
+                        if (c.gridPos.col > maxCol) maxCol = c.gridPos.col;
+                    }
+                });
+                const neededRows = maxRow + 2; // 配置済みカードが収まる最小行数+余白1行
+                const neededCols = maxCol + 2;
                 setGridSize(prev => {
-                    const newRows = Math.max(prev.rows, minSize, 1);
-                    const newCols = Math.max(prev.cols, minSize, 1);
+                    const newRows = Math.max(prev.rows, neededRows, 1);
+                    const newCols = Math.max(prev.cols, neededCols, 1);
                     if (newRows === prev.rows && newCols === prev.cols) return prev;
                     return { rows: newRows, cols: newCols };
                 });
-            }, [creatures.length]);
+            }, [creatures]);
             const [filters, setFilters] = useState({ name: '', sex: '', saleStatus: '', stage: '', alias: '', generation: '' });
             const [showFilter, setShowFilter] = useState(false);
             // 一覧の「計画」欄は誤操作防止のため、デフォルトでロック（タップしても切り替わらない）しておき、
@@ -1566,7 +1554,6 @@
             const [termsTab, setTermsTab] = useState('使用方法');
             const [appIcon, setAppIcon] = useState(() => localStorage.getItem('beetle_icon') || '');
             const [showIconModal, setShowIconModal] = useState(false);
-            const [showExcelModal, setShowExcelModal] = useState(false);
             const [iconCropSrc, setIconCropSrc] = useState(null); // アイコン用：トリミング待ちの選択直後画像
 
             const nameMap = useMemo(() => {
@@ -1592,8 +1579,8 @@
                             const aL=a.history.length>0?a.history[a.history.length-1]:null;
                             const bL=b.history.length>0?b.history[b.history.length-1]:null;
                             const tgt=Number(growthTargetApp)||80;
-                            av=calcGrowthRate(a.hatchDate,aL,buildGrowthTableFromStats(creatures,a.alias,tgt,a.id,refSizeApp,refWeightApp));
-                            bv=calcGrowthRate(b.hatchDate,bL,buildGrowthTableFromStats(creatures,b.alias,tgt,b.id,refSizeApp,refWeightApp));
+                            av=calcGrowthRate(a.hatchDate,aL,buildGrowthTableFromStats(creatures,a.alias,tgt,a.id));
+                            bv=calcGrowthRate(b.hatchDate,bL,buildGrowthTableFromStats(creatures,b.alias,tgt,b.id));
                         } else if (sort.key === 'size' || sort.key === 'temp') {
                             // 体重・温度はcreature自体のプロパティではなく、飼育記録（history）の最新値を見る必要がある。
                             // 単位付き文字列（例:"15g","26℃"）から数値部分だけを抽出して数値として比較する。
@@ -1603,11 +1590,6 @@
                             const bNum = bLatest ? parseFloat(String(bLatest).replace(/[^0-9.\-]/g, '')) : null;
                             av = (aNum == null || isNaN(aNum)) ? null : aNum;
                             bv = (bNum == null || isNaN(bNum)) ? null : bNum;
-                        } else if (sort.key === 'lastRecordDate') {
-                            const aLast = a.history.length > 0 ? a.history[a.history.length - 1].date : null;
-                            const bLast = b.history.length > 0 ? b.history[b.history.length - 1].date : null;
-                            av = aLast || null;
-                            bv = bLast || null;
                         } else {
                             av = a[sort.key];
                             bv = b[sort.key];
@@ -1699,165 +1681,6 @@
                 localStorage.setItem('beetle_agreed', 'true');
                 setAgreedToTerms(true);
             };
-            const toCsvDate = (v) => {
-                const s = String(v || '').trim();
-                if (!s || s === '-') return '-';
-                return s.replace(/-/g, '／'); // 全角スラッシュにしてExcelの自動日付変換を回避
-            };
-            const downloadCsv = (fileName, csvBody) => {
-                const bom = '\uFEFF'; // Excelで文字化けしないようUTF-8 BOMを付与
-                const mimeType = 'text/csv;charset=utf-8';
-                const blob = new Blob([bom + csvBody], { type: mimeType });
-
-                const fallbackDownload = () => {
-                    const dataUri = 'data:' + mimeType + ',' + encodeURIComponent(bom + csvBody);
-                    const a = document.createElement('a');
-                    a.href = dataUri;
-                    a.download = fileName;
-                    a.rel = 'noopener';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                };
-
-                let file = null;
-                try {
-                    file = new File([blob], fileName, { type: 'text/csv' });
-                } catch (e) {
-                    file = null;
-                }
-
-                if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
-                    navigator.share({ files: [file] }).catch(() => {
-                        fallbackDownload();
-                    });
-                } else {
-                    fallbackDownload();
-                }
-            };
-            const exportToExcel = () => {
-                const rows = processedCreatures.map(c => {
-                    const latestSize = c.history.length > 0 ? c.history[c.history.length - 1].size : '-';
-                    const latestTemp = c.history.length > 0 ? c.history[c.history.length - 1].temp : '-';
-                    const rate = calcGrowthRate(c.hatchDate, c.history.length > 0 ? c.history[c.history.length - 1] : null, buildGrowthTableFromStats(creatures, c.alias, Number(growthTargetApp) || 80, c.id, refSizeApp, refWeightApp));
-                    const f = calcSelfF(c, nameMap);
-                    return {
-                        '個体名': c.name,
-                        '計画': c.saleStatus,
-                        '性別': c.sex,
-                        '名称': c.alias,
-                        '産地': c.origin,
-                        '累代': c.generation,
-                        '体重': latestSize,
-                        '成長率': (rate === null || rate === undefined) ? '-' : (rate > 0 ? '+' : '') + rate + '%',
-                        '孵化日': toCsvDate(c.hatchDate),
-                        'ステージ': c.stage,
-                        '温度': latestTemp,
-                        '羽化日': toCsvDate(c.emergenceDate),
-                        '羽化サイズ': c.emergenceSize ? `${c.emergenceSize}mm` : '-',
-                        'オス親': (c.maleParent && c.maleParent !== '-' && nameMap[c.maleParent]) ? c.maleParent : '',
-                        'メス親': (c.femaleParent && c.femaleParent !== '-' && nameMap[c.femaleParent]) ? c.femaleParent : '',
-                        '累積F値': (f * 100).toFixed(2) + '%'
-                    };
-                });
-                const ws = XLSX.utils.json_to_sheet(rows);
-                const csvBody = XLSX.utils.sheet_to_csv(ws);
-                const fileName = `beetle_data_${new Date().toISOString().slice(0,10)}.csv`;
-                downloadCsv(fileName, csvBody);
-            };
-            const downloadCsvTemplate = () => {
-                const exampleRow = {
-                    '個体名': '例）個体1号',
-                    '計画': '例）使用（使用/予備/不要）',
-                    '性別': '例）オス（オス/メス）',
-                    '名称': '例）Aライン',
-                    '産地': '例）福岡県久留米市',
-                    '累代': '例）F1',
-                    '孵化日': '例）2026／04／01',
-                    'ステージ': '例）幼虫（幼虫/蛹/羽化/成虫）',
-                    '羽化日': '例）2026／05／01（未羽化なら空欄）',
-                    '羽化サイズ': '例）80（単位mmは自動で付きます）',
-                    'オス親': '例）個体1号（既に登録済みの個体名を入力）',
-                    'メス親': '例）個体2号（既に登録済みの個体名を入力）'
-                };
-                const ws = XLSX.utils.json_to_sheet([exampleRow]);
-                const csvBody = XLSX.utils.sheet_to_csv(ws);
-                downloadCsv('beetle_import_template.csv', csvBody);
-            };
-            const repairBrokenDates = () => {
-                const isBroken = (v) => /^\d+(\.\d+)?$/.test(String(v || '').trim());
-                let fixedCount = 0;
-                const updated = creatures.map(c => {
-                    const next = { ...c };
-                    if (isBroken(c.hatchDate)) { next.hatchDate = normalizeDateValue(c.hatchDate); fixedCount++; }
-                    if (isBroken(c.emergenceDate)) { next.emergenceDate = normalizeDateValue(c.emergenceDate); fixedCount++; }
-                    return next;
-                });
-                if (fixedCount === 0) {
-                    alert('数値化された日付データは見つかりませんでした。');
-                    return;
-                }
-                if (confirm(`${fixedCount}件の日付（孵化日・羽化日）が数値になっているのを検出しました。正しい日付形式に修復しますか？`)) {
-                    setCreatures(updated);
-                    alert('修復しました。');
-                }
-            };
-            const importFromCSV = (file) => {
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                    try {
-                        const text = ev.target.result;
-                        const csvWb = XLSX.read(text, { type: 'string' });
-                        const wsname = csvWb.SheetNames[0];
-                        const rows = XLSX.utils.sheet_to_json(csvWb.Sheets[wsname], { defval: '' });
-                        if (!rows.length) throw new Error('データが見つかりません');
-
-                        const existingByName = {};
-                        creatures.forEach(c => { existingByName[c.name] = c; });
-                        const updated = [...creatures];
-                        let newCount = 0, updateCount = 0;
-
-                        rows.forEach(row => {
-                            const name = String(row['個体名'] || '').trim();
-                            if (!name) return;
-                            const emergenceSizeRaw = String(row['羽化サイズ'] || '').replace('mm', '').trim();
-                            const fields = {
-                                name,
-                                saleStatus: row['計画'] || '使用',
-                                sex: row['性別'] || 'オス',
-                                alias: row['名称'] || '',
-                                origin: row['産地'] || '',
-                                generation: row['累代'] || '',
-                                hatchDate: normalizeDateValue(row['孵化日']),
-                                stage: row['ステージ'] || '幼虫',
-                                emergenceDate: normalizeDateValue(row['羽化日']),
-                                emergenceSize: (emergenceSizeRaw && emergenceSizeRaw !== '-') ? emergenceSizeRaw : '',
-                                maleParent: row['オス親'] || '',
-                                femaleParent: row['メス親'] || ''
-                            };
-                            const existing = existingByName[name];
-                            if (existing) {
-                                const idx = updated.findIndex(c => c.id === existing.id);
-                                updated[idx] = { ...updated[idx], ...fields };
-                                updateCount++;
-                            } else {
-                                const newCreature = { ...fields, id: `${Date.now().toString()}_${Math.random().toString(36).slice(2, 8)}`, history: [] };
-                                updated.push(newCreature);
-                                existingByName[name] = newCreature;
-                                newCount++;
-                            }
-                        });
-
-                        const confirmMsg = `${newCount}件を新規追加、${updateCount}件を更新します。よろしいですか？\n（体重・温度・成長率・累積F値はCSVの内容に関わらず反映されません。個体の基本情報のみが対象です）`;
-                        if (confirm(confirmMsg)) {
-                            setCreatures(dedupeIds(updated));
-                        }
-                    } catch (err) {
-                        alert('CSVファイルの読み込みに失敗しました。正しい形式か確認してください。\n[詳細: ' + (err && err.message ? err.message : String(err)) + ']');
-                    }
-                };
-                reader.readAsText(file, 'UTF-8');
-            };
 
             if (!agreedToTerms) return (
                 <div className="min-h-screen flex items-center justify-center p-4 bg-neutral-950">
@@ -1945,18 +1768,15 @@
                     onGoToTree={(id) => { setHighlightId(id); setActiveTab('血統図'); setSelectedCreature(null); }}
                     sharedGrowthAlias={growthAliasApp}
                     sharedGrowthTarget={growthTargetApp}
-                    sharedRefSize={refSizeApp}
-                    sharedRefWeight={refWeightApp}
-                    onApplyGrowthSettings={(alias,target,refSize,refWeight)=>{setGrowthAliasApp(alias);setGrowthTargetApp(target);if(refSize!==undefined)setRefSizeApp(refSize);if(refWeight!==undefined)setRefWeightApp(refWeight);}}
+                    onApplyGrowthSettings={(alias,target)=>{setGrowthAliasApp(alias);setGrowthTargetApp(target);}}
                 />
             );
 
             // 一覧テーブルヘッダー（「サイズ」→「体重」、「羽化サイズ」追加）
             const tableHeaders = [
-                {k:'name',l:'個体名'}, {k:'lastRecordDate',l:'最終記録日'}, {k:'emergenceSize',l:'羽化サイズ'}, {k:'emergenceDate',l:'羽化日'}, {k:'sex',l:'性別'}, {k:'size',l:'体重'}, {k:'growthRate',l:'成長率'},
-                {k:'saleStatus',l:'計画'}, {k:'alias',l:'名称'}, {k:'origin',l:'産地'},
-                {k:'generation',l:'累代'}, {k:'hatchDate',l:'孵化日'}, {k:'stage',l:'ステージ'},
-                {k:'temp',l:'温度'},
+                {k:'name',l:'個体名'}, {k:'saleStatus',l:'計画'}, {k:'sex',l:'性別'}, {k:'alias',l:'名称'}, {k:'origin',l:'産地'},
+                {k:'generation',l:'累代'}, {k:'size',l:'体重'}, {k:'growthRate',l:'成長率'}, {k:'hatchDate',l:'孵化日'}, {k:'stage',l:'ステージ'},
+                {k:'temp',l:'温度'}, {k:'emergenceDate',l:'羽化日'}, {k:'emergenceSize',l:'羽化サイズ'},
                 {k:'maleParent',l:'オス親'}, {k:'femaleParent',l:'メス親'}, {k:'selfF',l:'累積F値'}
             ];
 
@@ -2039,46 +1859,9 @@
                             <button onClick={() => setShowIconModal(true)} className="flex-1 bg-neutral-700 py-2 rounded text-xs text-white font-bold hover:bg-neutral-600 transition-colors">
                                 <i className="fa-solid fa-image mr-1"></i>アイコン
                             </button>
-                            <button onClick={() => setShowExcelModal(true)} className="flex-1 bg-emerald-700 py-2 rounded text-xs text-white font-bold hover:bg-emerald-600 transition-colors">
-                                <i className="fa-solid fa-file-excel mr-1"></i>Excel
-                            </button>
                         </div>
                     </nav>
 
-                    {showExcelModal && (
-                        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-                            <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4">
-                                <h3 className="font-bold text-white"><i className="fa-solid fa-file-excel mr-1"></i>Excel連携</h3>
-                                <p className="text-[11px] text-neutral-400 leading-relaxed">一覧に表示中のデータをCSVファイルとして書き出したり、CSVファイルから個体データを取り込んだりできます（Excelでそのまま開けます）。</p>
-                                <p className="text-[10px] text-amber-400 leading-relaxed">※ 共有画面が出たら必ず「”ファイル”に保存」を選んでください。「メモ」やメールの本文に直接貼り付ける形を選ぶと、ファイル名しか保存されません。</p>
-                                <div className="space-y-2">
-                                    <button onClick={() => { exportToExcel(); setShowExcelModal(false); }} className="w-full bg-emerald-600 py-3 rounded-lg font-bold text-white text-sm hover:bg-emerald-500 transition-colors">
-                                        <i className="fa-solid fa-download mr-1"></i>CSVで保存
-                                    </button>
-                                    <label className="w-full bg-emerald-600 py-3 rounded-lg font-bold text-white text-sm hover:bg-emerald-500 transition-colors cursor-pointer text-center block">
-                                        <i className="fa-solid fa-upload mr-1"></i>CSVを読込
-                                        <input type="file" accept=".csv,text/csv,application/vnd.ms-excel,text/plain" className="hidden" onChange={e => {
-                                            const file = e.target.files[0];
-                                            if (!file) return;
-                                            importFromCSV(file);
-                                            e.target.value = '';
-                                            setShowExcelModal(false);
-                                        }} />
-                                    </label>
-                                    <button onClick={() => { downloadCsvTemplate(); setShowExcelModal(false); }} className="w-full bg-neutral-700 py-3 rounded-lg font-bold text-white text-sm hover:bg-neutral-600 transition-colors">
-                                        <i className="fa-solid fa-file-lines mr-1"></i>入力フォームをダウンロード
-                                    </button>
-                                    <button onClick={() => { repairBrokenDates(); }} className="w-full bg-amber-700 py-3 rounded-lg font-bold text-white text-sm hover:bg-amber-600 transition-colors">
-                                        <i className="fa-solid fa-wrench mr-1"></i>日付データを修復
-                                    </button>
-                                </div>
-                                <p className="text-[10px] text-neutral-500">※ 入力フォームは各項目の先頭行に記入例が入ったCSVです。Excelで開いて2行目を書き換え、行を追加してから「CSVを読込」してください。</p>
-                                <p className="text-[10px] text-neutral-500">※ 読込時は「個体名」で既存データと照合し、一致すれば更新・なければ新規追加されます（体重・成長率・温度・累積F値は反映されません）。</p>
-                                <p className="text-[10px] text-neutral-500">※ 「日付データを修復」は、過去のCSV読込で孵化日・羽化日が数値（例: 45896.375）になってしまった個体を正しい日付形式に直します。</p>
-                                <button onClick={() => setShowExcelModal(false)} className="w-full bg-neutral-700 py-2 rounded font-bold text-white text-sm">閉じる</button>
-                            </div>
-                        </div>
-                    )}
                     {showIconModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
                             <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-sm border border-neutral-700 space-y-4">
@@ -2141,20 +1924,6 @@
                             <div className="mb-3">
                                 <p className="text-xs text-white mb-1">目標サイズ（mm）</p>
                                 <input type="text" inputMode="numeric" value={growthTargetApp} onChange={e => setGrowthTargetApp(e.target.value)} className="w-24 bg-neutral-700 text-white text-xs rounded px-2 py-2 border border-neutral-600" />
-                            </div>
-                            <div className="mb-3 p-3 bg-neutral-900 rounded-lg border border-neutral-700">
-                                <p className="text-xs text-emerald-400 font-bold mb-2">基準サイズ設定</p>
-                                <p className="text-[10px] text-neutral-400 mb-2">「このサイズならこの体重が目安」という基準点です。理想曲線の計算のベースになります。</p>
-                                <div className="flex gap-3">
-                                    <div>
-                                        <p className="text-[10px] text-neutral-400 mb-1">基準サイズ（mm）</p>
-                                        <input type="text" inputMode="numeric" value={refSizeApp} onChange={e => setRefSizeApp(e.target.value)} className="w-20 bg-neutral-700 text-white text-xs rounded px-2 py-2 border border-neutral-600" />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] text-neutral-400 mb-1">基準体重（g）</p>
-                                        <input type="text" inputMode="decimal" value={refWeightApp} onChange={e => setRefWeightApp(e.target.value)} className="w-20 bg-neutral-700 text-white text-xs rounded px-2 py-2 border border-neutral-600" />
-                                    </div>
-                                </div>
                             </div>
                             <div className="flex gap-2"><button onClick={() => setShowGrowthSettings(false)} className="flex-1 bg-emerald-600 py-2 rounded text-white text-xs font-bold">適用</button><button onClick={() => setShowGrowthSettings(false)} className="flex-1 bg-neutral-600 py-2 rounded text-neutral-300 text-xs">キャンセル</button></div>
                         </div>
@@ -2271,19 +2040,18 @@
                                         {processedCreatures.map(c => (
                                             <tr key={c.id} className="border-t border-neutral-800 hover:bg-neutral-800 bg-neutral-900 cursor-pointer" onClick={() => setSelectedCreature(c)}>
                                                 <td className="p-3 font-bold text-center sticky-col-1">{c.name}</td>
-                                                <td className="p-3 text-center">{c.history.length > 0 ? c.history[c.history.length - 1].date : '-'}</td>
-                                                <td className="p-3 text-center">{c.emergenceSize ? `${c.emergenceSize}mm` : '-'}</td>
-                                                <td className="p-3 text-center">{c.emergenceDate}</td>
-                                                <td className="p-3 text-center"><span style={{color: sexColor(c.sex), fontWeight: 'bold'}}>{c.sex}</span></td>
-                                                <td className="p-3 text-center">{c.history.length > 0 ? c.history[c.history.length - 1].size : '-'}</td>
-                                                <td className="p-3 text-center"><GrowthRateSpan rate={calcGrowthRate(c.hatchDate,c.history.length>0?c.history[c.history.length-1]:null,buildGrowthTableFromStats(creatures,c.alias,Number(growthTargetApp)||80,c.id,refSizeApp,refWeightApp))} /></td>
                                                 <td className="p-3 text-center"><button onClick={(e) => { if (saleStatusLocked) return; toggleSaleStatus(c.id, e); }} className={`px-2 py-1 rounded text-[10px] font-bold ${saleStatusLocked ? 'opacity-60 cursor-not-allowed' : ''} ${c.saleStatus === '使用' ? 'bg-emerald-600 text-white' : c.saleStatus === '予備' ? 'bg-amber-600 text-white' : 'bg-neutral-500 text-white'}`}>{c.saleStatus}</button></td>
+                                                <td className="p-3 text-center"><span style={{color: sexColor(c.sex), fontWeight: 'bold'}}>{c.sex}</span></td>
                                                 <td className="p-3 text-center">{c.alias}</td>
                                                 <td className="p-3 text-center">{c.origin}</td>
                                                 <td className="p-3 text-center">{c.generation}</td>
+                                                <td className="p-3 text-center">{c.history.length > 0 ? c.history[c.history.length - 1].size : '-'}</td>
+                                                <td className="p-3 text-center"><GrowthRateSpan rate={calcGrowthRate(c.hatchDate,c.history.length>0?c.history[c.history.length-1]:null,buildGrowthTableFromStats(creatures,c.alias,Number(growthTargetApp)||80,c.id))} /></td>
                                                 <td className="p-3 text-center">{c.hatchDate}</td>
                                                 <td className="p-3 text-center">{c.stage}</td>
                                                 <td className="p-3 text-center">{c.history.length > 0 ? c.history[c.history.length - 1].temp : '-'}</td>
+                                                <td className="p-3 text-center">{c.emergenceDate}</td>
+                                                <td className="p-3 text-center">{c.emergenceSize ? `${c.emergenceSize}mm` : '-'}</td>
                                                 <td className="p-3 text-center">{(c.maleParent && c.maleParent !== '-' && nameMap[c.maleParent]) ? c.maleParent : ''}</td>
                                                 <td className="p-3 text-center">{(c.femaleParent && c.femaleParent !== '-' && nameMap[c.femaleParent]) ? c.femaleParent : ''}</td>
                                                 <td className="p-3 text-center">
@@ -2623,7 +2391,7 @@
         }
 
         // ---- 詳細画面 ----
-        function DetailView({ creature, allCreatures, nameMap, onBack, onUpdate, onGoToTree, onRequestSave, sharedGrowthAlias, sharedGrowthTarget, sharedRefSize, sharedRefWeight, onApplyGrowthSettings }) {
+        function DetailView({ creature, allCreatures, nameMap, onBack, onUpdate, onGoToTree, onRequestSave, sharedGrowthAlias, sharedGrowthTarget, onApplyGrowthSettings }) {
             const [form, setForm] = useState(creature);
             const [showEditModal, setShowEditModal] = useState(false);
             const [editForm, setEditForm] = useState(creature);
@@ -2654,11 +2422,7 @@
             const [pendingAlias, setPendingAlias] = React.useState(sharedGrowthAlias!==undefined?sharedGrowthAlias:creature.alias||'');
             const [pendingTarget, setPendingTarget] = React.useState(sharedGrowthTarget!==undefined?Number(sharedGrowthTarget)||80:80);
             const [growthTarget, setGrowthTarget] = React.useState(sharedGrowthTarget!==undefined?Number(sharedGrowthTarget)||80:80);
-            const [pendingRefSize, setPendingRefSize] = React.useState(sharedRefSize!==undefined?Number(sharedRefSize)||80:80);
-            const [pendingRefWeight, setPendingRefWeight] = React.useState(sharedRefWeight!==undefined?Number(sharedRefWeight)||22:22);
-            const [growthRefSize, setGrowthRefSize] = React.useState(sharedRefSize!==undefined?Number(sharedRefSize)||80:80);
-            const [growthRefWeight, setGrowthRefWeight] = React.useState(sharedRefWeight!==undefined?Number(sharedRefWeight)||22:22);
-            const [growthTable, setGrowthTable] = React.useState(function(){ var a=sharedGrowthAlias!==undefined?sharedGrowthAlias:creature.alias||''; var t=sharedGrowthTarget!==undefined?Number(sharedGrowthTarget)||80:80; var rs=sharedRefSize!==undefined?Number(sharedRefSize)||80:80; var rw=sharedRefWeight!==undefined?Number(sharedRefWeight)||22:22; return buildGrowthTableFromStats(allCreatures,a,t,creature.id,rs,rw)||buildGrowthTableForSize(t,rs,rw); });
+            const [growthTable, setGrowthTable] = React.useState(function(){ var a=sharedGrowthAlias!==undefined?sharedGrowthAlias:creature.alias||''; var t=sharedGrowthTarget!==undefined?Number(sharedGrowthTarget)||80:80; return buildGrowthTableFromStats(allCreatures,a,t,creature.id)||buildGrowthTableForSize(t); });
             const calcRate = function(h){ return calcGrowthRate(form.hatchDate,h,growthTable); };
 
             const saveRecord = (record) => {
@@ -2839,21 +2603,7 @@
                                 <div className="mb-3 p-4 bg-neutral-800 rounded-xl border border-emerald-700">
                                     <div className="mb-3"><p className="text-xs text-white mb-1">名称</p><AliasSelect allCreatures={allCreatures} value={pendingAlias||''} onChange={setPendingAlias} /></div>
                                     <div className="mb-3"><p className="text-xs text-white mb-1">目標サイズ（mm）</p><input type="text" inputMode="numeric" value={pendingTarget} onChange={e => setPendingTarget(e.target.value)} className="w-20 bg-neutral-700 text-white text-xs rounded px-2 py-1 border border-neutral-600" /></div>
-                                    <div className="mb-3 p-3 bg-neutral-900 rounded-lg border border-neutral-700">
-                                        <p className="text-xs text-emerald-400 font-bold mb-2">基準サイズ設定</p>
-                                        <p className="text-[10px] text-neutral-400 mb-2">「このサイズならこの体重が目安」という基準点です。理想曲線の計算のベースになります。</p>
-                                        <div className="flex gap-3">
-                                            <div>
-                                                <p className="text-[10px] text-neutral-400 mb-1">基準サイズ（mm）</p>
-                                                <input type="text" inputMode="numeric" value={pendingRefSize} onChange={e => setPendingRefSize(e.target.value)} className="w-20 bg-neutral-700 text-white text-xs rounded px-2 py-1 border border-neutral-600" />
-                                            </div>
-                                            <div>
-                                                <p className="text-[10px] text-neutral-400 mb-1">基準体重（g）</p>
-                                                <input type="text" inputMode="decimal" value={pendingRefWeight} onChange={e => setPendingRefWeight(e.target.value)} className="w-20 bg-neutral-700 text-white text-xs rounded px-2 py-1 border border-neutral-600" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-2"><button onClick={() => { const t=Number(pendingTarget)||80; const rs=Number(pendingRefSize)||80; const rw=Number(pendingRefWeight)||22; const newTbl=buildGrowthTableFromStats(allCreatures,pendingAlias||form.alias,t,form.id,rs,rw)||buildGrowthTableForSize(t,rs,rw); setGrowthAlias(pendingAlias); setGrowthTarget(t); setGrowthRefSize(rs); setGrowthRefWeight(rw); setGrowthTable(newTbl); if(typeof onApplyGrowthSettings==='function') onApplyGrowthSettings(pendingAlias,t,rs,rw); setShowGrowthPanel(false); }} className="flex-1 bg-emerald-600 py-2 rounded text-white text-xs font-bold">適用</button><button onClick={() => setShowGrowthPanel(false)} className="flex-1 bg-neutral-600 py-2 rounded text-neutral-300 text-xs">キャンセル</button></div>
+                                    <div className="flex gap-2"><button onClick={() => { const t=Number(pendingTarget)||80; const newTbl=buildGrowthTableFromStats(allCreatures,pendingAlias||form.alias,t,form.id)||buildGrowthTableForSize(t); setGrowthAlias(pendingAlias); setGrowthTarget(t); setGrowthTable(newTbl); if(typeof onApplyGrowthSettings==='function') onApplyGrowthSettings(pendingAlias,t); setShowGrowthPanel(false); }} className="flex-1 bg-emerald-600 py-2 rounded text-white text-xs font-bold">適用</button><button onClick={() => setShowGrowthPanel(false)} className="flex-1 bg-neutral-600 py-2 rounded text-neutral-300 text-xs">キャンセル</button></div>
                                 </div>
                             )}
                             <div className="overflow-hidden rounded border border-neutral-800">
