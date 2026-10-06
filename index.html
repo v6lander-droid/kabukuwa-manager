@@ -194,6 +194,41 @@
 
         // =============================================
 
+        // ---- IndexedDBストレージ層 ----
+        // localStorageは容量上限（目安5〜10MB、ブラウザにより異なる）に達すると保存に失敗するため、
+        // 写真を含むデータが増えても安心して保存できるよう、より大きな容量を扱えるIndexedDBに移行する。
+        const IDB_NAME = 'beetle_base_db';
+        const IDB_STORE = 'kv';
+        function idbOpen() {
+            return new Promise((resolve, reject) => {
+                const req = indexedDB.open(IDB_NAME, 1);
+                req.onupgradeneeded = () => {
+                    const db = req.result;
+                    if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
+                };
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+        async function idbGet(key) {
+            const db = await idbOpen();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(IDB_STORE, 'readonly');
+                const req = tx.objectStore(IDB_STORE).get(key);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+        async function idbSet(key, value) {
+            const db = await idbOpen();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(IDB_STORE, 'readwrite');
+                tx.objectStore(IDB_STORE).put(value, key);
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+            });
+        }
+
         // ---- 年/月/日いずれか1列分のスクロールピッカー ----
         // 中央（選択位置）に来た項目が選択値になる。スクロールスナップで止まった位置を検出する。
         function ScrollPickerColumn({ items, value, onChange, formatLabel }) {
@@ -1378,44 +1413,12 @@
             const [femaleSelection, setFemaleSelection] = useState('');
             const [saveError, setSaveError] = useState(false);
             const [loadFailed, setLoadFailed] = useState(false);
-            const [pedigreeLines, setPedigreeLines] = useState(() => {
-                try {
-                    const saved = localStorage.getItem('beetle_pedigree_lines');
-                    if (saved) {
-                        const parsed = JSON.parse(saved);
-                        if (Array.isArray(parsed)) return parsed;
-                    }
-                } catch (e) { console.warn('血統図の線データの読み込みに失敗しました。', e); }
-                return [];
-            });
-            const [gridSize, setGridSize] = useState(() => {
-                try {
-                    const saved = localStorage.getItem('beetle_grid_size');
-                    if (saved) {
-                        const parsed = JSON.parse(saved);
-                        if (parsed && parsed.rows && parsed.cols) return parsed;
-                    }
-                } catch (e) { console.warn('グリッドサイズの読み込みに失敗しました。', e); }
-                return { rows: 1, cols: 1 };
-            });
+            const [dataLoaded, setDataLoaded] = useState(false);
+            const [pedigreeLines, setPedigreeLines] = useState([]);
+            const [gridSize, setGridSize] = useState({ rows: 1, cols: 1 });
+            const [creatures, setCreatures] = useState([]);
 
-            useEffect(() => {
-                try { localStorage.setItem('beetle_pedigree_lines', JSON.stringify(pedigreeLines)); } catch (e) { console.error('線データの保存に失敗しました。', e); }
-            }, [pedigreeLines]);
-            useEffect(() => {
-                try { localStorage.setItem('beetle_grid_size', JSON.stringify(gridSize)); } catch (e) { console.error('グリッドサイズの保存に失敗しました。', e); }
-            }, [gridSize]);
-
-            const [creatures, setCreatures] = useState(() => {
-                try {
-                    const saved = localStorage.getItem('beetle_data');
-                    if (saved) {
-                        const parsed = JSON.parse(saved);
-                        if (Array.isArray(parsed)) return dedupeIds(parsed);
-                    }
-                } catch (e) {
-                    console.warn('保存データの読み込みに失敗しました。', e);
-                }
+            const makeSampleCreatures = () => {
                 const sampleStages = ['孵化', '1令', '2令', '3令', '蛹', '成虫'];
                 return Array.from({ length: 10 }, (_, i) => {
                     const historyLength = 2 + Math.floor(Math.random() * 4);
@@ -1442,7 +1445,76 @@
                         sex: i % 2 === 0 ? 'オス' : 'メス'
                     };
                 });
-            });
+            };
+
+            // 初回のみ：IndexedDBからデータを読み込む。IndexedDBが空の場合は、
+            // 旧バージョン（localStorage）に残っているデータがあれば自動移行する。
+            useEffect(() => {
+                (async () => {
+                    try {
+                        let [savedCreatures, savedLines, savedGrid, savedIcon] = await Promise.all([
+                            idbGet('creatures'), idbGet('pedigreeLines'), idbGet('gridSize'), idbGet('icon')
+                        ]);
+
+                        if (savedCreatures === undefined) {
+                            // IndexedDBにまだデータが無い → 旧localStorageからの移行を試みる
+                            let migrated = false;
+                            try {
+                                const legacyCreatures = localStorage.getItem('beetle_data');
+                                if (legacyCreatures) {
+                                    const parsed = JSON.parse(legacyCreatures);
+                                    if (Array.isArray(parsed)) { savedCreatures = dedupeIds(parsed); migrated = true; }
+                                }
+                                const legacyLines = localStorage.getItem('beetle_pedigree_lines');
+                                if (legacyLines) { const p = JSON.parse(legacyLines); if (Array.isArray(p)) savedLines = p; }
+                                const legacyGrid = localStorage.getItem('beetle_grid_size');
+                                if (legacyGrid) { const p = JSON.parse(legacyGrid); if (p && p.rows && p.cols) savedGrid = p; }
+                                const legacyIcon = localStorage.getItem('beetle_icon');
+                                if (legacyIcon) savedIcon = legacyIcon;
+                            } catch (e) {
+                                console.warn('旧データ（localStorage）の読み込みに失敗しました。', e);
+                            }
+                            if (migrated) {
+                                try {
+                                    await Promise.all([
+                                        idbSet('creatures', savedCreatures),
+                                        idbSet('pedigreeLines', savedLines || []),
+                                        idbSet('gridSize', savedGrid || { rows: 1, cols: 1 }),
+                                        idbSet('icon', savedIcon || '')
+                                    ]);
+                                    // 移行が完了したら、旧データは消して二重管理を避ける
+                                    localStorage.removeItem('beetle_data');
+                                    localStorage.removeItem('beetle_pedigree_lines');
+                                    localStorage.removeItem('beetle_grid_size');
+                                    localStorage.removeItem('beetle_icon');
+                                } catch (e) {
+                                    console.error('IndexedDBへのデータ移行に失敗しました。', e);
+                                }
+                            }
+                        }
+
+                        setCreatures(Array.isArray(savedCreatures) ? dedupeIds(savedCreatures) : makeSampleCreatures());
+                        setPedigreeLines(Array.isArray(savedLines) ? savedLines : []);
+                        setGridSize((savedGrid && savedGrid.rows && savedGrid.cols) ? savedGrid : { rows: 1, cols: 1 });
+                        setAppIcon(savedIcon || '');
+                    } catch (e) {
+                        console.error('データの読み込みに失敗しました。', e);
+                        setCreatures(makeSampleCreatures());
+                    } finally {
+                        setDataLoaded(true);
+                    }
+                })();
+                // eslint-disable-next-line
+            }, []);
+
+            useEffect(() => {
+                if (!dataLoaded) return;
+                idbSet('pedigreeLines', pedigreeLines).catch(e => console.error('線データの保存に失敗しました。', e));
+            }, [pedigreeLines, dataLoaded]);
+            useEffect(() => {
+                if (!dataLoaded) return;
+                idbSet('gridSize', gridSize).catch(e => console.error('グリッドサイズの保存に失敗しました。', e));
+            }, [gridSize, dataLoaded]);
 
             const [sort, setSort] = useState({ key: 'id', direction: 'asc' });
 
@@ -1552,7 +1624,7 @@
             const [stickyHeaderHeight, setStickyHeaderHeight] = useState(0);
             const [agreedToTerms, setAgreedToTerms] = useState(() => localStorage.getItem('beetle_agreed') === 'true');
             const [termsTab, setTermsTab] = useState('使用方法');
-            const [appIcon, setAppIcon] = useState(() => localStorage.getItem('beetle_icon') || '');
+            const [appIcon, setAppIcon] = useState(''); // 実際の値は上記の読み込みuseEffectでIndexedDBから設定される
             const [showIconModal, setShowIconModal] = useState(false);
             const [iconCropSrc, setIconCropSrc] = useState(null); // アイコン用：トリミング待ちの選択直後画像
 
@@ -1628,15 +1700,14 @@
             }, [maleSelection, femaleSelection, nameMap]);
 
             useEffect(() => {
-                if (loadFailed) return;
-                try {
-                    localStorage.setItem('beetle_data', JSON.stringify(creatures));
-                    setSaveError(false);
-                } catch (e) {
-                    console.error('データの保存に失敗しました。', e);
-                    setSaveError(true);
-                }
-            }, [creatures, loadFailed]);
+                if (loadFailed || !dataLoaded) return;
+                idbSet('creatures', creatures)
+                    .then(() => setSaveError(false))
+                    .catch(e => {
+                        console.error('データの保存に失敗しました。', e);
+                        setSaveError(true);
+                    });
+            }, [creatures, loadFailed, dataLoaded]);
 
             const resetFilters = () => setFilters({ name: '', sex: '', saleStatus: '', stage: '', alias: '', generation: '' });
             const activeFilterCount = Object.values(filters).filter(v => v !== '').length;
@@ -1666,13 +1737,13 @@
                 setSelectedCreature(updated);
             };
             const updateAppIcon = (base64) => {
-                localStorage.setItem('beetle_icon', base64);
+                idbSet('icon', base64).catch(e => console.error('アイコンの保存に失敗しました。', e));
                 setAppIcon(base64);
                 document.getElementById('favicon').href = base64;
                 document.getElementById('apple-touch-icon').href = base64;
             };
             const removeAppIcon = () => {
-                localStorage.removeItem('beetle_icon');
+                idbSet('icon', '').catch(e => console.error('アイコンの削除に失敗しました。', e));
                 setAppIcon('');
                 document.getElementById('favicon').href = '';
                 document.getElementById('apple-touch-icon').href = '';
@@ -1681,6 +1752,12 @@
                 localStorage.setItem('beetle_agreed', 'true');
                 setAgreedToTerms(true);
             };
+
+            if (!dataLoaded) return (
+                <div className="min-h-screen flex items-center justify-center bg-neutral-950">
+                    <p className="text-neutral-400 text-sm">読み込み中...</p>
+                </div>
+            );
 
             if (!agreedToTerms) return (
                 <div className="min-h-screen flex items-center justify-center p-4 bg-neutral-950">
