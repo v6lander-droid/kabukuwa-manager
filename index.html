@@ -456,6 +456,27 @@
             // 「行方不明」にしないため、無効なgridPosは未配置（一時置き場行き）として扱う。
             const isValidGridPos = (gp) => gp && Number.isInteger(gp.row) && Number.isInteger(gp.col) && gp.row >= 0 && gp.row < rows && gp.col >= 0 && gp.col < cols;
 
+            // 個体詳細画面の「血統図へ」から遷移してきた際、対象個体(highlightId)が
+            // 画面中央に見えるようパン位置を自動調整する。1回だけ行い、その後ユーザーが
+            // 自分でパン・ズームした操作を上書きしないよう、どのhighlightIdに対して
+            // 中央寄せ済みかをrefで記録しておく。
+            const centeredForRef = useRef(null);
+            useEffect(() => {
+                if (!highlightId) return;
+                if (centeredForRef.current === highlightId) return;
+                if (containerWidth === 0) return;
+                const target = creatures.find(c => c.id === highlightId);
+                if (!target || !isValidGridPos(target.gridPos)) return;
+                const p = cellToPx(target.gridPos.row, target.gridPos.col);
+                const containerHeight = 500; // 描画エリアの固定高さ（styleのheight:500と一致させる）
+                setZoomFactor(1);
+                setPan({
+                    x: containerWidth / 2 - p.x * baseScale,
+                    y: containerHeight / 2 - p.y * baseScale,
+                });
+                centeredForRef.current = highlightId;
+            }, [highlightId, containerWidth, creatures, baseScale]);
+
             const occupied = {};
             creatures.forEach(c => { if (isValidGridPos(c.gridPos)) occupied[`${c.gridPos.row}_${c.gridPos.col}`] = c; });
 
