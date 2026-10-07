@@ -24,9 +24,18 @@
     <style>
         .sticky-col-1 { position: sticky; left: 0; z-index: 10; background-color: #171717; }
         .sticky-col-2 { position: sticky; left: 44px; z-index: 10; background-color: #171717; }
-        thead th.sticky-col-1, thead th.sticky-col-2 { background-color: #262626; z-index: 15; }
+        thead th.sticky-col-1, thead th.sticky-col-2 { background-color: #262626; z-index: 25; }
         tbody tr .sticky-col-1, tbody tr .sticky-col-2 { background-color: #171717; }
         tbody tr:hover .sticky-col-1, tbody tr:hover .sticky-col-2 { background-color: #262626; }
+        /* 一覧テーブルの項目名行を縦スクロールでも固定する。
+           position:stickyは<thead>自体ではなく各<th>に付与する（<thead>への指定はSafari等で効かないブラウザがあるため）。
+           また、ページ全体をスクロールする構成だと、テーブルを囲む横スクロール用のoverflow-x-autoが
+           position:stickyの縦方向固定を無効化してしまう（overflow指定のある祖先要素があるとstickyは機能しないというCSSの仕様）。
+           そのため、テーブルの枠自体に高さ上限とoverflow-autoを持たせ、横スクロールも縦スクロールも
+           その枠内で完結させることで、同じスクロール領域内でstickyが正しく働くようにしている。
+           左方向の固定（sticky-col-1）と両立させるため、通常のth（.sticky-theadクラス）と
+           左右両方固定の角セル（sticky-col-1）とでz-indexを分けている。 */
+        .sticky-thead { position: sticky; top: 0; z-index: 20; background-color: #262626; }
         .bg-neutral-900 { background-color: #171717; }
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #0a0a0a; }
@@ -1712,14 +1721,19 @@
             const resetFilters = () => setFilters({ name: '', sex: '', saleStatus: '', stage: '', alias: '', generation: '' });
             const activeFilterCount = Object.values(filters).filter(v => v !== '').length;
             useEffect(() => {
-                const update = () => {
-                    if (stickyHeaderRef.current) setStickyHeaderHeight(stickyHeaderRef.current.getBoundingClientRect().height);
-                };
+                const el = stickyHeaderRef.current;
+                if (!el) return;
+                const update = () => setStickyHeaderHeight(el.getBoundingClientRect().height);
                 update();
+                // ResizeObserverで、上部固定エリアの高さが「何の理由であれ」変化した瞬間を漏れなく検知する。
+                // 以前はshowFilter等を列挙したdependency配列で判定していたが、成長率設定パネルの開閉など
+                // 対象外の変化が反映されず、測定値が古いまま残って縦スクロール固定の位置がズレる原因になっていた。
+                const ro = new ResizeObserver(update);
+                ro.observe(el);
                 window.addEventListener('resize', update);
                 const timer = setTimeout(update, 50); // フォントやアイコン読み込み後の高さ変化にも対応
-                return () => { window.removeEventListener('resize', update); clearTimeout(timer); };
-            }, [showFilter, activeTab, appIcon, activeFilterCount]);
+                return () => { ro.disconnect(); window.removeEventListener('resize', update); clearTimeout(timer); };
+            }, []);
             const toggleSaleStatus = (id, e) => {
                 e.stopPropagation();
                 const statuses = ['使用', '予備', '不要'];
@@ -2086,12 +2100,12 @@
                                     </div>
                                 </div>
                             )}
-                            <div className="overflow-x-auto bg-neutral-900 rounded-lg shadow-xl">
+                            <div className="overflow-auto bg-neutral-900 rounded-lg shadow-xl" style={{ maxHeight: '65vh' }}>
                                 <table className="w-full text-sm border-collapse whitespace-nowrap">
                                     <thead className="bg-neutral-800">
                                         <tr>
                                             {tableHeaders.map((h, i) => (
-                                                <th key={h.k} className={`p-3 cursor-pointer hover:bg-neutral-700 select-none ${h.k === 'name' ? 'sticky-col-1' : ''}`} onClick={() => setSort({key:h.k, direction: sort.key===h.k && sort.direction==='asc'?'desc':'asc'})}>
+                                                <th key={h.k} className={`sticky-thead p-3 cursor-pointer hover:bg-neutral-700 select-none ${h.k === 'name' ? 'sticky-col-1' : ''}`} onClick={() => setSort({key:h.k, direction: sort.key===h.k && sort.direction==='asc'?'desc':'asc'})}>
                                                     <span className="flex items-center justify-center gap-1">
                                                         {h.l}
                                                         {h.k === 'saleStatus' && (
@@ -2110,7 +2124,7 @@
                                                     </span>
                                                 </th>
                                             ))}
-                                            <th className="p-3">操作</th>
+                                            <th className="sticky-thead p-3">操作</th>
                                         </tr>
                                     </thead>
                                     <tbody>
