@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Beetle Base</title>
     <link id="favicon" rel="icon" type="image/png" href="">
@@ -183,7 +184,59 @@
 
         // 重複IDを検出し、重複している個体に新しいIDを振り直す
         // （オス親・メス親の参照は個体名で行っているため、IDの変更による影響はない）
+        // 外部データ（バックアップJSON・保存データ）の無害化：想定外の型・巨大値・不正な画像URLを除去する
+        function sanitizeCreatures(list) {
+            const isImg = v => typeof v === 'string' && /^data:image\/(png|jpe?g|gif|webp);base64,/i.test(v);
+            return (Array.isArray(list) ? list : [])
+                .filter(c => c && typeof c === 'object' && !Array.isArray(c))
+                .map(c => {
+                    const o = { ...c };
+                    delete o.__proto__;
+                    o.name = o.name == null ? '' : String(o.name);
+                    o.history = Array.isArray(o.history) ? o.history.filter(h => h && typeof h === 'object' && !Array.isArray(h)) : [];
+                    if (o.photo != null && !isImg(o.photo)) o.photo = '';
+                    if (o.gridPos != null) {
+                        const g = o.gridPos;
+                        o.gridPos = (g && Number.isInteger(g.row) && Number.isInteger(g.col) && g.row >= 0 && g.col >= 0 && g.row < 500 && g.col < 500) ? { row: g.row, col: g.col } : null;
+                    }
+                    return o;
+                });
+        }
+        function sanitizeGridSize(g) {
+            if (!g || !Number.isInteger(g.rows) || !Number.isInteger(g.cols)) return null;
+            return { rows: Math.min(Math.max(g.rows, 1), 500), cols: Math.min(Math.max(g.cols, 1), 500) };
+        }
+        function sanitizeLines(l) {
+            return Array.isArray(l) ? l.filter(x => x && typeof x === 'object') : [];
+        }
+        // バックアップ保存前の検査：仮データ(JSON文字列)を作り、読み戻して元データと一致し、構造が壊れていないか確認する。
+        // 問題があれば問題点の配列を返す（空配列なら正常）。
+        function verifyBackup(json, original) {
+            const errs = [];
+            let back;
+            try { back = JSON.parse(json); } catch (e) { return ['仮保存データを読み戻せませんでした']; }
+            if (!back || !Array.isArray(back.creatures)) return ['個体データの形式が不正です'];
+            if (back.creatures.length !== original.creatures.length) errs.push(`個体数が一致しません（${original.creatures.length}→${back.creatures.length}）`);
+            const ids = new Set();
+            back.creatures.forEach((c, i) => {
+                const label = `${i + 1}件目`;
+                if (!c || typeof c !== 'object' || Array.isArray(c)) { errs.push(`${label}: 個体データが不正`); return; }
+                if (typeof c.id !== 'string' || !c.id) errs.push(`${label}: IDが未設定`);
+                else if (ids.has(c.id)) errs.push(`${label}: IDが重複`);
+                else ids.add(c.id);
+                if (typeof c.name !== 'string') errs.push(`${label}: 個体名が不正`);
+                if (!Array.isArray(c.history)) errs.push(`${label}: 飼育記録が不正`);
+                if (c.photo && !/^data:image\//i.test(c.photo)) errs.push(`${label}: 写真データが不正`);
+                if (c.gridPos != null && !(Number.isInteger(c.gridPos.row) && Number.isInteger(c.gridPos.col))) errs.push(`${label}: 血統図の位置が不正`);
+            });
+            if (!Array.isArray(back.pedigreeLines)) errs.push('血統図の線データが不正');
+            else if (back.pedigreeLines.length !== original.pedigreeLines.length) errs.push('血統図の線の数が一致しません');
+            if (!back.gridSize || !Number.isInteger(back.gridSize.rows) || !Number.isInteger(back.gridSize.cols)) errs.push('グリッドサイズが不正');
+            if (!errs.length && JSON.stringify(back) !== JSON.stringify(original)) errs.push('仮保存データと元データの内容が一致しません');
+            return errs;
+        }
         function dedupeIds(creatures) {
+            creatures = sanitizeCreatures(creatures);
             const seen = new Set();
             let changed = false;
             const result = creatures.map((c, i) => {
@@ -1524,9 +1577,9 @@
                         }
 
                         setCreatures(Array.isArray(savedCreatures) ? dedupeIds(savedCreatures) : makeSampleCreatures());
-                        setPedigreeLines(Array.isArray(savedLines) ? savedLines : []);
-                        setGridSize((savedGrid && savedGrid.rows && savedGrid.cols) ? savedGrid : { rows: 1, cols: 1 });
-                        setAppIcon(savedIcon || '');
+                        setPedigreeLines(sanitizeLines(savedLines));
+                        setGridSize(sanitizeGridSize(savedGrid) || { rows: 1, cols: 1 });
+                        setAppIcon(/^data:image\/(png|jpe?g|gif|webp);base64,/i.test(savedIcon || '') ? savedIcon : '');
                     } catch (e) {
                         console.error('データの読み込みに失敗しました。', e);
                         setCreatures(makeSampleCreatures());
@@ -1659,7 +1712,7 @@
             const [iconCropSrc, setIconCropSrc] = useState(null); // アイコン用：トリミング待ちの選択直後画像
 
             const nameMap = useMemo(() => {
-                const m = {};
+                const m = Object.create(null);
                 creatures.forEach(c => { m[c.name] = c; });
                 return m;
             }, [creatures]);
@@ -1922,8 +1975,19 @@
                         <div className="flex gap-2">
                             <button onClick={() => setAgreedToTerms(false)} className="flex-1 bg-neutral-700 py-2 rounded text-xs text-white font-bold hover:bg-neutral-600 transition-colors"><i className="fa-solid fa-file-lines mr-1"></i>規約</button>
                             <button onClick={() => {
+                                // ① 仮保存データ作成
                                 const backupData = { creatures, pedigreeLines, gridSize };
-                                const json = JSON.stringify(backupData, null, 2);
+                                let json;
+                                try { json = JSON.stringify(backupData, null, 2); }
+                                catch (err) { alert('仮保存データの作成に失敗しました。保存を中止しました。\n' + (err && err.message || err)); return; }
+                                // ② 破損チェック
+                                const problems = verifyBackup(json, backupData);
+                                if (problems.length > 0) {
+                                    const shown = problems.slice(0, 8).join('\n・');
+                                    const more = problems.length > 8 ? `\n…ほか${problems.length - 8}件` : '';
+                                    if (!confirm('保存データに問題が見つかりました。\n・' + shown + more + '\n\nこのまま保存しますか？（キャンセルで中止）')) return;
+                                }
+                                // ③ 保存
                                 const blob = new Blob([json], { type: 'application/json' });
                                 const url = URL.createObjectURL(blob);
                                 const a = document.createElement('a');
@@ -1950,8 +2014,8 @@
                                                 loadedCreatures = data;
                                             } else if (data && Array.isArray(data.creatures)) {
                                                 loadedCreatures = data.creatures;
-                                                loadedLines = Array.isArray(data.pedigreeLines) ? data.pedigreeLines : undefined;
-                                                loadedGridSize = (data.gridSize && data.gridSize.rows && data.gridSize.cols) ? data.gridSize : undefined;
+                                                loadedLines = Array.isArray(data.pedigreeLines) ? sanitizeLines(data.pedigreeLines) : undefined;
+                                                loadedGridSize = sanitizeGridSize(data.gridSize) || undefined;
                                             } else {
                                                 throw new Error('不正な形式');
                                             }
